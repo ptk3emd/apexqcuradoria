@@ -3,7 +3,6 @@ import type {Curator, CuratorPresence, Question} from '../types/question';
 import type {SharedRow} from './sharedState';
 import {DEFAULT_CURATORS} from '../data/defaultCurators';
 
-export const usesSupabase = import.meta.env?.VITE_CURATOR_BACKEND === 'supabase';
 let client:SupabaseClient | null = null;
 const tabSession = crypto.randomUUID();
 let cursor=0;
@@ -20,8 +19,8 @@ export async function loginSupabase(curatorId:string,password:string):Promise<Cu
 }
 export function curationClient() {
   if (client) return client;
-  const url=import.meta.env.VITE_SUPABASE_URL;
-  const key=import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const url=import.meta.env.VITE_SUPABASE_URL || 'https://jcbinmjiimqomjdyfdia.supabase.co';
+  const key=import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_2dVE51sq6_Sb7-Hj9R1MdA_1qclrXTY";
   if (!url || !key) throw new Error('Configure a URL e a chave pública do Supabase antes de ativar a migração.');
   client=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},global:{fetch:async(input,init)=>{
     const headers=new Headers(init?.headers);
@@ -38,8 +37,9 @@ export async function currentSupabaseCurator():Promise<Curator> {
   return curator;
 }
 
-async function rpc(name:string, args:Record<string,unknown>) {
-  const {data,error}=await curationClient().rpc(name,args);
+async function rpc(name:string, args:Record<string,unknown>, signal?:AbortSignal) {
+  const request=curationClient().rpc(name,args);
+  const {data,error}=await (signal ? request.abortSignal(signal) : request);
   if(error) {
     if(/não autorizado|Sessão expirada/.test(error.message)) {
       sessionStorage.removeItem(SESSION_KEY);
@@ -49,14 +49,16 @@ async function rpc(name:string, args:Record<string,unknown>) {
   }
   return data;
 }
-export async function loadSupabaseBase():Promise<Question[]> {
-  cursor=await rpc('curation_initial_cursor',{});
+export async function loadSupabaseBase(onPage?:(page:Question[])=>void, signal?:AbortSignal):Promise<Question[]> {
+  cursor=await rpc('curation_initial_cursor',{},signal);
   shared.clear();
   const questions:Question[]=[];
   let after:string|null=null;
   while(true) {
-    const page=await rpc('curation_base',{p_after:after,p_limit:500}) as Question[];
-    questions.push(...page);
+    const page=await rpc('curation_base',{p_after:after,p_limit:500},signal) as Question[];
+    const currentPage=page.filter(q=>!shared.get(q.id)?.deleted);
+    questions.push(...currentPage);
+    onPage?.(currentPage);
     if(page.length<500) break;
     after=page[page.length-1].id;
   }
@@ -64,14 +66,21 @@ export async function loadSupabaseBase():Promise<Question[]> {
   return questions;
 }
 export async function fetchSupabaseShared() {
+  const changes=new Map<string,SharedRow>();
   let result;
   do {
     result=await rpc('curation_sync',{p_cursor:cursor});
     for(const q of result.questions as Question[]) {
       const previous=shared.get(q.id);
-      if(!previous || previous.deleted || (q.sync_version??0)>previous.version) shared.set(q.id,{id:q.id,patch:q,version:q.sync_version??0});
+      if(!previous || previous.deleted || (q.sync_version??0)>previous.version) {
+        const row={id:q.id,patch:q,version:q.sync_version??0};
+        shared.set(q.id,row);changes.set(q.id,row);
+      }
     }
-    for(const id of result.removed_ids || []) shared.set(id,{id,patch:{},version:0,deleted:true});
+    for(const id of result.removed_ids || []) {
+      const row={id,patch:{},version:0,deleted:true};
+      shared.set(id,row);changes.set(id,row);
+    }
     cursor=result.cursor;
   } while(result.more);
   const presences:Record<string,CuratorPresence>={};
@@ -80,7 +89,7 @@ export async function fetchSupabaseShared() {
       curador_cor:DEFAULT_CURATORS.find(c=>c.id===lease.actor)?.avatarCor || '#888',
       questao_atual_id:id,status_atividade:'visualizando',ultima_atividade:new Date(lease.until-90000).toISOString()};
   }
-  return {rows:[...shared.values()],presences};
+  return {rows:[...changes.values()],presences};
 }
 export async function mutateSupabase(questions:Question[],action:string,target?:Curator|null):Promise<Question[]> {
   const result=await rpc('curation_mutate',{

@@ -95,7 +95,7 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
               Progresso Geral de Auditoria: <span className="text-[#DF9696]">{auditProgressPct}%</span>
             </h2>
             <p className="text-xs sm:text-sm text-[#bdbdbd] leading-relaxed">
-              Acompanhe a auditoria dos três curadores e gere o SQL acumulado das questões corrigidas, atualizado com as alterações confirmadas no Google Sheets.
+              Acompanhe a auditoria dos três curadores e gere o SQL acumulado das questões corrigidas, atualizado com as alterações confirmadas no Supabase.
             </p>
           </div>
 

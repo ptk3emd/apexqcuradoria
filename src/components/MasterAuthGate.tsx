@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { ShieldAlert, KeyRound, Check, Eye, EyeOff, UserCheck, AlertCircle } from 'lucide-react';
 import { Curator } from '../types/question';
-import { sheetsRequest } from '../lib/collaboration';
 
 interface MasterAuthGateProps {
-  authenticate?: (id:string,password:string)=>Promise<Curator>;
+  authenticate: (id:string,password:string)=>Promise<Curator>;
   curators: Curator[];
   onAuthenticated: (selectedCurator: Curator) => void;
 }
@@ -35,8 +34,7 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
     setBusy(true);
     let verified:Curator|undefined;
     try {
-      if(authenticate) verified=await authenticate(selectedCuratorId,password.trim());
-      else await sheetsRequest({action:'authenticate'}, {key:password.trim(), actor:selectedCuratorId});
+      verified=await authenticate(selectedCuratorId,password);
     } catch (error: any) {
       setErrorMessage(error.message || 'Não foi possível validar a senha no servidor.');
       setIsShaking(true);
@@ -52,9 +50,6 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
       // Store authenticated state in sessionStorage so refreshing doesn't lose session during active work
       try {
         sessionStorage.setItem('apexmed_authenticated_curator_id', curator.id);
-        if(authenticate) sessionStorage.removeItem('apexmed_sheets_access_key');
-        else sessionStorage.setItem('apexmed_sheets_access_key', password.trim());
-        sessionStorage.setItem('apexmed_master_auth_token', 'apex-auth-valid');
       } catch {
         // ignore
       }

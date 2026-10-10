@@ -404,7 +404,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                               onClick={(e) => e.stopPropagation()}
                               onChange={async (e) => {
                                 e.stopPropagation();
-                                if (await onUpdateStatus(q.id, e.target.value as QuestionStatus)) onShowToast('Status atualizado', `Questão #${q.id} salva no Google Sheets.`, 'success');
+                                if (await onUpdateStatus(q.id, e.target.value as QuestionStatus)) onShowToast('Status atualizado', `Questão #${q.id} salva no Supabase.`, 'success');
                               }}
                               className="bg-[#272522] hover:bg-[#31302e] border border-white/[0.1] rounded-lg px-2 py-1 text-[11px] text-[#f8fafc] outline-none cursor-pointer"
                             >
