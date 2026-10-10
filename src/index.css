@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+:root {
+  --brand: #A43939;
+  --brand-h: #913232;
+  --brand-light: #FCF4F4;
+  --brand-muted: #DF9696;
+  --brand-soft: #C96565;
+
+  --shell: #31302e;
+  --shell2: #1e1d1b;
+  --shell3: #272522;
+
+  --panel: rgba(255, 255, 255, 0.04);
+  --panel-2: rgba(255, 255, 255, 0.06);
+  --panel-hover: rgba(255, 255, 255, 0.08);
+
+  --warm-border: rgba(255, 255, 255, 0.07);
+  --warm-border-strong: rgba(255, 255, 255, 0.12);
+  --brand-border: rgba(164, 57, 57, 0.25);
+  --brand-border-hover: rgba(164, 57, 57, 0.45);
+
+  --warm-muted: #7a7468;
+  --warm-muted-readable: #bdbdbd;
+  --warm-subtle: #4a4540;
+
+  --w: #f8fafc;
+  --font: 'Atkinson Hyperlegible', Arial, system-ui, sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-family: var(--font);
+}
+
+body {
+  font-family: var(--font);
+  background-color: var(--shell);
+  color: var(--w);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Custom Scrollbar for clinical data cockpit feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--shell2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4a4540;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand);
+}
+
+/* ApexMed Design System Tokens & Components */
+.label-micro {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--brand-muted);
+  font-weight: 700;
+}
+.label-micro::before {
+  content: '';
+  width: 14px;
+  height: 2px;
+  background: var(--brand-muted);
+  display: inline-block;
+}
+
+.btn-primary-apex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--brand);
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  box-shadow: 0 0 24px rgba(164,57,57,.35);
+  transition: all .2s ease;
+  cursor: pointer;
+}
+.btn-primary-apex:hover {
+  background: var(--brand-h);
+  box-shadow: 0 0 36px rgba(164,57,57,.5);
+  transform: translateY(-1px);
+}
+.btn-primary-apex:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary-apex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.03);
+  color: var(--warm-muted-readable);
+  padding: 9px 20px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 700;
+  transition: all .2s ease;
+  cursor: pointer;
+}
+.btn-secondary-apex:hover {
+  border-color: #C96565;
+  color: var(--w);
+  background: rgba(255,255,255,.06);
+}
+
+.apex-panel {
+  background: var(--panel);
+  border: 1px solid var(--warm-border);
+  border-radius: 16px;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.apex-panel:hover {
+  border-color: rgba(164, 57, 57, 0.25);
+}
+
+.glow-hero {
+  background:
+    radial-gradient(ellipse 55% 65% at 75% 30%, rgba(164,57,57,.12) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 40% at 15% 80%, rgba(164,57,57,.06) 0%, transparent 60%),
+    var(--shell);
+}
