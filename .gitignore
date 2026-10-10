@@ -9,3 +9,7 @@ coverage/
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Impeccable (machine-local install)
+.claude/settings.local.json
+.claude/skills/impeccable/scripts/bin/
