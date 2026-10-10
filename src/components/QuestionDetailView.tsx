@@ -32,10 +32,10 @@ interface QuestionDetailViewProps {
   comments: QuestionComment[];
   onBackToList: () => void;
   onNavigateQuestion: (index: number) => void;
-  onUpdateQuestion: (updated: Question) => void;
-  onUpdateStatus: (id: string, status: QuestionStatus, notas?: string) => void;
+  onUpdateQuestion: (updated: Question) => Promise<boolean>;
+  onUpdateStatus: (id: string, status: QuestionStatus, notas?: string) => Promise<boolean>;
   onAssignQuestion: (id: string, curator: Curator | null) => void;
-  onAddComment: (questionId: string, text: string) => void;
+  onAddComment: (questionId: string, text: string) => Promise<boolean>;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
   onEditingChange?: (isEditing: boolean) => void;
 }
@@ -74,7 +74,9 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
   useEffect(() => {
     setEditedQuestion({ ...question });
     setIsEditing(false);
-  }, [question]);
+  }, [question.id]);
+
+  useEffect(() => { if (!isEditing) setEditedQuestion({ ...question }); }, [question, isEditing]);
 
   // Keyboard navigation Left/Right arrow keys
   useEffect(() => {
@@ -107,7 +109,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
     }
   };
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
     const updated = {
       ...editedQuestion,
       modificado: true,
@@ -115,21 +117,21 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
       revisado_por: activeCurator.nome,
       revisado_em: new Date().toISOString(),
     };
-    onUpdateQuestion(updated);
+    if (!await onUpdateQuestion(updated)) return;
     setIsEditing(false);
     onShowToast('Questão Atualizada!', 'Modificações salvas e marcadas como "Questão Corrigida".', 'success');
   };
 
-  const handleSendComment = (e: React.FormEvent) => {
+  const handleSendComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!commentInput.trim()) return;
-    onAddComment(question.id, commentInput.trim());
+    if (!await onAddComment(question.id, commentInput.trim())) return;
     setCommentInput('');
     onShowToast('Comentário publicado!', 'Sincronizado em tempo real para os outros curadores.', 'info');
   };
 
-  const handleConfirmRevision = () => {
-    onUpdateStatus(question.id, 'revisar_questao', revisionNotesInput);
+  const handleConfirmRevision = async () => {
+    if (!await onUpdateStatus(question.id, 'revisar_questao', revisionNotesInput)) return;
     setShowRevisionModal(false);
     setRevisionNotesInput('');
     onShowToast('Status: Revisar Questão', 'A questão foi enviada para fila de revisão com suas observações.', 'info');
@@ -419,7 +421,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                     <div className="flex items-start gap-3">
                       {/* Letter Badge / Radio button */}
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (question.correta !== letter) {
                             const updated = {
                               ...question,
@@ -429,7 +431,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                               revisado_por: activeCurator.nome,
                               revisado_em: new Date().toISOString(),
                             };
-                            onUpdateQuestion(updated);
+                            if (!await onUpdateQuestion(updated)) return;
                             onShowToast(
                               `Gabarito alterado para (${letter})`,
                               'Atualização registrada e SQL correspondente gerado.',
@@ -537,8 +539,8 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             <div className="space-y-2">
               {/* Aprovar Questão */}
               <button
-                onClick={() => {
-                  onUpdateStatus(question.id, 'aprovadas');
+                onClick={async () => {
+                  if (!await onUpdateStatus(question.id, 'aprovadas')) return;
                   onShowToast('Questão Aprovada!', 'Validada e pronta para publicação.', 'success');
                 }}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-xs transition-all border ${
@@ -556,8 +558,8 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
 
               {/* Eliminar Questão */}
               <button
-                onClick={() => {
-                  onUpdateStatus(question.id, 'eliminar_questao');
+                onClick={async () => {
+                  if (!await onUpdateStatus(question.id, 'eliminar_questao')) return;
                   onShowToast('Questão marcada para Eliminação', 'Comando DELETE SQL gerado automaticamente.', 'error');
                 }}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-xs transition-all border ${
@@ -591,8 +593,8 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
 
               {/* Questão Corrigida */}
               <button
-                onClick={() => {
-                  onUpdateStatus(question.id, 'questao_corrigida');
+                onClick={async () => {
+                  if (!await onUpdateStatus(question.id, 'questao_corrigida')) return;
                   onShowToast('Marcada como Corrigida!', 'Alterações salvas com comando UPDATE SQL.', 'info');
                 }}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-xs transition-all border ${

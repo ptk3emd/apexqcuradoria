@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { ShieldAlert, KeyRound, Check, Eye, EyeOff, UserCheck, AlertCircle } from 'lucide-react';
 import { Curator } from '../types/question';
+import { sheetsRequest } from '../lib/collaboration';
 
 interface MasterAuthGateProps {
   curators: Curator[];
   onAuthenticated: (selectedCurator: Curator) => void;
 }
 
-const MASTER_PASSWORD = 'apex-plt-7890@';
 
 export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
   curators,
@@ -19,7 +19,7 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isShaking, setIsShaking] = useState<boolean>(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -28,8 +28,10 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
       return;
     }
 
-    if (password.trim() !== MASTER_PASSWORD) {
-      setErrorMessage('Senha mestra incorreta. Acesso bloqueado.');
+    try {
+      await sheetsRequest({action:'authenticate'}, {key:password.trim(), actor:selectedCuratorId});
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Não foi possível autenticar no Google Sheets.');
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 600);
       setPassword('');
@@ -41,6 +43,7 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
       // Store authenticated state in sessionStorage so refreshing doesn't lose session during active work
       try {
         sessionStorage.setItem('apexmed_authenticated_curator_id', curator.id);
+        sessionStorage.setItem('apexmed_sheets_access_key', password.trim());
         sessionStorage.setItem('apexmed_master_auth_token', 'apex-auth-valid');
       } catch {
         // ignore
