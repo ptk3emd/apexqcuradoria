@@ -37,6 +37,7 @@ interface QuestionDetailViewProps {
   onAssignQuestion: (id: string, curator: Curator | null) => void;
   onAddComment: (questionId: string, text: string) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
+  onEditingChange?: (isEditing: boolean) => void;
 }
 
 export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
@@ -52,12 +53,19 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
   onAssignQuestion,
   onAddComment,
   onShowToast,
+  onEditingChange,
 }) => {
   const currentIndex = allQuestions.findIndex(q => q.id === question.id);
   const total = allQuestions.length;
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedQuestion, setEditedQuestion] = useState<Question>({ ...question });
+
+  useEffect(() => {
+    if (onEditingChange) {
+      onEditingChange(isEditing);
+    }
+  }, [isEditing, onEditingChange]);
   const [commentInput, setCommentInput] = useState('');
   const [revisionNotesInput, setRevisionNotesInput] = useState('');
   const [showRevisionModal, setShowRevisionModal] = useState(false);
@@ -237,6 +245,32 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* Active Curator Collision Banner (prevents another curator from doing the same question) */}
+      {activeViewers.length > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-950/40 border-2 border-amber-500/50 flex items-center justify-between gap-4 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0 border border-amber-500/40">
+              <AlertTriangle className="w-5 h-5 text-amber-400 animate-bounce" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-200">
+                Atenção: Questão em uso por outro curador!
+              </p>
+              <p className="text-xs text-amber-300/80 mt-0.5">
+                <b className="text-white underline">{activeViewers.map(v => v.curador_nome).join(', ')}</b> está {activeViewers[0].status_atividade === 'editando' ? 'editando o texto desta questão neste instante' : 'analisando e auditando esta questão agora'}. Evite modificar simultaneamente para não sobrepor o trabalho.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {question.responsavel_nome && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-white/[0.08] text-white font-semibold">
+                Responsável atribuído: {question.responsavel_nome}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Main 2-Column Cockpit Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">

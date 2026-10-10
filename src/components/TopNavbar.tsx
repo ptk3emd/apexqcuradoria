@@ -32,6 +32,8 @@ interface TopNavbarProps {
   modifiedCount: number;
   onlineCuratorsCount: number;
   onLockSession: () => void;
+  sheetsSyncStatus?: 'idle' | 'pending' | 'success' | 'error';
+  sheetsSyncMessage?: string;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({
@@ -48,6 +50,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   onOpenBatchAssignModal,
   totalQuestions,
   modifiedCount,
+  sheetsSyncStatus = 'idle',
+  sheetsSyncMessage,
 }) => {
   const [isCuratorMenuOpen, setIsCuratorMenuOpen] = useState(false);
   const curatorMenuRef = useRef<HTMLDivElement>(null);
@@ -174,15 +178,56 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             <span className="hidden md:inline">Reservar Lote</span>
           </button>
 
-          {/* Google Sheets Synchronization Hub */}
+          {/* Google Sheets Synchronization Hub with Status Indicator */}
           <button
             onClick={onOpenSheetsModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border bg-emerald-950/40 border-emerald-600/40 text-emerald-300 hover:bg-emerald-900/50 cursor-pointer shadow-sm"
-            title="Sincronização com Google Sheets (Planilha Oficial Ativa)"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border cursor-pointer shadow-sm ${
+              sheetsSyncStatus === 'pending'
+                ? 'bg-amber-950/40 border-amber-500/50 text-amber-300 hover:bg-amber-900/50'
+                : sheetsSyncStatus === 'error'
+                ? 'bg-rose-950/40 border-rose-500/50 text-rose-300 hover:bg-rose-900/50'
+                : sheetsSyncStatus === 'success'
+                ? 'bg-emerald-950/40 border-emerald-600/40 text-emerald-300 hover:bg-emerald-900/50'
+                : 'bg-emerald-950/30 border-white/[0.1] text-emerald-400 hover:bg-emerald-900/40'
+            }`}
+            title={
+              sheetsSyncMessage
+                ? `Google Sheets: ${sheetsSyncMessage}`
+                : sheetsSyncStatus === 'pending'
+                ? 'Enviando alterações para o Google Sheets...'
+                : sheetsSyncStatus === 'error'
+                ? 'Último envio para o Google Sheets falhou. Clique para detalhes.'
+                : sheetsSyncStatus === 'success'
+                ? 'Último envio para o Google Sheets realizado com sucesso!'
+                : 'Google Sheets (Planilha Oficial Conectada)'
+            }
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <FileSpreadsheet className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Google Sheets</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            
+            {/* Status indicator: Verde (sucesso), Amarelo (pendente), Vermelho (falhou) */}
+            <span className="relative flex h-2.5 w-2.5 ml-0.5">
+              {sheetsSyncStatus === 'pending' && (
+                <>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400" />
+                </>
+              )}
+              {sheetsSyncStatus === 'error' && (
+                <>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.7)]" />
+                </>
+              )}
+              {(sheetsSyncStatus === 'success' || sheetsSyncStatus === 'idle') && (
+                <>
+                  {sheetsSyncStatus === 'success' && (
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
+                  )}
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
+                </>
+              )}
+            </span>
           </button>
 
           {/* Progressive SQL Editor */}

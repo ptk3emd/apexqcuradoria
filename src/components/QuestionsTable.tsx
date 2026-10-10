@@ -246,10 +246,18 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                             </span>
                             {viewers.length > 0 && (
                               <span
-                                className="w-2 h-2 rounded-full animate-ping"
-                                style={{ backgroundColor: viewers[0].curador_cor }}
-                                title={`Sendo visualizada por ${viewers[0].curador_nome}`}
-                              />
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border border-amber-500/40 bg-amber-500/15 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.25)] animate-pulse"
+                                title={`${viewers.map(v => v.curador_nome).join(', ')} está ${viewers[0].status_atividade === 'editando' ? 'editando' : 'visualizando'} esta questão`}
+                              >
+                                <span
+                                  className="w-2 h-2 rounded-full"
+                                  style={{ backgroundColor: viewers[0].curador_cor }}
+                                />
+                                <span className="truncate max-w-[80px]">
+                                  {viewers[0].status_atividade === 'editando' ? '✍️ ' : '👀 '}
+                                  {viewers[0].curador_nome.split(' ')[0]}
+                                </span>
+                              </span>
                             )}
                           </div>
                         </td>

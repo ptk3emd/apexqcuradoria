@@ -26,7 +26,10 @@ import { GoogleSheetsSyncModal } from './components/GoogleSheetsSyncModal';
 import { SqlEditorModal } from './components/SqlEditorModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { MasterAuthGate } from './components/MasterAuthGate';
-import { syncUpdateToGoogleSheetsWebhook } from './lib/googleSheetsSync';
+import { 
+  syncUpdateToGoogleSheetsWebhook, 
+  getStoredSheetsSyncConfig 
+} from './lib/googleSheetsSync';
 
 import { INITIAL_QUESTIONS_SAMPLE } from './data/initialQuestions';
 import { 
@@ -110,6 +113,16 @@ export default function App() {
   const [isSqlModalOpen, setIsSqlModalOpen] = useState(false);
   const [isSheetsModalOpen, setIsSheetsModalOpen] = useState(false);
   const [isBatchAssignModalOpen, setIsBatchAssignModalOpen] = useState(false);
+
+  // 7.1 Google Sheets Sync Status (idle, pending, success, error)
+  const [sheetsSyncStatus, setSheetsSyncStatus] = useState<'idle' | 'pending' | 'success' | 'error'>(() => {
+    const cfg = getStoredSheetsSyncConfig();
+    return cfg.lastSendStatus || 'idle';
+  });
+  const [sheetsSyncMessage, setSheetsSyncMessage] = useState<string>(() => {
+    const cfg = getStoredSheetsSyncConfig();
+    return cfg.lastSendMessage || '';
+  });
 
   // 8. Toasts
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -240,22 +253,49 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Broadcast presence ping when active question or curator changes
+  // Broadcast presence ping when active question or curator changes & heartbeat every 4s
   useEffect(() => {
-    const presence: CuratorPresence = {
-      curador_id: activeCurator.id,
-      curador_nome: activeCurator.nome,
-      curador_cor: activeCurator.avatarCor,
-      questao_atual_id: activeView === 'detail' ? selectedQuestionId : null,
-      status_atividade: activeView === 'detail' ? 'visualizando' : 'ocioso',
-      ultima_atividade: new Date().toISOString(),
+    const sendPresence = () => {
+      const presence: CuratorPresence = {
+        curador_id: activeCurator.id,
+        curador_nome: activeCurator.nome,
+        curador_cor: activeCurator.avatarCor,
+        questao_atual_id: activeView === 'detail' ? selectedQuestionId : null,
+        status_atividade: activeView === 'detail' ? 'visualizando' : 'ocioso',
+        ultima_atividade: new Date().toISOString(),
+      };
+
+      broadcastRealtimeEvent({
+        type: 'PRESENCE_PING',
+        payload: presence,
+      });
     };
 
-    broadcastRealtimeEvent({
-      type: 'PRESENCE_PING',
-      payload: presence,
-    });
+    sendPresence();
+    const interval = setInterval(sendPresence, 4000);
+    return () => clearInterval(interval);
   }, [activeCurator, activeView, selectedQuestionId]);
+
+  // Clean up stale presences (older than 12 seconds)
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      setPresences(prev => {
+        let changed = false;
+        const next: Record<string, CuratorPresence> = {};
+        for (const [id, p] of Object.entries(prev)) {
+          const age = now - new Date(p.ultima_atividade).getTime();
+          if (age < 12000) {
+            next[id] = p;
+          } else {
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 5000);
+    return () => clearInterval(cleanupInterval);
+  }, []);
 
   // Selected Question object
   const currentQuestion = useMemo(() => {
@@ -318,6 +358,8 @@ export default function App() {
         });
 
         // Trigger Google Sheets Webhook background sync if configured
+        setSheetsSyncStatus('pending');
+        setSheetsSyncMessage(`Enviando status da questão #${id} para o Google Sheets...`);
         syncUpdateToGoogleSheetsWebhook({
           questionId: id,
           status: newStatus,
@@ -325,6 +367,24 @@ export default function App() {
           curatorId: activeCurator.id,
           notas,
           responsavelNome: updated.responsavel_nome || undefined,
+        }).then(res => {
+          if (res.success) {
+            setSheetsSyncStatus('success');
+            setSheetsSyncMessage(`Questão #${id} enviada com sucesso para o Google Sheets!`);
+          } else {
+            // If error occurred (or no webhook configured)
+            const cfg = getStoredSheetsSyncConfig();
+            if (cfg.webhookUrl && cfg.webhookUrl.trim()) {
+              setSheetsSyncStatus('error');
+              setSheetsSyncMessage(res.message);
+            } else {
+              setSheetsSyncStatus('idle');
+              setSheetsSyncMessage('Salvo localmente (sem webhook configurado).');
+            }
+          }
+        }).catch(err => {
+          setSheetsSyncStatus('error');
+          setSheetsSyncMessage(`Erro ao sincronizar com Google Sheets: ${err?.message || 'Falha de conexão'}`);
         });
 
         // Persist single question in IndexedDB
@@ -362,6 +422,8 @@ export default function App() {
         curatorName: activeCurator.nome,
       });
 
+      setSheetsSyncStatus('pending');
+      setSheetsSyncMessage(`Enviando edição da questão #${updated.id} para o Google Sheets...`);
       syncUpdateToGoogleSheetsWebhook({
         questionId: updated.id,
         status: updated.status,
@@ -369,6 +431,23 @@ export default function App() {
         curatorId: activeCurator.id,
         notas: updated.notas_revisao || undefined,
         responsavelNome: updated.responsavel_nome || undefined,
+      }).then(res => {
+        if (res.success) {
+          setSheetsSyncStatus('success');
+          setSheetsSyncMessage(`Questão #${updated.id} atualizada no Google Sheets com sucesso!`);
+        } else {
+          const cfg = getStoredSheetsSyncConfig();
+          if (cfg.webhookUrl && cfg.webhookUrl.trim()) {
+            setSheetsSyncStatus('error');
+            setSheetsSyncMessage(res.message);
+          } else {
+            setSheetsSyncStatus('idle');
+            setSheetsSyncMessage('Edição salva localmente.');
+          }
+        }
+      }).catch(err => {
+        setSheetsSyncStatus('error');
+        setSheetsSyncMessage(`Erro ao sincronizar com Google Sheets: ${err?.message || 'Falha de conexão'}`);
       });
     },
     [activeCurator]
@@ -402,6 +481,15 @@ export default function App() {
         },
       });
 
+      // Send assignment update to Google Sheets Webhook
+      syncUpdateToGoogleSheetsWebhook({
+        questionId: id,
+        status: 'pendente',
+        curatorName: curator ? curator.nome : 'Sem responsável',
+        curatorId: curator ? curator.id : '',
+        responsavelNome: curator ? curator.nome : '',
+      });
+
       if (curator) {
         showToast('Questão Atribuída', `Responsável: ${curator.nome}`, 'info');
       } else {
@@ -433,6 +521,17 @@ export default function App() {
       broadcastRealtimeEvent({
         type: 'BATCH_ASSIGNED',
         payload: { questionIds, curatorId, curatorName },
+      });
+
+      // Synchronize batch assignment to Google Sheets Webhook in background
+      questionIds.forEach(qId => {
+        syncUpdateToGoogleSheetsWebhook({
+          questionId: qId,
+          status: 'pendente',
+          curatorName: curatorName,
+          curatorId: curatorId,
+          responsavelNome: curatorName,
+        });
       });
     },
     []
@@ -551,6 +650,8 @@ export default function App() {
         totalQuestions={questions.length}
         modifiedCount={modifiedCount}
         onlineCuratorsCount={3}
+        sheetsSyncStatus={sheetsSyncStatus}
+        sheetsSyncMessage={sheetsSyncMessage}
       />
 
       {/* Main Content Area */}
@@ -588,6 +689,20 @@ export default function App() {
             onAssignQuestion={handleAssignQuestion}
             onAddComment={handleAddComment}
             onShowToast={showToast}
+            onEditingChange={(isEditing) => {
+              const presence: CuratorPresence = {
+                curador_id: activeCurator.id,
+                curador_nome: activeCurator.nome,
+                curador_cor: activeCurator.avatarCor,
+                questao_atual_id: currentQuestion.id,
+                status_atividade: isEditing ? 'editando' : 'visualizando',
+                ultima_atividade: new Date().toISOString(),
+              };
+              broadcastRealtimeEvent({
+                type: 'PRESENCE_PING',
+                payload: presence,
+              });
+            }}
           />
         )}
 
@@ -626,6 +741,10 @@ export default function App() {
           saveQuestionsToDb(updated);
         }}
         onShowToast={showToast}
+        onSyncStatusChange={(status, message) => {
+          setSheetsSyncStatus(status);
+          if (message) setSheetsSyncMessage(message);
+        }}
       />
 
       <BatchAssignModal

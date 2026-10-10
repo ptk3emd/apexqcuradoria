@@ -6,6 +6,11 @@ export const DEFAULT_OFFICIAL_SHEET_URL =
 
 export const DEFAULT_SPREADSHEET_ID = '1_hpPUVWGMNnjLNXzoXpPTLW7kdKHbtsBjRF4KC86yfs';
 
+export const DEFAULT_WEBHOOK_URL = 
+  'https://script.google.com/macros/s/AKfycbyddOnFKqqtbK-aTc6lsrzfwL2a63q4XgEYhYjSYgxC6qujWQ4mIhZSxAkcIHJYTNK9rw/exec';
+
+export const SCRIPT_PROJECT_ID = '1AgFyQFFGnkLBesXpqvpY9QY5QTAppu3xiObeLbbZFwwBCTqcaKLr8zRe';
+
 const STORAGE_KEY_SHEETS_SYNC = 'apexmed_sheets_sync_config_v1';
 
 export interface GoogleSheetsSyncConfig {
@@ -14,6 +19,8 @@ export interface GoogleSheetsSyncConfig {
   webhookUrl: string; // Optional Google Apps Script web app URL for real-time 2-way sync
   lastSyncTime: string | null;
   autoSyncMinutes: number; // 0 = disabled, 5, 10, 15, 30
+  lastSendStatus?: 'idle' | 'pending' | 'success' | 'error';
+  lastSendMessage?: string;
 }
 
 export function getStoredSheetsSyncConfig(): GoogleSheetsSyncConfig {
@@ -21,9 +28,11 @@ export function getStoredSheetsSyncConfig(): GoogleSheetsSyncConfig {
     return {
       sheetUrl: DEFAULT_OFFICIAL_SHEET_URL,
       spreadsheetId: DEFAULT_SPREADSHEET_ID,
-      webhookUrl: '',
+      webhookUrl: DEFAULT_WEBHOOK_URL,
       lastSyncTime: null,
       autoSyncMinutes: 0,
+      lastSendStatus: 'idle',
+      lastSendMessage: '',
     };
   }
 
@@ -34,9 +43,11 @@ export function getStoredSheetsSyncConfig(): GoogleSheetsSyncConfig {
       return {
         sheetUrl: parsed.sheetUrl || DEFAULT_OFFICIAL_SHEET_URL,
         spreadsheetId: parsed.spreadsheetId || DEFAULT_SPREADSHEET_ID,
-        webhookUrl: parsed.webhookUrl || '',
+        webhookUrl: parsed.webhookUrl || DEFAULT_WEBHOOK_URL,
         lastSyncTime: parsed.lastSyncTime || null,
         autoSyncMinutes: typeof parsed.autoSyncMinutes === 'number' ? parsed.autoSyncMinutes : 0,
+        lastSendStatus: parsed.lastSendStatus || 'idle',
+        lastSendMessage: parsed.lastSendMessage || '',
       };
     }
   } catch (e) {
@@ -46,9 +57,11 @@ export function getStoredSheetsSyncConfig(): GoogleSheetsSyncConfig {
   return {
     sheetUrl: DEFAULT_OFFICIAL_SHEET_URL,
     spreadsheetId: DEFAULT_SPREADSHEET_ID,
-    webhookUrl: '',
+    webhookUrl: DEFAULT_WEBHOOK_URL,
     lastSyncTime: null,
     autoSyncMinutes: 0,
+    lastSendStatus: 'idle',
+    lastSendMessage: '',
   };
 }
 
@@ -89,6 +102,14 @@ export async function fetchQuestionsFromGoogleSheets(sheetUrl?: string): Promise
   }
 
   const csvText = await response.text();
+  
+  // Detect if Google Sheets returned exportSizeLimitExceeded error
+  if (csvText.includes('exportSizeLimitExceeded') || csvText.includes('This file is too large to be exported')) {
+    throw new Error(
+      'A planilha do Google Sheets tem mais de 20MB e ultrapassou o limite de exportação CSV do Google ("This file is too large to be exported"). A base local (13.945 questões) está ativa e suas edições e curadorias continuam sendo enviadas em tempo real via script!'
+    );
+  }
+
   const rows = parseCSV(csvText);
   const questions = convertRowsToQuestions(rows);
 
@@ -119,11 +140,18 @@ export async function syncUpdateToGoogleSheetsWebhook(payload: {
 }): Promise<{ success: boolean; message: string }> {
   const config = getStoredSheetsSyncConfig();
   if (!config.webhookUrl || !config.webhookUrl.trim()) {
+    // If no webhook configured, return neutral status indicating local save
     return {
       success: false,
-      message: 'Nenhum Webhook do Google Apps Script configurado. A sincronização local foi aplicada.',
+      message: 'Nenhum Webhook configurado. Configure a URL do Apps Script na central do Google Sheets.',
     };
   }
+
+  // Set pending state
+  saveSheetsSyncConfig({
+    lastSendStatus: 'pending',
+    lastSendMessage: `Enviando questão #${payload.questionId}...`,
+  });
 
   try {
     // Mode no-cors is standard for Google Apps Script web apps called from browser
@@ -140,12 +168,22 @@ export async function syncUpdateToGoogleSheetsWebhook(payload: {
       }),
     });
 
+    saveSheetsSyncConfig({
+      lastSendStatus: 'success',
+      lastSendMessage: `Questão #${payload.questionId} sincronizada com o Google Sheets (${new Date().toLocaleTimeString()}).`,
+      lastSyncTime: new Date().toISOString(),
+    });
+
     return {
       success: true,
       message: 'Alteração transmitida para a planilha do Google Sheets via Webhook com sucesso!',
     };
   } catch (err: any) {
     console.warn('Google Sheets Webhook error:', err);
+    saveSheetsSyncConfig({
+      lastSendStatus: 'error',
+      lastSendMessage: `Falha no envio da questão #${payload.questionId}: ${err.message || 'Erro de rede'}`,
+    });
     return {
       success: false,
       message: `Erro ao enviar para o webhook do Google Sheets: ${err.message || 'Falha de rede'}`,

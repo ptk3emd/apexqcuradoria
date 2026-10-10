@@ -31,6 +31,7 @@ interface GoogleSheetsSyncModalProps {
   questions: Question[];
   onQuestionsUpdated: (questions: Question[]) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
+  onSyncStatusChange?: (status: 'idle' | 'pending' | 'success' | 'error', message?: string) => void;
 }
 
 export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
@@ -39,6 +40,7 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
   questions,
   onQuestionsUpdated,
   onShowToast,
+  onSyncStatusChange,
 }) => {
   if (!isOpen) return null;
 
@@ -70,6 +72,9 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
   const handleSyncNow = async () => {
     setIsSyncing(true);
     setErrorMsg('');
+    if (onSyncStatusChange) {
+      onSyncStatusChange('pending', 'Lendo questões da planilha oficial...');
+    }
     try {
       const result = await fetchQuestionsFromGoogleSheets(sheetUrlInput.trim());
       
@@ -99,8 +104,16 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
 
       onQuestionsUpdated(merged);
       const now = new Date().toISOString();
-      saveSheetsSyncConfig({ lastSyncTime: now });
+      saveSheetsSyncConfig({ 
+        lastSyncTime: now,
+        lastSendStatus: 'success',
+        lastSendMessage: `Planilha sincronizada: ${result.totalRows.toLocaleString()} questões carregadas.`,
+      });
       setConfig(prev => ({ ...prev, lastSyncTime: now }));
+
+      if (onSyncStatusChange) {
+        onSyncStatusChange('success', `Planilha sincronizada: ${result.totalRows.toLocaleString()} questões carregadas.`);
+      }
 
       onShowToast(
         'Sincronização Concluída!',
@@ -109,6 +122,9 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
       );
     } catch (err: any) {
       setErrorMsg(err.message || 'Erro ao sincronizar com o Google Sheets.');
+      if (onSyncStatusChange) {
+        onSyncStatusChange('error', err.message || 'Falha ao sincronizar com o Google Sheets.');
+      }
       onShowToast('Falha na Sincronização', err.message, 'error');
     } finally {
       setIsSyncing(false);
