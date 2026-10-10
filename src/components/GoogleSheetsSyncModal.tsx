@@ -78,31 +78,7 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
     try {
       const result = await fetchQuestionsFromGoogleSheets(sheetUrlInput.trim());
       
-      // Preserve local status modifications if any exist in current state
-      const currentStatusMap = new Map<string, Question>();
-      questions.forEach(q => {
-        if (q.status !== 'pendente' || q.responsavel_id) {
-          currentStatusMap.set(q.id, q);
-        }
-      });
-
-      const merged = result.questions.map(item => {
-        const local = currentStatusMap.get(item.id);
-        if (local) {
-          return {
-            ...item,
-            status: local.status,
-            revisado_por: local.revisado_por,
-            revisado_em: local.revisado_em,
-            notas_revisao: local.notas_revisao,
-            responsavel_id: local.responsavel_id,
-            responsavel_nome: local.responsavel_nome,
-          };
-        }
-        return item;
-      });
-
-      onQuestionsUpdated(merged);
+      onQuestionsUpdated(result.questions);
       const now = new Date().toISOString();
       saveSheetsSyncConfig({ 
         lastSyncTime: now,
@@ -351,24 +327,24 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
                   <span>Sincronização Automática Bidirecional com a Planilha</span>
                 </div>
                 <p className="text-emerald-200/90 leading-relaxed">
-                  Para que as ações de <strong>Patrick, Lucas e Thierry</strong> (Aprovar, Eliminar, Revisar, notas e responsáveis) sejam gravadas automaticamente nas linhas da planilha Google em tempo real, basta publicar o script abaixo na planilha:
+                  Para que as ações de <strong>Patrick, Lucas e Thierry</strong> (Aprovar, Eliminar, Revisar, notas e responsáveis) sejam gravadas na aba de controle da mesma planilha e recebidas pelos demais a cada 5 segundos, basta publicar o script abaixo na planilha:
                 </p>
               </div>
 
               {/* 3 Steps Guide */}
               <div className="space-y-3">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-[#bdbdbd]">
-                  Passo a Passo Rápido (Leva menos de 1 minuto):
+                  Ativar a versão colaborativa:
                 </h4>
                 <ol className="list-decimal list-inside space-y-2 text-xs text-[#d1d5db]">
                   <li className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
                     Abra a planilha no Google Sheets e vá no menu superior em <strong>Extensões → Apps Script</strong>.
                   </li>
                   <li className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                    Substitua o conteúdo pelo código abaixo e clique em <strong>Implantar → Nova implantação → App da Web</strong> (Quem tem acesso: <em>Qualquer pessoa</em>).
+                    Substitua o código abaixo. Configure as propriedades <strong>APEX_BASE_SHEET</strong> (nome da aba de questões) e <strong>APEX_ACCESS_KEY</strong> (senha de acesso). Atualize em <strong>Implantar → Gerenciar implantações → Editar → Nova versão</strong>.
                   </li>
                   <li className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                    Copie a <strong>URL do App da Web</strong> gerada e cole no campo abaixo.
+                    Mantenha a <strong>URL do App da Web</strong> existente. Recarregue o aplicativo e entre novamente.
                   </li>
                 </ol>
               </div>

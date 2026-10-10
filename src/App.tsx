@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   DEFAULT_CURATORS 
 } from './data/defaultCurators';
-import { INITIAL_CSV_STRING } from './data/rawCsvData';
-import { parseCSV, convertRowsToQuestions } from './lib/csvParser';
 import { 
   Question, 
   QuestionStatus, 
@@ -12,10 +10,7 @@ import {
   CuratorPresence, 
   AuditLogItem 
 } from './types/question';
-import { 
-  broadcastRealtimeEvent, 
-  subscribeToRealtimeEvents 
-} from './lib/supabaseClient';
+import { fetchShared, mergeShared, mutateShared } from './lib/collaboration';
 import { generateSqlForQuestion } from './lib/sqlGenerator';
 import { TopNavbar } from './components/TopNavbar';
 import { QuestionsTable } from './components/QuestionsTable';
@@ -27,13 +22,11 @@ import { SqlEditorModal } from './components/SqlEditorModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { MasterAuthGate } from './components/MasterAuthGate';
 import { 
-  syncUpdateToGoogleSheetsWebhook, 
   getStoredSheetsSyncConfig 
 } from './lib/googleSheetsSync';
 
 import { INITIAL_QUESTIONS_SAMPLE } from './data/initialQuestions';
 import { 
-  getQuestionsFromDb, 
   saveQuestionsToDb, 
   updateSingleQuestionInDb 
 } from './lib/indexedDbHelper';
@@ -74,6 +67,10 @@ export default function App() {
   // 2. Questions State (Starts instantly with the 150 items sample from the requested Google Sheet)
   const [questions, setQuestions] = useState<Question[]>(INITIAL_QUESTIONS_SAMPLE);
   const [isLoadingFullDataset, setIsLoadingFullDataset] = useState(false);
+
+  const [syncMessage, setSyncMessage] = useState('Conectando à curadoria compartilhada…');
+  const [datasetReady, setDatasetReady] = useState(false);
+  const actionPending = useRef(false);
 
   // 3. Audit Logs State
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(() => {
@@ -148,13 +145,6 @@ export default function App() {
     async function loadDataset() {
       setIsLoadingFullDataset(true);
       try {
-        const cached = await getQuestionsFromDb();
-        if (cached && cached.length > 200 && isMounted) {
-          setQuestions(cached);
-          setIsLoadingFullDataset(false);
-          return;
-        }
-
         const res = await fetch('./base_questoes.json');
         if (res.ok) {
           const full = await res.json();
@@ -166,7 +156,7 @@ export default function App() {
       } catch (err) {
         console.warn('Carregamento inicial completo:', err);
       } finally {
-        if (isMounted) setIsLoadingFullDataset(false);
+        if (isMounted) { setIsLoadingFullDataset(false); setDatasetReady(true); }
       }
     }
 
@@ -194,108 +184,34 @@ export default function App() {
     }
   }, [commentsMap]);
 
-  // Subscribe to real-time sync events
+  // The Sheets journal is authoritative. Re-fetch on reconnect and periodically to heal missed events.
   useEffect(() => {
-    const unsubscribe = subscribeToRealtimeEvents((event) => {
-      if (event.type === 'STATUS_CHANGED') {
-        const { id, status, curatorName, notas } = event.payload;
-        setQuestions(prev =>
-          prev.map(q => {
-            if (q.id === id) {
-              return {
-                ...q,
-                status,
-                revisado_por: curatorName,
-                revisado_em: new Date().toISOString(),
-                notas_revisao: notas || q.notas_revisao,
-              };
-            }
-            return q;
-          })
-        );
-      } else if (event.type === 'QUESTION_UPDATED') {
-        const updated = event.payload;
-        setQuestions(prev => prev.map(q => (q.id === updated.id ? updated : q)));
-      } else if (event.type === 'BATCH_ASSIGNED') {
-        const { questionIds, curatorId, curatorName } = event.payload;
-        setQuestions(prev =>
-          prev.map(q => {
-            if (questionIds.includes(q.id)) {
-              return {
-                ...q,
-                responsavel_id: curatorId,
-                responsavel_nome: curatorName,
-              };
-            }
-            return q;
-          })
-        );
-      } else if (event.type === 'NEW_COMMENT') {
-        const comment = event.payload;
-        setCommentsMap(prev => {
-          const list = prev[comment.questao_id] || [];
-          return {
-            ...prev,
-            [comment.questao_id]: [...list, comment],
-          };
-        });
-      } else if (event.type === 'PRESENCE_PING') {
-        const presence = event.payload;
-        setPresences(prev => ({
-          ...prev,
-          [presence.curador_id]: presence,
-        }));
-      } else if (event.type === 'BULK_IMPORT') {
-        setQuestions(event.payload);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Broadcast presence ping when active question or curator changes & heartbeat every 4s
-  useEffect(() => {
-    const sendPresence = () => {
-      const presence: CuratorPresence = {
-        curador_id: activeCurator.id,
-        curador_nome: activeCurator.nome,
-        curador_cor: activeCurator.avatarCor,
-        questao_atual_id: activeView === 'detail' ? selectedQuestionId : null,
-        status_atividade: activeView === 'detail' ? 'visualizando' : 'ocioso',
-        ultima_atividade: new Date().toISOString(),
-      };
-
-      broadcastRealtimeEvent({
-        type: 'PRESENCE_PING',
-        payload: presence,
-      });
-    };
-
-    sendPresence();
-    const interval = setInterval(sendPresence, 4000);
-    return () => clearInterval(interval);
-  }, [activeCurator, activeView, selectedQuestionId]);
-
-  // Clean up stale presences (older than 12 seconds)
-  useEffect(() => {
-    const cleanupInterval = setInterval(() => {
-      const now = Date.now();
-      setPresences(prev => {
-        let changed = false;
-        const next: Record<string, CuratorPresence> = {};
-        for (const [id, p] of Object.entries(prev)) {
-          const age = now - new Date(p.ultima_atividade).getTime();
-          if (age < 12000) {
-            next[id] = p;
-          } else {
-            changed = true;
-          }
+    if (!datasetReady || !isAuthenticated) return;
+    let stopped = false;
+    let loading = false;
+    const refresh = async () => {
+      if (loading || stopped) return;
+      loading = true;
+      try {
+        const rows = await fetchShared();
+        if (!stopped) {
+          setQuestions(prev => mergeShared(prev, rows.rows));
+          setPresences(rows.presences);
+          setSyncMessage('Google Sheets conectado • atualização automática a cada 5 segundos');
         }
-        return changed ? next : prev;
-      });
-    }, 5000);
-    return () => clearInterval(cleanupInterval);
-  }, []);
+      } catch (error: any) {
+        if (!stopped) setSyncMessage(`Sincronização indisponível: ${error.message}`);
+      } finally { loading = false; }
+    };
+    void refresh();
+    const timer = setInterval(refresh, 5000);
+    window.addEventListener('online', refresh);
+    return () => {
+      stopped = true; clearInterval(timer);
+      window.removeEventListener('online', refresh);
+
+    };
+  }, [datasetReady, isAuthenticated]);
 
   // Selected Question object
   const currentQuestion = useMemo(() => {
@@ -319,287 +235,113 @@ export default function App() {
     });
   }, [questions, searchQuery]);
 
-  // Actions: Update Question Status & Append to Progressive SQL Audit Log
-  const handleUpdateStatus = useCallback(
-    (id: string, newStatus: QuestionStatus, notas?: string) => {
-      setQuestions(prev => {
-        const target = prev.find(q => q.id === id);
-        if (!target) return prev;
-
-        const updated: Question = {
-          ...target,
-          status: newStatus,
-          revisado_por: activeCurator.nome,
-          revisado_em: new Date().toISOString(),
-          notas_revisao: notas || target.notas_revisao,
-        };
-
-        // Generate SQL statement for this action
-        const generatedSql = generateSqlForQuestion(updated, activeCurator.nome);
-
-        // Append to audit log
-        const logItem: AuditLogItem = {
-          id: `${Date.now()}_${Math.random()}`,
-          questao_id: id,
-          curador_id: activeCurator.id,
-          curador_nome: activeCurator.nome,
-          tipo_acao: 'status_alterado',
-          detalhes: `Status alterado para "${newStatus}"`,
-          timestamp: new Date().toISOString(),
-          sql_gerado: generatedSql,
-        };
-
-        setAuditLogs(logs => [logItem, ...logs]);
-
-        // Broadcast to other curators in real time
-        broadcastRealtimeEvent({
-          type: 'STATUS_CHANGED',
-          payload: { id, status: newStatus, curatorName: activeCurator.nome, notas },
-        });
-
-        // Trigger Google Sheets Webhook background sync if configured
-        setSheetsSyncStatus('pending');
-        setSheetsSyncMessage(`Enviando status da questão #${id} para o Google Sheets...`);
-        syncUpdateToGoogleSheetsWebhook({
-          questionId: id,
-          status: newStatus,
-          curatorName: activeCurator.nome,
-          curatorId: activeCurator.id,
-          notas,
-          responsavelNome: updated.responsavel_nome || undefined,
-        }).then(res => {
-          if (res.success) {
-            setSheetsSyncStatus('success');
-            setSheetsSyncMessage(`Questão #${id} enviada com sucesso para o Google Sheets!`);
-          } else {
-            // If error occurred (or no webhook configured)
-            const cfg = getStoredSheetsSyncConfig();
-            if (cfg.webhookUrl && cfg.webhookUrl.trim()) {
-              setSheetsSyncStatus('error');
-              setSheetsSyncMessage(res.message);
-            } else {
-              setSheetsSyncStatus('idle');
-              setSheetsSyncMessage('Salvo localmente (sem webhook configurado).');
-            }
-          }
-        }).catch(err => {
-          setSheetsSyncStatus('error');
-          setSheetsSyncMessage(`Erro ao sincronizar com Google Sheets: ${err?.message || 'Falha de conexão'}`);
-        });
-
-        // Persist single question in IndexedDB
-        updateSingleQuestionInDb(updated);
-
-        return prev.map(q => (q.id === id ? updated : q));
-      });
-    },
-    [activeCurator]
-  );
-
-  // Actions: Full Question Update (when edited)
-  const handleUpdateQuestion = useCallback(
-    (updated: Question) => {
-      setQuestions(prev => prev.map(q => (q.id === updated.id ? updated : q)));
-      updateSingleQuestionInDb(updated);
-
-      const generatedSql = generateSqlForQuestion(updated, activeCurator.nome);
-      const logItem: AuditLogItem = {
-        id: `${Date.now()}_${Math.random()}`,
-        questao_id: updated.id,
-        curador_id: activeCurator.id,
-        curador_nome: activeCurator.nome,
-        tipo_acao: 'conteudo_editado',
-        detalhes: `Conteúdo da questão #${updated.id} modificado`,
-        timestamp: new Date().toISOString(),
-        sql_gerado: generatedSql,
-      };
-
-      setAuditLogs(logs => [logItem, ...logs]);
-
-      broadcastRealtimeEvent({
-        type: 'QUESTION_UPDATED',
-        payload: updated,
-        curatorName: activeCurator.nome,
-      });
-
-      setSheetsSyncStatus('pending');
-      setSheetsSyncMessage(`Enviando edição da questão #${updated.id} para o Google Sheets...`);
-      syncUpdateToGoogleSheetsWebhook({
-        questionId: updated.id,
-        status: updated.status,
-        curatorName: activeCurator.nome,
-        curatorId: activeCurator.id,
-        notas: updated.notas_revisao || undefined,
-        responsavelNome: updated.responsavel_nome || undefined,
-      }).then(res => {
-        if (res.success) {
-          setSheetsSyncStatus('success');
-          setSheetsSyncMessage(`Questão #${updated.id} atualizada no Google Sheets com sucesso!`);
-        } else {
-          const cfg = getStoredSheetsSyncConfig();
-          if (cfg.webhookUrl && cfg.webhookUrl.trim()) {
-            setSheetsSyncStatus('error');
-            setSheetsSyncMessage(res.message);
-          } else {
-            setSheetsSyncStatus('idle');
-            setSheetsSyncMessage('Edição salva localmente.');
-          }
-        }
-      }).catch(err => {
-        setSheetsSyncStatus('error');
-        setSheetsSyncMessage(`Erro ao sincronizar com Google Sheets: ${err?.message || 'Falha de conexão'}`);
-      });
-    },
-    [activeCurator]
-  );
-
-  // Actions: Assign Single Question
-  const handleAssignQuestion = useCallback(
-    (id: string, curator: Curator | null) => {
-      setQuestions(prev => {
-        const next = prev.map(q => {
-          if (q.id === id) {
-            const u = {
-              ...q,
-              responsavel_id: curator ? curator.id : null,
-              responsavel_nome: curator ? curator.nome : null,
-            };
-            updateSingleQuestionInDb(u);
-            return u;
-          }
-          return q;
-        });
-        return next;
-      });
-
-      broadcastRealtimeEvent({
-        type: 'BATCH_ASSIGNED',
-        payload: {
-          questionIds: [id],
-          curatorId: curator ? curator.id : '',
-          curatorName: curator ? curator.nome : '',
-        },
-      });
-
-      // Send assignment update to Google Sheets Webhook
-      syncUpdateToGoogleSheetsWebhook({
-        questionId: id,
-        status: 'pendente',
-        curatorName: curator ? curator.nome : 'Sem responsável',
-        curatorId: curator ? curator.id : '',
-        responsavelNome: curator ? curator.nome : '',
-      });
-
-      if (curator) {
-        showToast('Questão Atribuída', `Responsável: ${curator.nome}`, 'info');
-      } else {
-        showToast('Questão Liberada', 'A questão voltou para a fila geral sem responsável.', 'info');
-      }
-    },
-    [showToast]
-  );
-
-  // Actions: Batch Assign Questions
-  const handleAssignBatch = useCallback(
-    (questionIds: string[], curatorId: string, curatorName: string) => {
-      setQuestions(prev => {
-        const next = prev.map(q => {
-          if (questionIds.includes(q.id)) {
-            const u = {
-              ...q,
-              responsavel_id: curatorId,
-              responsavel_nome: curatorName,
-            };
-            updateSingleQuestionInDb(u);
-            return u;
-          }
-          return q;
-        });
-        return next;
-      });
-
-      broadcastRealtimeEvent({
-        type: 'BATCH_ASSIGNED',
-        payload: { questionIds, curatorId, curatorName },
-      });
-
-      // Synchronize batch assignment to Google Sheets Webhook in background
-      questionIds.forEach(qId => {
-        syncUpdateToGoogleSheetsWebhook({
-          questionId: qId,
-          status: 'pendente',
-          curatorName: curatorName,
-          curatorId: curatorId,
-          responsavelNome: curatorName,
-        });
-      });
-    },
-    []
-  );
-
-  // Actions: Release all assignments for active curator
-  const handleReleaseAllMyAssignments = useCallback((curatorId: string) => {
+  const applyConfirmed = useCallback((updated: Question[]) => {
     setQuestions(prev => {
-      const next = prev.map(q => {
-        if (q.responsavel_id === curatorId && q.status === 'pendente') {
-          const u = {
-            ...q,
-            responsavel_id: null,
-            responsavel_nome: null,
-          };
-          updateSingleQuestionInDb(u);
-          return u;
-        }
-        return q;
+      const changes = new Map(updated.map(q => [q.id, q]));
+      return prev.map(q => {
+        const next = changes.get(q.id);
+        return next && (next.sync_version ?? 0) >= (q.sync_version ?? 0) ? next : q;
       });
-      return next;
     });
+    updated.forEach(q => { void updateSingleQuestionInDb(q); });
   }, []);
 
-  // Actions: Add Comment
-  const handleAddComment = useCallback(
-    (questionId: string, text: string) => {
-      const newComment: QuestionComment = {
-        id: `${Date.now()}_${Math.random()}`,
-        questao_id: questionId,
-        curador_id: activeCurator.id,
-        curador_nome: activeCurator.nome,
-        curador_cor: activeCurator.avatarCor,
-        texto: text,
-        criado_em: new Date().toISOString(),
-      };
+  const runShared = async (targets: Question[], action: string, target?: Curator | null) => {
+    if (!isAuthenticated || !datasetReady || actionPending.current) return null;
+    actionPending.current = true;
+    try {
+      const updated = await mutateShared(targets, action, activeCurator, target);
+      applyConfirmed(updated);
+      return updated;
+    } catch (error: any) {
+      showToast('Ação não salva', error.message, 'error');
+      try { const rows = await fetchShared(); setQuestions(prev => mergeShared(prev, rows.rows)); } catch {}
+      return null;
+    } finally { actionPending.current = false; }
+  };
 
-      setCommentsMap(prev => {
-        const list = prev[questionId] || [];
-        return {
-          ...prev,
-          [questionId]: [...list, newComment],
-        };
+  const openQuestion = async (question: Question) => {
+    const updated = await runShared([question], 'claim');
+    if (!updated) return;
+    setSelectedQuestionId(question.id);
+    setActiveView('detail');
+  };
+
+  // Leases protect against two tabs using the same curator profile as well.
+  useEffect(() => {
+    if (!isAuthenticated || activeView !== 'detail' || !selectedQuestionId) return;
+    const q = { id: selectedQuestionId } as Question;
+    const timer = setInterval(() => {
+      void mutateShared([q], 'heartbeat', activeCurator).catch((error: any) => {
+        setSyncMessage(`Reserva interrompida: ${error.message}. Reabra a questão antes de salvar.`);
       });
+    }, 25000);
+    return () => {
+      clearInterval(timer);
+      void mutateShared([q], 'unlock', activeCurator).catch(() => {});
+    };
+  }, [isAuthenticated, activeView, selectedQuestionId, activeCurator]);
 
-      broadcastRealtimeEvent({
-        type: 'NEW_COMMENT',
-        payload: newComment,
-      });
-    },
-    [activeCurator]
-  );
+  const handleUpdateQuestion = async (updated: Question): Promise<boolean> => {
+    const result = await runShared([updated], 'save');
+    if (!result) return false;
+    const confirmed = result[0];
+    setAuditLogs(logs => [{ id: crypto.randomUUID(), questao_id: confirmed.id,
+      curador_id: activeCurator.id, curador_nome: activeCurator.nome,
+      tipo_acao: 'conteudo_editado', detalhes: `Questão #${confirmed.id} atualizada`,
+      timestamp: new Date().toISOString(), sql_gerado: generateSqlForQuestion(confirmed, activeCurator.nome),
+    }, ...logs]);
+    return true;
+  };
 
-  // Actions: Bulk Import Questions
-  const handleImportQuestions = useCallback((imported: Question[]) => {
-    setQuestions(imported);
-    saveQuestionsToDb(imported);
-    setSelectedQuestionId(imported[0]?.id || null);
-    broadcastRealtimeEvent({
-      type: 'BULK_IMPORT',
-      payload: imported,
-    });
-  }, []);
+  const handleUpdateStatus = async (id: string, status: QuestionStatus, notas?: string): Promise<boolean> => {
+    let q = questions.find(q => q.id === id);
+    if (!q) return false;
+    if (activeView !== 'detail' || selectedQuestionId !== id) {
+      const claimed = await runShared([q], 'claim');
+      if (!claimed) return false;
+      q = claimed[0];
+    }
+    const saved = await handleUpdateQuestion({ ...q, status, notas_revisao: notas ?? q.notas_revisao,
+      revisado_por: activeCurator.nome, revisado_em: new Date().toISOString() });
+    if (activeView !== 'detail' || selectedQuestionId !== id) void mutateShared([q], 'unlock', activeCurator).catch(() => {});
+    return saved;
+  };
+
+  const handleAssignQuestion = async (id: string, curator: Curator | null) => {
+    const q = questions.find(q => q.id === id);
+    if (!q) return;
+    if (await runShared([q], 'assign', curator)) {
+      setActiveView('table');
+      showToast('Reserva atualizada', curator ? `Responsável: ${curator.nome}` : 'Questão liberada', 'success');
+    }
+  };
+
+  const handleAssignBatch = async (ids: string[], curatorId: string): Promise<boolean> => {
+    const result = await runShared(questions.filter(q => ids.includes(q.id)), 'assign', curators.find(c => c.id === curatorId));
+    return result !== null;
+  };
+
+  const handleReleaseAllMyAssignments = async (curatorId: string): Promise<boolean> => {
+    const result = await runShared(questions.filter(q => q.responsavel_id === curatorId && q.status === 'pendente'), 'assign', null);
+    if (result) setActiveView('table');
+    return result !== null;
+  };
+
+  const handleAddComment = async (questionId: string, text: string): Promise<boolean> => {
+    const q = questions.find(q => q.id === questionId);
+    if (!q) return false;
+    const comment: QuestionComment = { id:crypto.randomUUID(), questao_id:questionId,
+      curador_id:activeCurator.id,curador_nome:activeCurator.nome,curador_cor:activeCurator.avatarCor,
+      texto:text,criado_em:new Date().toISOString() };
+    return handleUpdateQuestion({...q, shared_comments:[...(q.shared_comments || []),comment]});
+  };
 
   // Actions: Lock session / Switch user with master password
   const handleLockSession = useCallback(() => {
     try {
       sessionStorage.removeItem('apexmed_master_auth_token');
+      sessionStorage.removeItem('apexmed_sheets_access_key');
       sessionStorage.removeItem('apexmed_authenticated_curator_id');
     } catch {
       // ignore
@@ -631,6 +373,7 @@ export default function App() {
         curators={curators}
         activeCurator={activeCurator}
         onSelectCurator={(c) => {
+          setActiveView('table');
           setActiveCurator(c);
           try {
             sessionStorage.setItem('apexmed_authenticated_curator_id', c.id);
@@ -643,17 +386,18 @@ export default function App() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         activeView={activeView}
-        onViewChange={setActiveView}
+        onViewChange={(view) => { if (view === 'detail' && currentQuestion) void openQuestion(currentQuestion); else setActiveView(view); }}
         onOpenSqlModal={() => setIsSqlModalOpen(true)}
         onOpenSheetsModal={() => setIsSheetsModalOpen(true)}
         onOpenBatchAssignModal={() => setIsBatchAssignModalOpen(true)}
         totalQuestions={questions.length}
         modifiedCount={modifiedCount}
-        onlineCuratorsCount={3}
+        onlineCuratorsCount={new Set([...Object.values(presences).map(p => p.curador_id), ...(isAuthenticated ? [activeCurator.id] : [])]).size}
         sheetsSyncStatus={sheetsSyncStatus}
         sheetsSyncMessage={sheetsSyncMessage}
       />
 
+      <div role="status" className="px-6 py-2 text-sm bg-black/20">{syncMessage}</div>
       {/* Main Content Area */}
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 lg:px-6 py-6">
         {activeView === 'table' && (
@@ -661,11 +405,8 @@ export default function App() {
             questions={searchedQuestions}
             activeCurator={activeCurator}
             presences={presences}
-            comments={commentsMap}
-            onSelectQuestion={(q) => {
-              setSelectedQuestionId(q.id);
-              setActiveView('detail');
-            }}
+            comments={{...commentsMap, ...Object.fromEntries(questions.filter(q=>q.shared_comments).map(q=>[q.id,q.shared_comments!]))}}
+            onSelectQuestion={(q) => { void openQuestion(q); }}
             onUpdateStatus={handleUpdateStatus}
             onAssignQuestion={handleAssignQuestion}
             onShowToast={showToast}
@@ -674,35 +415,23 @@ export default function App() {
 
         {activeView === 'detail' && currentQuestion && (
           <QuestionDetailView
+            key={currentQuestion.id}
             question={currentQuestion}
             allQuestions={searchedQuestions}
             activeCurator={activeCurator}
             presences={presences}
-            comments={commentsMap[currentQuestion.id] || []}
+            comments={currentQuestion.shared_comments || commentsMap[currentQuestion.id] || []}
             onBackToList={() => setActiveView('table')}
             onNavigateQuestion={(idx) => {
               const target = searchedQuestions[idx];
-              if (target) setSelectedQuestionId(target.id);
+              if (target) void openQuestion(target);
             }}
             onUpdateQuestion={handleUpdateQuestion}
             onUpdateStatus={handleUpdateStatus}
             onAssignQuestion={handleAssignQuestion}
             onAddComment={handleAddComment}
             onShowToast={showToast}
-            onEditingChange={(isEditing) => {
-              const presence: CuratorPresence = {
-                curador_id: activeCurator.id,
-                curador_nome: activeCurator.nome,
-                curador_cor: activeCurator.avatarCor,
-                questao_atual_id: currentQuestion.id,
-                status_atividade: isEditing ? 'editando' : 'visualizando',
-                ultima_atividade: new Date().toISOString(),
-              };
-              broadcastRealtimeEvent({
-                type: 'PRESENCE_PING',
-                payload: presence,
-              });
-            }}
+
           />
         )}
 
@@ -711,8 +440,8 @@ export default function App() {
             questions={questions}
             curators={curators}
             onOpenQuestionById={(id) => {
-              setSelectedQuestionId(id);
-              setActiveView('detail');
+              const q = questions.find(q => q.id === id);
+              if (q) void openQuestion(q);
             }}
           />
         )}
@@ -738,7 +467,7 @@ export default function App() {
         questions={questions}
         onQuestionsUpdated={(updated) => {
           setQuestions(updated);
-          saveQuestionsToDb(updated);
+          void saveQuestionsToDb(updated);
         }}
         onShowToast={showToast}
         onSyncStatusChange={(status, message) => {

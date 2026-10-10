@@ -8,8 +8,8 @@ interface BatchAssignModalProps {
   questions: Question[];
   curators: Curator[];
   activeCurator: Curator;
-  onAssignBatch: (questionIds: string[], curatorId: string, curatorName: string) => void;
-  onReleaseAllMyAssignments: (curatorId: string) => void;
+  onAssignBatch: (questionIds: string[], curatorId: string, curatorName: string) => Promise<boolean>;
+  onReleaseAllMyAssignments: (curatorId: string) => Promise<boolean>;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
 }
 
@@ -48,7 +48,7 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
     new Set(unassignedPending.map(q => q.especialidade || q.categoria).filter(Boolean))
   ).sort();
 
-  const handleClaim = () => {
+  const handleClaim = async () => {
     let pool = unassignedPending;
     if (specialtyFilter !== 'todas') {
       pool = pool.filter(q => (q.especialidade || q.categoria) === specialtyFilter);
@@ -62,7 +62,7 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
     const selected = pool.slice(0, quantity);
     const ids = selected.map(q => q.id);
 
-    onAssignBatch(ids, activeCurator.id, activeCurator.nome);
+    if (!await onAssignBatch(ids, activeCurator.id, activeCurator.nome)) return;
     onShowToast(
       `${ids.length} questões reservadas!`,
       `Atribuídas para ${activeCurator.nome}. Outros curadores verão sua responsabilidade para evitar redundância.`,
@@ -71,8 +71,8 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
     onClose();
   };
 
-  const handleRelease = () => {
-    onReleaseAllMyAssignments(activeCurator.id);
+  const handleRelease = async () => {
+    if (!await onReleaseAllMyAssignments(activeCurator.id)) return;
     onShowToast('Questões liberadas', 'Todas as suas questões atribuídas voltaram para o banco livre.', 'info');
     onClose();
   };

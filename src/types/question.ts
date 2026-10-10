@@ -6,6 +6,8 @@ export type QuestionStatus =
   | 'questao_corrigida';
 
 export interface Question {
+  sync_version?: number;
+  shared_comments?: QuestionComment[];
   id: string;
   categoria: string;
   tema_especifico: string;
