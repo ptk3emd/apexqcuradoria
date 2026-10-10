@@ -153,15 +153,15 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
   return (
     <fieldset disabled={busy} aria-busy={busy} className="w-full min-w-0 space-y-5 animate-in fade-in duration-200">
       {/* Top Navigation & Status Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#1e1d1b] p-4 rounded-2xl border border-white/[0.08] shadow-lg">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-shell-2 p-4 rounded-2xl border border-white/[0.08] shadow-lg">
         {/* Left: Back button & Counter */}
         <div className="flex items-center gap-3">
           <button
             disabled={isEditing}
             onClick={onBackToList}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-[#bdbdbd] hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-apex-readable hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all"
           >
-            <ArrowLeft className="w-4 h-4 text-[#DF9696]" />
+            <ArrowLeft className="w-4 h-4 text-brand-muted" />
             <span>Voltar à Tabela</span>
           </button>
 
@@ -175,7 +175,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <span className="text-xs font-mono font-bold text-[#f8fafc] px-2.5 py-1 rounded bg-[#272522] border border-white/[0.08]">
+            <span className="text-xs font-mono font-bold text-apex-text px-2.5 py-1 rounded bg-shell-3 border border-white/[0.08]">
               {currentIndex + 1} / {total}
             </span>
 
@@ -205,7 +205,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           {/* Copy for AI Button */}
           <button
             onClick={handleCopy}
-            className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-white bg-[#A43939] hover:bg-[#913232] shadow-[0_0_20px_rgba(164,57,57,0.35)] transition-all cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-white bg-brand hover:bg-brand-hover shadow-[0_0_20px_rgba(164,57,57,0.35)] transition-all cursor-pointer"
             title="Copiar texto formatado para enviar à IA ou Google"
           >
             <Copy className="w-4 h-4" />
@@ -218,25 +218,25 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               <span
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${
                   isAssignedToMe
-                    ? 'bg-[#A43939]/20 border-[#A43939]/40 text-white'
-                    : 'bg-white/[0.05] border-white/[0.1] text-[#bdbdbd]'
+                    ? 'bg-brand/20 border-brand/40 text-white'
+                    : 'bg-white/[0.05] border-white/[0.1] text-apex-readable'
                 }`}
               >
-                <UserCheck className="w-3.5 h-3.5 text-[#DF9696]" />
+                <UserCheck className="w-3.5 h-3.5 text-brand-muted" />
                 <span>Responsável: {question.responsavel_nome?.split(' ')[0]}</span>
               </span>
 
               {isAssignedToMe ? (
                 <button
                   onClick={() => onAssignQuestion(question.id, null)}
-                  className="text-xs text-[#7a7468] hover:text-[#f8fafc] underline ml-1"
+                  className="text-xs text-shell-muted hover:text-apex-text underline ml-1"
                 >
                   Liberar
                 </button>
               ) : (
                 <button
                   onClick={() => onAssignQuestion(question.id, activeCurator)}
-                  className="text-xs text-[#DF9696] hover:text-white underline ml-1"
+                  className="text-xs text-brand-muted hover:text-white underline ml-1"
                 >
                   Assumir para mim
                 </button>
@@ -245,9 +245,9 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           ) : (
             <button
               onClick={() => onAssignQuestion(question.id, activeCurator)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.1] text-[#f8fafc] transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.1] text-apex-text transition-all"
             >
-              <UserPlus className="w-3.5 h-3.5 text-[#DF9696]" />
+              <UserPlus className="w-3.5 h-3.5 text-brand-muted" />
               <span>Assumir Questão</span>
             </button>
           )}
@@ -285,10 +285,10 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
         {/* Left Column (Question Content & Alternatives) - 8 cols */}
         <div className="lg:col-span-8 space-y-5">
           {/* Question Metadata Bar */}
-          <div className="bg-[#1e1d1b] p-5 rounded-2xl border border-white/[0.08] space-y-4">
+          <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
               <div className="flex items-center gap-2.5">
-                <span className="font-mono text-base font-bold text-white px-2.5 py-0.5 rounded-lg bg-[#A43939]/20 border border-[#A43939]/40">
+                <span className="font-mono text-base font-bold text-white px-2.5 py-0.5 rounded-lg bg-brand/20 border border-brand/40">
                   ID #{question.id}
                 </span>
                 <StatusBadge status={question.status} size="md" />
@@ -299,7 +299,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                 )}
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-[#bdbdbd]">
+              <div className="flex items-center gap-2 text-xs text-apex-readable">
                 <span className="px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08]">
                   {question.origem || 'ENARE'} {question.ano}
                 </span>
@@ -311,8 +311,8 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
 
             {/* Specialty and Specific Theme */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="bg-[#272522] p-3 rounded-xl border border-white/[0.06]">
-                <p className="text-[10px] uppercase font-bold tracking-wider text-[#DF9696] mb-1">
+              <div className="bg-shell-3 p-3 rounded-xl border border-white/[0.06]">
+                <p className="text-[10px] uppercase font-bold tracking-wider text-brand-muted mb-1">
                   Especialidade Médica
                 </p>
                 {isEditing ? (
@@ -321,15 +321,15 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                     type="text"
                     value={editedQuestion.especialidade}
                     onChange={(e) => setEditedQuestion({ ...editedQuestion, especialidade: e.target.value })}
-                    className="w-full bg-[#1e1d1b] border border-white/[0.15] rounded px-2 py-1 text-xs text-white"
+                    className="w-full bg-shell-2 border border-white/[0.15] rounded px-2 py-1 text-xs text-white"
                   />
                 ) : (
-                  <p className="font-bold text-sm text-[#f8fafc]">{question.especialidade || question.categoria}</p>
+                  <p className="font-bold text-sm text-apex-text">{question.especialidade || question.categoria}</p>
                 )}
               </div>
 
-              <div className="bg-[#272522] p-3 rounded-xl border border-white/[0.06]">
-                <p className="text-[10px] uppercase font-bold tracking-wider text-[#DF9696] mb-1">
+              <div className="bg-shell-3 p-3 rounded-xl border border-white/[0.06]">
+                <p className="text-[10px] uppercase font-bold tracking-wider text-brand-muted mb-1">
                   Tema Específico
                 </p>
                 {isEditing ? (
@@ -338,10 +338,10 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                     type="text"
                     value={editedQuestion.tema_especifico}
                     onChange={(e) => setEditedQuestion({ ...editedQuestion, tema_especifico: e.target.value })}
-                    className="w-full bg-[#1e1d1b] border border-white/[0.15] rounded px-2 py-1 text-xs text-white"
+                    className="w-full bg-shell-2 border border-white/[0.15] rounded px-2 py-1 text-xs text-white"
                   />
                 ) : (
-                  <p className="font-bold text-sm text-[#f8fafc] truncate" title={question.tema_especifico}>
+                  <p className="font-bold text-sm text-apex-text truncate" title={question.tema_especifico}>
                     {question.tema_especifico || 'Geral'}
                   </p>
                 )}
@@ -351,15 +351,15 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             {/* Enunciado Box */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] uppercase font-bold tracking-wider text-[#DF9696] flex items-center gap-1.5">
-                  <span className="w-2.5 h-0.5 bg-[#DF9696]" />
+                <span className="text-[11px] uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
+                  <span className="w-2.5 h-0.5 bg-brand-muted" />
                   Enunciado Clínico
                 </span>
                 <button
                   onClick={() => setIsEditing(!isEditing)}
-                  className="flex items-center gap-1 text-xs font-bold text-[#bdbdbd] hover:text-white px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1]"
+                  className="flex items-center gap-1 text-xs font-bold text-apex-readable hover:text-white px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1]"
                 >
-                  <Edit3 className="w-3.5 h-3.5 text-[#DF9696]" />
+                  <Edit3 className="w-3.5 h-3.5 text-brand-muted" />
                   <span>{isEditing ? 'Cancelar Edição' : 'Editar questão'}</span>
                 </button>
               </div>
@@ -371,25 +371,25 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                     rows={6}
                     value={editedQuestion.enunciado}
                     onChange={(e) => setEditedQuestion({ ...editedQuestion, enunciado: e.target.value })}
-                    className="w-full bg-[#272522] border border-white/[0.15] rounded-xl p-3 text-sm text-[#f8fafc] leading-relaxed outline-none focus:border-[#A43939]"
+                    className="w-full bg-shell-3 border border-white/[0.15] rounded-xl p-3 text-sm text-apex-text leading-relaxed outline-none focus:border-brand"
                   />
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => setIsEditing(false)}
-                      className="px-3 py-1.5 rounded-full text-xs font-bold text-[#7a7468] hover:text-white"
+                      className="px-3 py-1.5 rounded-full text-xs font-bold text-shell-muted hover:text-white"
                     >
                       Cancelar
                     </button>
                     <button
                       onClick={handleSaveChanges}
-                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold bg-[#A43939] hover:bg-[#913232] text-white"
+                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold bg-brand hover:bg-brand-hover text-white"
                     >
                       <Save className="w-3.5 h-3.5" /> Salvar Alterações
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm leading-relaxed text-[#f8fafc]">
+                <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm leading-relaxed text-apex-text">
                   {question.enunciado}
                 </div>
               )}
@@ -397,13 +397,13 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           </div>
 
           {/* Alternatives A, B, C, D, E Cards */}
-          <div className="bg-[#1e1d1b] p-5 rounded-2xl border border-white/[0.08] space-y-4">
+          <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-4">
             <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
-              <span className="text-[11px] uppercase font-bold tracking-wider text-[#DF9696] flex items-center gap-1.5">
-                <span className="w-2.5 h-0.5 bg-[#DF9696]" />
+              <span className="text-[11px] uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
+                <span className="w-2.5 h-0.5 bg-brand-muted" />
                 Alternativas & Justificativas Clínicas
               </span>
-              <span className="text-[11px] text-[#7a7468]">
+              <span className="text-[11px] text-shell-muted">
                 Selecione para alterar o gabarito oficial se necessário
               </span>
             </div>
@@ -451,7 +451,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                         className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 transition-all ${
                           isCorrect
                             ? 'bg-emerald-500 text-white shadow-sm'
-                            : 'bg-white/[0.08] hover:bg-[#A43939] text-[#f8fafc] hover:text-white'
+                            : 'bg-white/[0.08] hover:bg-brand text-apex-text hover:text-white'
                         }`}
                         title={`Clique para definir alternativa ${letter} como correta`}
                       >
@@ -467,12 +467,12 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                             onChange={(e) =>
                               setEditedQuestion({ ...editedQuestion, [lower]: e.target.value })
                             }
-                            className="w-full bg-[#272522] border border-white/[0.15] rounded px-2.5 py-1 text-xs text-white"
+                            className="w-full bg-shell-3 border border-white/[0.15] rounded px-2.5 py-1 text-xs text-white"
                           />
                         ) : (
                           <p
                             className={`text-xs leading-relaxed font-normal ${
-                              isCorrect ? 'text-white font-bold' : 'text-[#f8fafc]'
+                              isCorrect ? 'text-white font-bold' : 'text-apex-text'
                             }`}
                           >
                             {text}
@@ -482,7 +482,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                         {/* Justification snippet */}
                         {(justification || isEditing) && (
                           <div className="pt-1.5 border-t border-white/[0.04]">
-                            <p className="text-[10px] uppercase font-bold tracking-wider text-[#7a7468]">
+                            <p className="text-[10px] uppercase font-bold tracking-wider text-shell-muted">
                               Justificativa:
                             </p>
                             {isEditing ? (
@@ -497,10 +497,10 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                                   })
                                 }
                                 placeholder={`Justificativa para alternativa ${letter}...`}
-                                className="w-full bg-[#272522] border border-white/[0.15] rounded px-2 py-0.5 text-[11px] text-[#bdbdbd] mt-1"
+                                className="w-full bg-shell-3 border border-white/[0.15] rounded px-2 py-0.5 text-[11px] text-apex-readable mt-1"
                               />
                             ) : (
-                              <p className="text-[11px] text-[#bdbdbd] leading-normal italic">
+                              <p className="text-[11px] text-apex-readable leading-normal italic">
                                 {justification || 'Sem justificativa cadastrada.'}
                               </p>
                             )}
@@ -522,12 +522,12 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
 
           {/* Professor Commentary / Resolution */}
           {question.comentario && (
-            <div className="bg-[#1e1d1b] p-5 rounded-2xl border border-white/[0.08] space-y-2">
-              <span className="text-[11px] uppercase font-bold tracking-wider text-[#DF9696] flex items-center gap-1.5">
-                <span className="w-2.5 h-0.5 bg-[#DF9696]" />
+            <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-2">
+              <span className="text-[11px] uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
+                <span className="w-2.5 h-0.5 bg-brand-muted" />
                 Comentário Oficial / Gabarito Comentado
               </span>
-              <p className="text-xs text-[#bdbdbd] leading-relaxed p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+              <p className="text-xs text-apex-readable leading-relaxed p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
                 {question.comentario}
               </p>
             </div>
@@ -537,12 +537,12 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
         {/* Right Column (Actions, Comments, SQL Diff) - 4 cols */}
         <div className="lg:col-span-4 space-y-5">
           {/* Curation Decision Actions Box */}
-          <div className="bg-[#1e1d1b] p-5 rounded-2xl border border-white/[0.08] space-y-4 shadow-xl">
+          <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-4 shadow-xl">
             <div className="border-b border-white/[0.06] pb-2">
-              <p className="text-[10px] uppercase font-bold tracking-wider text-[#DF9696]">
+              <p className="text-[10px] uppercase font-bold tracking-wider text-brand-muted">
                 Decisão de Auditoria Médica
               </p>
-              <p className="text-xs text-[#7a7468]">
+              <p className="text-xs text-shell-muted">
                 Tudo o que você fizer gera SQL e sincroniza em tempo real
               </p>
             </div>
@@ -623,7 +623,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             </div>
 
             {/* Audit Status Info */}
-            <div className="pt-2 border-t border-white/[0.06] text-[11px] text-[#7a7468] space-y-1">
+            <div className="pt-2 border-t border-white/[0.06] text-[11px] text-shell-muted space-y-1">
               {question.revisado_por && (
                 <p>
                   Última ação por: <b className="text-white">{question.revisado_por}</b>
@@ -643,13 +643,13 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           </div>
 
           {/* Area Comum de Comentários (Common discussion between 3 users) */}
-          <div className="bg-[#1e1d1b] p-5 rounded-2xl border border-white/[0.08] space-y-3 shadow-xl">
+          <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-3 shadow-xl">
             <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-[#DF9696] flex items-center gap-1.5">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
                 <MessageSquare className="w-3.5 h-3.5" />
                 Área de Debate / Comentários
               </span>
-              <span className="text-[11px] text-[#7a7468]">
+              <span className="text-[11px] text-shell-muted">
                 {comments.length} nota{comments.length === 1 ? '' : 's'}
               </span>
             </div>
@@ -657,9 +657,9 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             {/* Comment Thread List */}
             <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
               {comments.length === 0 ? (
-                <div className="py-6 text-center text-[#7a7468] text-xs">
+                <div className="py-6 text-center text-shell-muted text-xs">
                   <p>Nenhum debate nesta questão.</p>
-                  <p className="text-[11px] text-[#4a4540] mt-1">
+                  <p className="text-[11px] text-shell-subtle mt-1">
                     Escreva abaixo para sugerir correções ou debater o gabarito.
                   </p>
                 </div>
@@ -673,18 +673,18 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                       <div className="flex items-center gap-1.5">
                         <span
                           className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: c.curador_cor || '#A43939' }}
+                          style={{ backgroundColor: c.curador_cor || 'var(--brand)' }}
                         />
-                        <span className="text-xs font-bold text-[#f8fafc]">{c.curador_nome}</span>
+                        <span className="text-xs font-bold text-apex-text">{c.curador_nome}</span>
                       </div>
-                      <span className="text-[10px] text-[#7a7468]">
+                      <span className="text-[10px] text-shell-muted">
                         {new Date(c.criado_em).toLocaleTimeString('pt-BR', {
                           hour: '2-digit',
                           minute: '2-digit',
                         })}
                       </span>
                     </div>
-                    <p className="text-xs text-[#bdbdbd] leading-relaxed">{c.texto}</p>
+                    <p className="text-xs text-apex-readable leading-relaxed">{c.texto}</p>
                   </div>
                 ))
               )}
@@ -698,12 +698,12 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
                 placeholder={`Comentar como ${activeCurator.nome.split(' ')[0]}...`}
-                className="flex-1 bg-[#272522] border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-[#f8fafc] placeholder-[#7a7468] outline-none focus:border-[#A43939]"
+                className="flex-1 bg-shell-3 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-apex-text placeholder-shell-muted outline-none focus:border-brand"
               />
               <button
                 type="submit"
                 disabled={!commentInput.trim()}
-                className="p-2 rounded-xl bg-[#A43939] hover:bg-[#913232] disabled:opacity-40 text-white transition-all cursor-pointer"
+                className="p-2 rounded-xl bg-brand hover:bg-brand-hover disabled:opacity-40 text-white transition-all cursor-pointer"
                 title="Publicar comentário"
               >
                 <Send className="w-4 h-4" />
@@ -712,7 +712,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           </div>
 
           {/* Real-time Generated SQL Statement Preview */}
-          <div className="bg-[#1e1d1b] p-4 rounded-2xl border border-white/[0.08] space-y-2">
+          <div className="bg-shell-2 p-4 rounded-2xl border border-white/[0.08] space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 flex items-center gap-1.5">
                 <Code2 className="w-3.5 h-3.5" />
@@ -726,13 +726,13 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                   }
                 }}
                 disabled={!sqlPreview}
-                className="text-[11px] text-[#DF9696] hover:text-white disabled:opacity-40"
+                className="text-[11px] text-brand-muted hover:text-white disabled:opacity-40"
               >
                 Copiar SQL
               </button>
             </div>
 
-            <pre className="p-2.5 rounded-xl bg-[#1e1d1b] border border-white/[0.05] text-[10px] font-mono text-[#bdbdbd] overflow-x-auto max-h-[140px] leading-relaxed">
+            <pre className="p-2.5 rounded-xl bg-shell-2 border border-white/[0.05] text-[10px] font-mono text-apex-readable overflow-x-auto max-h-[140px] leading-relaxed">
               {sqlPreview || '-- Nenhuma alteração pendente de SQL para esta questão (Status: Pendente)'}
             </pre>
           </div>
@@ -742,13 +742,13 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
       {/* Revision Note Modal Dialog */}
       {showRevisionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md rounded-2xl bg-[#1e1d1b] border border-white/[0.15] p-6 space-y-4 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl bg-shell-2 border border-white/[0.15] p-6 space-y-4 shadow-2xl">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-400" />
-              <h3 className="font-bold text-base text-[#f8fafc]">Solicitar Revisão de Questão</h3>
+              <h3 className="font-bold text-base text-apex-text">Solicitar Revisão de Questão</h3>
             </div>
 
-            <p className="text-xs text-[#bdbdbd] leading-relaxed">
+            <p className="text-xs text-apex-readable leading-relaxed">
               Descreva os pontos que necessitam de correção (ex: discrepância de gabarito, erro de digitação no enunciado ou alternativas dúbias) para orientar os outros curadores.
             </p>
 
@@ -758,13 +758,13 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               value={revisionNotesInput}
               onChange={(e) => setRevisionNotesInput(e.target.value)}
               placeholder="Ex: O gabarito oficial dizia alternativa C, porém a diretriz mais recente de 2024 aponta para conduta expectante..."
-              className="w-full bg-[#272522] border border-white/[0.12] rounded-xl p-3 text-xs text-[#f8fafc] placeholder-[#7a7468] outline-none focus:border-amber-500"
+              className="w-full bg-shell-3 border border-white/[0.12] rounded-xl p-3 text-xs text-apex-text placeholder-shell-muted outline-none focus:border-amber-500"
             />
 
             <div className="flex justify-end gap-2.5 pt-2">
               <button
                 onClick={() => setShowRevisionModal(false)}
-                className="px-4 py-2 rounded-full text-xs font-bold text-[#7a7468] hover:text-white"
+                className="px-4 py-2 rounded-full text-xs font-bold text-shell-muted hover:text-white"
               >
                 Cancelar
               </button>

@@ -58,22 +58,22 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1e1d1b]/95 backdrop-blur-xl animate-in fade-in select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-shell-2/95 backdrop-blur-xl animate-in fade-in select-none">
       <div 
-        className={`w-full max-w-lg rounded-3xl bg-[#272522] border border-white/[0.12] p-6 sm:p-8 space-y-6 shadow-[0_25px_70px_rgba(0,0,0,0.8)] transition-all ${
+        className={`w-full max-w-lg rounded-3xl bg-shell-3 border border-white/[0.12] p-6 sm:p-8 space-y-6 shadow-[0_25px_70px_rgba(0,0,0,0.8)] transition-all ${
           isShaking ? 'animate-bounce' : ''
         }`}
       >
         {/* Brand & Security Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[#A43939]/20 border border-[#A43939]/40 mb-1 shadow-[0_0_24px_rgba(164,57,57,0.3)]">
-            <KeyRound className="w-6 h-6 text-[#DF9696]" />
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand/20 border border-brand/40 mb-1 shadow-[0_0_24px_rgba(164,57,57,0.3)]">
+            <KeyRound className="w-6 h-6 text-brand-muted" />
           </div>
-          <h2 className="text-2xl font-bold tracking-tight text-[#f8fafc]">
+          <h2 className="text-2xl font-bold tracking-tight text-apex-text">
             ApexMed — Acesso Restrito
           </h2>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08]">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#DF9696]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">
               Responsáveis pela curadoria: Patrick, Lucas, Thierry.
             </span>
           </div>
@@ -82,7 +82,7 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
         <form onSubmit={handleSubmit}><fieldset disabled={busy} className="space-y-6">
           {/* Step 1: Select User */}
           <div className="space-y-2.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-[#bdbdbd]">
+            <label className="block text-xs font-bold uppercase tracking-wider text-apex-readable">
               1. Qual é o seu usuário?
             </label>
             <div className="grid grid-cols-3 gap-3">
@@ -98,7 +98,7 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
                     }}
                     className={`p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center gap-2 cursor-pointer ${
                       isSelected
-                        ? 'bg-[#A43939]/20 border-[#A43939] shadow-[0_0_20px_rgba(164,57,57,0.35)] scale-102'
+                        ? 'bg-brand/20 border-brand shadow-[0_0_20px_rgba(164,57,57,0.35)] scale-102'
                         : 'bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.15]'
                     }`}
                   >
@@ -109,11 +109,11 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
                       {c.iniciais}
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-[#f8fafc]">{c.nome}</p>
-                      <p className="text-[10px] text-[#7a7468]">Curador</p>
+                      <p className="text-xs font-bold text-apex-text">{c.nome}</p>
+                      <p className="text-[10px] text-shell-muted">Curador</p>
                     </div>
                     {isSelected && (
-                      <span className="w-4 h-4 rounded-full bg-[#A43939] flex items-center justify-center text-white">
+                      <span className="w-4 h-4 rounded-full bg-brand flex items-center justify-center text-white">
                         <Check className="w-3 h-3" />
                       </span>
                     )}
@@ -125,7 +125,7 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
 
           {/* Step 2: Master Password */}
           <div className="space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-[#bdbdbd]">
+            <label className="block text-xs font-bold uppercase tracking-wider text-apex-readable">
               2. Digite a Senha Mestra de Acesso:
             </label>
             <div className="relative">
@@ -140,12 +140,12 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
                 required
                 autoComplete="current-password"
                 placeholder="Insira a senha mestra..."
-                className="w-full bg-[#1e1d1b] border border-white/[0.15] focus:border-[#A43939] rounded-xl px-4 py-3 text-sm text-[#f8fafc] placeholder-[#7a7468] outline-none transition-all pr-12 font-mono"
+                className="w-full bg-shell-2 border border-white/[0.15] focus:border-brand rounded-xl px-4 py-3 text-sm text-apex-text placeholder-shell-muted outline-none transition-all pr-12 font-mono"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-3 text-[#7a7468] hover:text-[#f8fafc] transition-colors p-1"
+                className="absolute right-3.5 top-3 text-shell-muted hover:text-apex-text transition-colors p-1"
                 title={showPassword ? 'Ocultar senha' : 'Ver senha'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -164,14 +164,14 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
           {/* Submit CTA */}
           <button
             type="submit"
-            className="w-full py-3.5 rounded-full font-bold text-xs uppercase tracking-wider bg-[#A43939] hover:bg-[#913232] text-white shadow-[0_0_28px_rgba(164,57,57,0.4)] hover:shadow-[0_0_38px_rgba(164,57,57,0.6)] transition-all cursor-pointer flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-full font-bold text-xs uppercase tracking-wider bg-brand hover:bg-brand-hover text-white shadow-[0_0_28px_rgba(164,57,57,0.4)] hover:shadow-[0_0_38px_rgba(164,57,57,0.6)] transition-all cursor-pointer flex items-center justify-center gap-2"
           >
             <UserCheck className="w-4 h-4" />
             <span>{busy?'Entrando…':'Entrar na Curadoria'}</span>
           </button>
         </fieldset></form>
 
-        <p className="text-center text-[11px] text-[#7a7468]">
+        <p className="text-center text-[11px] text-shell-muted">
           Plataforma protegida • Apenas curadores designados autorizados
         </p>
       </div>

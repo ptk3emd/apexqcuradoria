@@ -34,16 +34,16 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismis
         >
           {t.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />}
           {t.type === 'error' && <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />}
-          {t.type === 'info' && <Info className="w-5 h-5 text-[#DF9696] shrink-0 mt-0.5" />}
+          {t.type === 'info' && <Info className="w-5 h-5 text-brand-muted shrink-0 mt-0.5" />}
 
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-[#f8fafc] leading-tight">{t.title}</p>
-            {t.message && <p className="text-xs text-[#bdbdbd] mt-1 leading-relaxed">{t.message}</p>}
+            <p className="text-sm font-bold text-apex-text leading-tight">{t.title}</p>
+            {t.message && <p className="text-xs text-apex-readable mt-1 leading-relaxed">{t.message}</p>}
           </div>
 
           <button
             onClick={() => onDismiss(t.id)}
-            className="text-[#7a7468] hover:text-[#f8fafc] p-1 rounded transition-colors"
+            className="text-shell-muted hover:text-apex-text p-1 rounded transition-colors"
           >
             <X className="w-4 h-4" />
           </button>

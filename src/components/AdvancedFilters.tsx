@@ -91,22 +91,22 @@ export const FilterSection = React.memo<FilterSectionProps>(({
         className="flex min-h-[48px] w-full items-center justify-between gap-2 px-4 py-3 transition-colors hover:bg-white/[0.03] text-left cursor-pointer"
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <Icon className={`w-4 h-4 shrink-0 ${selectedItems.length > 0 ? 'text-[#DF9696]' : 'text-[#7a7468]'}`} />
-          <span className="font-bold text-xs text-[#f8fafc] shrink-0">{title}</span>
+          <Icon className={`w-4 h-4 shrink-0 ${selectedItems.length > 0 ? 'text-brand-muted' : 'text-shell-muted'}`} />
+          <span className="font-bold text-xs text-apex-text shrink-0">{title}</span>
           {selectedItems.length > 0 && (
-            <span className="text-[10px] bg-[#A43939] text-white px-2 py-0.5 rounded-full font-bold shrink-0 shadow-sm">
+            <span className="text-[10px] bg-brand text-white px-2 py-0.5 rounded-full font-bold shrink-0 shadow-sm">
               {selectedItems.length}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2 min-w-0">
           {!isOpen && (
-            <span className="text-[11px] text-[#7a7468] truncate max-w-[140px]">
+            <span className="text-[11px] text-shell-muted truncate max-w-[140px]">
               {selectionSummary}
             </span>
           )}
           <ChevronDown
-            className={`w-4 h-4 text-[#7a7468] shrink-0 transition-transform duration-200 ${
+            className={`w-4 h-4 text-shell-muted shrink-0 transition-transform duration-200 ${
               isOpen ? 'rotate-180 text-white' : ''
             }`}
           />
@@ -117,21 +117,21 @@ export const FilterSection = React.memo<FilterSectionProps>(({
         <div className="space-y-2 px-3 pb-3 pt-1 animate-in fade-in duration-150">
           {enableSearch && (
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-[#7a7468] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search className="w-3.5 h-3.5 text-shell-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 aria-label={`Buscar ${title.toLowerCase()}`}
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder={`Buscar ${title.toLowerCase()}...`}
-                className="w-full bg-[#1e1d1b] border border-white/[0.1] rounded-xl pl-8 pr-10 py-1.5 text-xs text-[#f8fafc] placeholder-[#7a7468] outline-none focus:border-[#A43939]"
+                className="w-full bg-shell-2 border border-white/[0.1] rounded-xl pl-8 pr-10 py-1.5 text-xs text-apex-text placeholder-shell-muted outline-none focus:border-brand"
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
                   aria-label="Limpar busca"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-7 h-7 rounded-full text-xs text-[#7a7468] hover:text-white"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-7 h-7 rounded-full text-xs text-shell-muted hover:text-white"
                 >
                   <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
@@ -141,7 +141,7 @@ export const FilterSection = React.memo<FilterSectionProps>(({
 
           <div className="max-h-56 overflow-y-auto space-y-0.5 pr-1">
             {visibleItems.length === 0 ? (
-              <p className="text-xs text-[#7a7468] text-center py-3">Nenhuma opção encontrada.</p>
+              <p className="text-xs text-shell-muted text-center py-3">Nenhuma opção encontrada.</p>
             ) : (
               visibleItems.map((opt) => {
                 const isSelected = selectedSet.has(opt.value);
@@ -150,8 +150,8 @@ export const FilterSection = React.memo<FilterSectionProps>(({
                     key={opt.value}
                     className={`flex min-h-[34px] cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1 transition-all ${
                       isSelected
-                        ? 'bg-[#A43939]/15 text-white font-bold'
-                        : 'text-[#bdbdbd] hover:bg-white/[0.04] hover:text-white'
+                        ? 'bg-brand/15 text-white font-bold'
+                        : 'text-apex-readable hover:bg-white/[0.04] hover:text-white'
                     }`}
                   >
                     <input
@@ -164,7 +164,7 @@ export const FilterSection = React.memo<FilterSectionProps>(({
                       aria-hidden="true"
                       className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
                         isSelected
-                          ? 'border-[#A43939] bg-[#A43939]'
+                          ? 'border-brand bg-brand'
                           : 'border-white/[0.2] bg-white/[0.02]'
                       }`}
                     >
@@ -172,7 +172,7 @@ export const FilterSection = React.memo<FilterSectionProps>(({
                     </span>
                     <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <span className="truncate text-xs">{opt.label}</span>
-                      <span className="shrink-0 text-[11px] tabular-nums text-[#7a7468]">
+                      <span className="shrink-0 text-[11px] tabular-nums text-shell-muted">
                         {opt.count.toLocaleString('pt-BR')}
                       </span>
                     </span>
@@ -411,11 +411,11 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
   return (
     <div className="w-full space-y-3">
       {/* 1. Main Status & Quick Scope Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#1e1d1b] p-3 rounded-2xl border border-white/[0.08] shadow-lg">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-shell-2 p-3 rounded-2xl border border-white/[0.08] shadow-lg">
         {/* Status Chips */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] uppercase font-bold tracking-wider text-[#7a7468] mr-2 flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5 text-[#DF9696]" />
+          <span className="text-[11px] uppercase font-bold tracking-wider text-shell-muted mr-2 flex items-center gap-1">
+            <Filter className="w-3.5 h-3.5 text-brand-muted" />
             Status:
           </span>
 
@@ -425,7 +425,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filterState.status === 'todas'
                 ? 'bg-white/10 text-white border border-white/20'
-                : 'text-[#bdbdbd] hover:bg-white/[0.04]'
+                : 'text-apex-readable hover:bg-white/[0.04]'
             }`}
           >
             Todas ({statusCounts.todas})
@@ -437,7 +437,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filterState.status === 'pendente'
                 ? 'bg-white/10 text-white border border-white/20'
-                : 'text-[#7a7468] hover:text-white'
+                : 'text-shell-muted hover:text-white'
             }`}
           >
             Pendentes ({statusCounts.pendente})
@@ -449,7 +449,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filterState.status === 'aprovadas'
                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                : 'text-[#7a7468] hover:text-emerald-400'
+                : 'text-shell-muted hover:text-emerald-400'
             }`}
           >
             Aprovadas ({statusCounts.aprovadas})
@@ -461,7 +461,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filterState.status === 'eliminar_questao'
                 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                : 'text-[#7a7468] hover:text-rose-400'
+                : 'text-shell-muted hover:text-rose-400'
             }`}
           >
             Eliminar ({statusCounts.eliminar_questao})
@@ -473,7 +473,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filterState.status === 'revisar_questao'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                : 'text-[#7a7468] hover:text-amber-400'
+                : 'text-shell-muted hover:text-amber-400'
             }`}
           >
             Revisar ({statusCounts.revisar_questao})
@@ -485,7 +485,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filterState.status === 'questao_corrigida'
                 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                : 'text-[#7a7468] hover:text-blue-400'
+                : 'text-shell-muted hover:text-blue-400'
             }`}
           >
             Corrigidas ({statusCounts.questao_corrigida})
@@ -499,7 +499,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             aria-label="Filtrar por responsável"
             value={filterState.responsavel}
             onChange={(e) => onChangeFilterState({ ...filterState, responsavel: e.target.value })}
-            className="bg-[#272522] border border-white/[0.1] rounded-xl px-2.5 py-1 text-xs text-[#f8fafc] outline-none focus:border-[#A43939] cursor-pointer"
+            className="bg-shell-3 border border-white/[0.1] rounded-xl px-2.5 py-1 text-xs text-apex-text outline-none focus:border-brand cursor-pointer"
           >
             <option value="todos">Todos os Responsáveis</option>
             <option value="minhas">Atribuídas a mim ({activeCurator.nome})</option>
@@ -515,14 +515,14 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             onClick={() => setIsOpenPanel(!isOpenPanel)}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
               isOpenPanel || totalActiveFilterCount > 0
-                ? 'bg-[#A43939]/20 border-[#A43939]/50 text-white shadow-sm'
-                : 'bg-white/[0.04] border-white/[0.1] text-[#bdbdbd] hover:bg-white/[0.08]'
+                ? 'bg-brand/20 border-brand/50 text-white shadow-sm'
+                : 'bg-white/[0.04] border-white/[0.1] text-apex-readable hover:bg-white/[0.08]'
             }`}
           >
-            <Filter className="w-3.5 h-3.5 text-[#DF9696]" />
+            <Filter className="w-3.5 h-3.5 text-brand-muted" />
             <span>Refinar Filtros</span>
             {totalActiveFilterCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-[#A43939] text-white text-[10px] flex items-center justify-center font-bold">
+              <span className="w-4 h-4 rounded-full bg-brand text-white text-[10px] flex items-center justify-center font-bold">
                 {totalActiveFilterCount}
               </span>
             )}
@@ -537,8 +537,8 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
 
       {/* 2. Active Filter Chips Row (if any active filter) */}
       {appliedChips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 bg-[#1e1d1b]/70 p-2.5 rounded-xl border border-white/[0.07] animate-in fade-in">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-[#7a7468] mr-1 flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-2 bg-shell-2/70 p-2.5 rounded-xl border border-white/[0.07] animate-in fade-in">
+          <span className="text-[10px] uppercase font-bold tracking-wider text-shell-muted mr-1 flex items-center gap-1">
             Filtros ativos:
           </span>
 
@@ -546,7 +546,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             {appliedChips.map((chip) => (
               <span
                 key={`${chip.key}_${chip.value}`}
-                className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.1] text-xs text-[#f8fafc] font-normal"
+                className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.1] text-xs text-apex-text font-normal"
               >
                 <span>{chip.label}</span>
                 <button
@@ -558,7 +558,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                       toggleArrayFilter(chip.key, chip.value);
                     }
                   }}
-                  className="w-4 h-4 rounded-full flex items-center justify-center text-[#7a7468] hover:text-white hover:bg-white/[0.1] transition-colors"
+                  className="w-4 h-4 rounded-full flex items-center justify-center text-shell-muted hover:text-white hover:bg-white/[0.1] transition-colors"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -569,7 +569,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
           <button
             type="button"
             onClick={handleClearAll}
-            className="flex items-center gap-1 text-[11px] font-bold text-[#DF9696] hover:text-rose-400 px-2 py-1 rounded-lg hover:bg-rose-500/10 transition-colors ml-auto"
+            className="flex items-center gap-1 text-[11px] font-bold text-brand-muted hover:text-rose-400 px-2 py-1 rounded-lg hover:bg-rose-500/10 transition-colors ml-auto"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Limpar filtros</span>
@@ -579,14 +579,14 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
 
       {/* 3. Collapsible Refine Filters Panel (Exactly matching FilterScreen) */}
       {isOpenPanel && (
-        <div className="bg-[#1e1d1b] rounded-2xl border border-white/[0.1] p-4 space-y-4 shadow-2xl animate-in fade-in duration-200">
+        <div className="bg-shell-2 rounded-2xl border border-white/[0.1] p-4 space-y-4 shadow-2xl animate-in fade-in duration-200">
           {/* Header of Refine Panel with Keyword Search Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] pb-3">
             <div className="flex items-center gap-2">
               <span className="label-micro">
                 Filtros Avançados de Questões
               </span>
-              <span className="text-xs text-[#bdbdbd]">
+              <span className="text-xs text-apex-readable">
                 ({totalFilteredCount.toLocaleString('pt-BR')} encontradas)
               </span>
             </div>
@@ -594,20 +594,20 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             {/* Keyword tag input */}
             <form onSubmit={handleAddKeyword} className="flex items-center gap-2 max-w-sm w-full">
               <div className="relative flex-1">
-                <Tag className="w-3.5 h-3.5 text-[#7a7468] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Tag className="w-3.5 h-3.5 text-shell-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   aria-label="Buscar palavra-chave"
                   type="text"
                   value={keywordInput}
                   onChange={(e) => setKeywordInput(e.target.value)}
                   placeholder="Buscar palavra-chave (ex: AVC, choque)..."
-                  className="w-full bg-[#272522] border border-white/[0.1] rounded-full pl-8 pr-3 py-1.5 text-xs text-[#f8fafc] placeholder-[#7a7468] outline-none focus:border-[#A43939]"
+                  className="w-full bg-shell-3 border border-white/[0.1] rounded-full pl-8 pr-3 py-1.5 text-xs text-apex-text placeholder-shell-muted outline-none focus:border-brand"
                 />
               </div>
               <button
                 type="submit"
                 disabled={!keywordInput.trim()}
-                className="px-3 py-1.5 rounded-full text-xs font-bold bg-[#A43939] hover:bg-[#913232] disabled:opacity-40 text-white transition-all cursor-pointer shrink-0"
+                className="px-3 py-1.5 rounded-full text-xs font-bold bg-brand hover:bg-brand-hover disabled:opacity-40 text-white transition-all cursor-pointer shrink-0"
               >
                 + Tag
               </button>
@@ -617,7 +617,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
           {/* Facets Grid: Disciplina, Banca, Ano, Especialidade, Competência, Tema Específico */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {/* 1. Disciplina / Grande Área */}
-            <div className="bg-[#272522] rounded-xl border border-white/[0.07] overflow-hidden">
+            <div className="bg-shell-3 rounded-xl border border-white/[0.07] overflow-hidden">
               <FilterSection
                 title="Disciplina / Grande Área"
                 icon={Layers}
@@ -630,7 +630,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             </div>
 
             {/* 2. Instituição / Banca */}
-            <div className="bg-[#272522] rounded-xl border border-white/[0.07] overflow-hidden">
+            <div className="bg-shell-3 rounded-xl border border-white/[0.07] overflow-hidden">
               <FilterSection
                 title="Instituição / Banca"
                 icon={Building2}
@@ -644,7 +644,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             </div>
 
             {/* 3. Ano */}
-            <div className="bg-[#272522] rounded-xl border border-white/[0.07] overflow-hidden">
+            <div className="bg-shell-3 rounded-xl border border-white/[0.07] overflow-hidden">
               <FilterSection
                 title="Ano da Prova"
                 icon={CalendarDays}
@@ -657,7 +657,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             </div>
 
             {/* 4. Especialidade */}
-            <div className="bg-[#272522] rounded-xl border border-white/[0.07] overflow-hidden">
+            <div className="bg-shell-3 rounded-xl border border-white/[0.07] overflow-hidden">
               <FilterSection
                 title="Especialidade"
                 icon={Stethoscope}
@@ -671,7 +671,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             </div>
 
             {/* 5. Competência */}
-            <div className="bg-[#272522] rounded-xl border border-white/[0.07] overflow-hidden">
+            <div className="bg-shell-3 rounded-xl border border-white/[0.07] overflow-hidden">
               <FilterSection
                 title="Competência Clínica"
                 icon={Brain}
@@ -684,7 +684,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             </div>
 
             {/* 6. Tema Específico */}
-            <div className="bg-[#272522] rounded-xl border border-white/[0.07] overflow-hidden">
+            <div className="bg-shell-3 rounded-xl border border-white/[0.07] overflow-hidden">
               <FilterSection
                 title="Tema Específico"
                 icon={BookOpen}

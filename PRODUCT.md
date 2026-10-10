@@ -43,7 +43,7 @@ Curadoria compartilhada sobre o Supabase, com reservas de edição, controle de 
 
 ## Evidence on Hand
 
-- Base de questões: `src/data/rawCsvData.ts` (dados herdados da planilha original).
+- Base de questões: tabela `public.questions` no Supabase. O repositório não guarda cópia dos dados.
 - Migrations e documentação de banco: `supabase/migrations/` e `docs/supabase-migration.md`.
 - Testes: `tests/` (lógica de lote, estado compartilhado, SQL gerado e componentes).
 

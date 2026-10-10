@@ -26,20 +26,20 @@ export function CorrectedQuestionsSql({questions, onShowToast}: Props) {
     a.href = url; a.download = 'apexmed_correcoes_questions.sql'; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
-  return <section className="rounded-2xl bg-[#1e1d1b] border border-white/10 p-6 space-y-4" aria-label="SQL de todas as correções">
+  return <section className="rounded-2xl bg-shell-2 border border-white/10 p-6 space-y-4" aria-label="SQL de todas as correções">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h3 className="font-bold flex items-center gap-2"><Database className="w-5 h-5 text-[#DF9696]"/> SQL de todas as questões corrigidas</h3>
-        <p className="text-sm text-[#bdbdbd] mt-2" aria-live="polite">{result.count} questões acumuladas • Todos os curadores • public.questions</p>
+        <h3 className="font-bold flex items-center gap-2"><Database className="w-5 h-5 text-brand-muted"/> SQL de todas as questões corrigidas</h3>
+        <p className="text-sm text-apex-readable mt-2" aria-live="polite">{result.count} questões acumuladas • Todos os curadores • public.questions</p>
       </div>
       <div className="flex gap-2">
-        <button disabled={!available || copying} onClick={() => void copy()} className="flex items-center gap-2 rounded-lg bg-[#A43939] px-4 py-2 disabled:opacity-40"><Copy className="w-4 h-4"/>{copying ? 'Copiando…' : 'Copiar SQL de correções'}</button>
+        <button disabled={!available || copying} onClick={() => void copy()} className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 disabled:opacity-40"><Copy className="w-4 h-4"/>{copying ? 'Copiando…' : 'Copiar SQL de correções'}</button>
         <button disabled={!available} onClick={download} className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 disabled:opacity-40"><Download className="w-4 h-4"/>Baixar .sql</button>
       </div>
     </div>
-    <p className="text-sm text-[#bdbdbd]">Cada nova correção confirmada na base compartilhada entra neste script automaticamente. Se uma questão for corrigida novamente, seu UPDATE usa a versão mais recente. Questões já modificadas continuam incluídas mesmo após mudança de status.</p>
-    <p className="text-xs text-[#bdbdbd]">As alterações já são salvas em questions. Este SQL consolidado pode aplicar as mesmas correções em outra base com os mesmos IDs.</p>
+    <p className="text-sm text-apex-readable">Cada nova correção confirmada na base compartilhada entra neste script automaticamente. Se uma questão for corrigida novamente, seu UPDATE usa a versão mais recente. Questões já modificadas continuam incluídas mesmo após mudança de status.</p>
+    <p className="text-xs text-apex-readable">As alterações já são salvas em questions. Este SQL consolidado pode aplicar as mesmas correções em outra base com os mesmos IDs.</p>
     {result.errors.length > 0 ? <div role="alert" className="text-amber-300"><p>Corrija estes dados para gerar o script completo:</p><ul className="list-disc pl-5">{result.errors.map((error,index)=><li key={index}>{error}</li>)}</ul></div> :
-      <textarea aria-label="SQL acumulado de correções" readOnly value={result.count ? result.sql : '-- Nenhuma questão corrigida até o momento.'} className="w-full min-h-72 max-h-[600px] rounded-xl bg-black/40 border border-white/10 p-4 font-mono text-xs text-[#f8fafc]" spellCheck={false}/>}
+      <textarea aria-label="SQL acumulado de correções" readOnly value={result.count ? result.sql : '-- Nenhuma questão corrigida até o momento.'} className="w-full min-h-72 max-h-[600px] rounded-xl bg-black/40 border border-white/10 p-4 font-mono text-xs text-apex-text" spellCheck={false}/>}
   </section>;
 }

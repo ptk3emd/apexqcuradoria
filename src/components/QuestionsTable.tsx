@@ -206,19 +206,19 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         totalFilteredCount={filteredQuestions.length}
       />
 
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-[#272522] p-3" aria-live="polite">
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-shell-3 p-3" aria-live="polite">
         <span>{selectedIds.size} selecionadas (máximo 100)</span>
-        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('assign')} className="rounded-lg bg-[#A43939] px-4 py-2 disabled:opacity-40">Assumir selecionadas</button>
+        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('assign')} className="rounded-lg bg-brand px-4 py-2 disabled:opacity-40">Assumir selecionadas</button>
         <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('review')} className="rounded-lg bg-amber-700 px-4 py-2 disabled:opacity-40">Marcar selecionadas para revisão</button>
         <button disabled={busy || !selectedIds.size} onClick={() => setSelectedIds(new Set())} className="px-3 py-2 disabled:opacity-40">Limpar seleção</button>
-        <span className="text-xs text-[#bdbdbd]">A seleção acompanha a paginação. Alterar filtros limpa a seleção.</span>
+        <span className="text-xs text-apex-readable">A seleção acompanha a paginação. Alterar filtros limpa a seleção.</span>
       </div>
       {/* Main Questions Table */}
-      <div className="w-full rounded-2xl bg-[#1e1d1b] border border-white/[0.08] overflow-hidden shadow-2xl">
+      <div className="w-full rounded-2xl bg-shell-2 border border-white/[0.08] overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-[#f8fafc] border-collapse">
+          <table className="w-full text-left text-xs text-apex-text border-collapse">
             <thead>
-              <tr className="border-b border-white/[0.08] bg-[#272522]/80 text-[#7a7468] uppercase text-[10px] tracking-wider select-none">
+              <tr className="border-b border-white/[0.08] bg-shell-3/80 text-shell-muted uppercase text-[10px] tracking-wider select-none">
                 <th className="p-0">
                   <label className="flex items-center justify-center min-w-11 min-h-11 px-3 cursor-pointer">
                     <input type="checkbox" aria-label="Selecionar questões disponíveis desta página" disabled={busy || !selectablePage.length} checked={allPageSelected}
@@ -268,10 +268,10 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
             <tbody className="divide-y divide-white/[0.04]">
               {filteredQuestions.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-[#7a7468]">
+                  <td colSpan={9} className="py-12 text-center text-shell-muted">
                     <div className="flex flex-col items-center justify-center gap-2">
-                      <AlertCircle className="w-8 h-8 text-[#A43939]/60" />
-                      <p className="text-sm font-bold text-[#f8fafc]">Nenhuma questão encontrada</p>
+                      <AlertCircle className="w-8 h-8 text-brand/60" />
+                      <p className="text-sm font-bold text-apex-text">Nenhuma questão encontrada</p>
                       <p className="text-xs">Tente ajustar seus filtros de status ou busca.</p>
                     </div>
                   </td>
@@ -297,7 +297,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                           </label>
                         </td>
                         {/* ID with active viewer beacon */}
-                        <td className="py-3.5 px-4 font-bold text-[#f8fafc] whitespace-nowrap">
+                        <td className="py-3.5 px-4 font-bold text-apex-text whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-sm px-2 py-0.5 rounded bg-white/[0.05] border border-white/[0.08]">
                               #{q.id}
@@ -329,28 +329,28 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
 
                         {/* Especialidade & Tema */}
                         <td className="py-3.5 px-4">
-                          <p className="font-bold text-[#f8fafc] leading-tight">
+                          <p className="font-bold text-apex-text leading-tight">
                             {q.especialidade || q.categoria || 'Geral'}
                           </p>
-                          <p className="text-[11px] text-[#7a7468] truncate max-w-[200px]" title={q.tema_especifico}>
+                          <p className="text-[11px] text-shell-muted truncate max-w-[200px]" title={q.tema_especifico}>
                             {q.tema_especifico || 'Sem tema específico'}
                           </p>
                         </td>
 
                         {/* Ano / Origem */}
-                        <td className="py-3.5 px-4 whitespace-nowrap text-[#bdbdbd]">
+                        <td className="py-3.5 px-4 whitespace-nowrap text-apex-readable">
                           <span className="px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.07] text-[11px]">
                             {q.origem || 'ENARE'} {q.ano}
                           </span>
                         </td>
 
                         {/* Enunciado Preview */}
-                        <td className="py-3.5 px-4 text-[#bdbdbd]">
+                        <td className="py-3.5 px-4 text-apex-readable">
                           <p className="line-clamp-2 leading-relaxed text-xs group-hover:text-white transition-colors">
                             {q.enunciado}
                           </p>
                           {qComments.length > 0 && (
-                            <div className="flex items-center gap-1 text-[11px] text-[#DF9696] mt-1 font-bold">
+                            <div className="flex items-center gap-1 text-[11px] text-brand-muted mt-1 font-bold">
                               <MessageSquare className="w-3 h-3" />
                               <span>{qComments.length} comentário{qComments.length > 1 ? 's' : ''}</span>
                             </div>
@@ -359,7 +359,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
 
                         {/* Gabarito */}
                         <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                          <span className="w-6 h-6 inline-flex items-center justify-center rounded-lg bg-[#A43939]/20 border border-[#A43939]/40 text-[#DF9696] font-bold">
+                          <span className="w-6 h-6 inline-flex items-center justify-center rounded-lg bg-brand/20 border border-brand/40 text-brand-muted font-bold">
                             {q.correta || 'A'}
                           </span>
                         </td>
@@ -370,11 +370,11 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                             <span
                               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
                                 isAssignedToMe
-                                  ? 'bg-[#A43939]/20 border-[#A43939]/40 text-[#f8fafc]'
-                                  : 'bg-white/[0.04] border-white/[0.08] text-[#bdbdbd]'
+                                  ? 'bg-brand/20 border-brand/40 text-apex-text'
+                                  : 'bg-white/[0.04] border-white/[0.08] text-apex-readable'
                               }`}
                             >
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#DF9696]" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-brand-muted" />
                               {q.responsavel_nome.split(' ')[0]}
                             </span>
                           ) : (
@@ -384,7 +384,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                                 e.stopPropagation();
                                 onAssignQuestion(q.id, activeCurator);
                               }}
-                              className="text-[11px] text-[#7a7468] hover:text-[#f8fafc] hover:underline flex items-center gap-1"
+                              className="text-[11px] text-shell-muted hover:text-apex-text hover:underline flex items-center gap-1"
                             >
                               <UserPlus className="w-3 h-3" /> Assumir
                             </button>
@@ -397,10 +397,10 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                             {/* Copiar Texto para IA/Google */}
                             <button
                               onClick={(e) => handleCopyQuestion(q, e)}
-                              className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.1] text-[#bdbdbd] hover:text-white transition-all"
+                              className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.1] text-apex-readable hover:text-white transition-all"
                               title="Copiar texto para IA (Gemini/ChatGPT) ou Google"
                             >
-                              <Copy className="w-3.5 h-3.5 text-[#DF9696]" />
+                              <Copy className="w-3.5 h-3.5 text-brand-muted" />
                             </button>
 
                             {/* Quick Status Select */}
@@ -413,7 +413,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                                 e.stopPropagation();
                                 if (await onUpdateStatus(q.id, e.target.value as QuestionStatus)) onShowToast('Status atualizado', `Questão #${q.id} salva no Supabase.`, 'success');
                               }}
-                              className="bg-[#272522] hover:bg-[#31302e] border border-white/[0.1] rounded-lg px-2 py-1 text-[11px] text-[#f8fafc] outline-none cursor-pointer"
+                              className="bg-shell-3 hover:bg-shell border border-white/[0.1] rounded-lg px-2 py-1 text-[11px] text-apex-text outline-none cursor-pointer"
                             >
                               <option value="pendente">Pendente</option>
                               <option value="aprovadas">Aprovar</option>
@@ -426,7 +426,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                             <button
                               disabled={busy}
                               onClick={(e) => { e.stopPropagation(); onSelectQuestion(q); }}
-                              className="p-1.5 rounded-lg bg-[#A43939]/20 hover:bg-[#A43939]/40 text-[#DF9696] hover:text-white transition-all"
+                              className="p-1.5 rounded-lg bg-brand/20 hover:bg-brand/40 text-brand-muted hover:text-white transition-all"
                               title="Abrir em tela cheia"
                             >
                               <ChevronRight className="w-3.5 h-3.5" />
@@ -443,8 +443,8 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
 
         {/* Pagination Toolbar */}
         {filteredQuestions.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-[#272522]/90 border-t border-white/[0.08] text-xs">
-            <div className="flex items-center gap-3 text-[#bdbdbd]">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-shell-3/90 border-t border-white/[0.08] text-xs">
+            <div className="flex items-center gap-3 text-apex-readable">
               <span>
                 Mostrando{' '}
                 <b className="text-white">
@@ -454,11 +454,11 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                 <b className="text-white">
                   {Math.min(currentPage * pageSize, filteredQuestions.length)}
                 </b>{' '}
-                de <b className="text-[#DF9696]">{filteredQuestions.length}</b> questões
+                de <b className="text-brand-muted">{filteredQuestions.length}</b> questões
               </span>
 
               <div className="flex items-center gap-1.5 ml-2">
-                <span className="text-[11px] text-[#7a7468]">Por página:</span>
+                <span className="text-[11px] text-shell-muted">Por página:</span>
                 <select
                   aria-label="Questões por página"
                   value={pageSize}
@@ -466,7 +466,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                     setPageSize(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="bg-[#1e1d1b] border border-white/[0.1] rounded px-2 py-0.5 text-xs text-white outline-none"
+                  className="bg-shell-2 border border-white/[0.1] rounded px-2 py-0.5 text-xs text-white outline-none"
                 >
                   <option value={25}>25</option>
                   <option value={50}>50</option>
@@ -492,7 +492,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                 ‹ Anterior
               </button>
 
-              <span className="px-3 py-1 rounded-lg bg-[#1e1d1b] border border-white/[0.1] font-mono font-bold text-white text-xs">
+              <span className="px-3 py-1 rounded-lg bg-shell-2 border border-white/[0.1] font-mono font-bold text-white text-xs">
                 {currentPage} / {Math.max(1, Math.ceil(filteredQuestions.length / pageSize))}
               </span>
 
