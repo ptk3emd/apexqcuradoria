@@ -1,56 +1,43 @@
-# Migração da curadoria do Google Sheets para o Supabase
+# Curadoria no Supabase
 
-## Diagnóstico do código atual
+Projeto: `jcbinmjiimqomjdyfdia`. O usuário fará a importação das questões diretamente em `public.questions`. Não executar importações do Google Sheets.
 
-- `apps-script/Code.gs`: todas as requisições usam uma trava global. Uma escrita relê o histórico completo; lotes também fazem consultas repetidas à aba base. O tempo cresce com o histórico e com o tamanho do lote.
-- `src/App.tsx`: consulta a cada 5 segundos; três sessões fazem 36 consultas/minuto, sem contar ações e heartbeat. Uma atualização rápida de status fora do detalhe usa claim + save + unlock. Revisão de lote também usa três chamadas.
-- A importação completa lê 50 questões por requisição: 13.945 registros exigem 279 chamadas sequenciais. Não use essa importação como botão rotineiro de atualização.
-- `src/lib/supabaseClient.ts` é código legado, sem uso no fluxo atual. Broadcast não é persistência, e verificar a tabela `questoes` não atende ao esquema real `public.questions`. Configurar URL/chave sozinho não migra o app.
+## Banco
 
-Esta PR evita recriar objetos em consultas sem mudanças, compartilha uma única leitura incremental entre polling/reconexão/conflitos, evita bloquear a inicialização regravando a base inteira em IndexedDB e reconstrói patches de um lote em uma única passagem pelo histórico. São melhorias intermediárias, não eliminam a latência do Apps Script. A parte do Apps Script exige republicar a implantação.
+As migrations criam:
 
-## Arquitetura de destino
+- `public.questions`: campos do esquema fornecido, PK bigint identity, limites de dificuldade/descritores, índices e colunas calculadas.
+- `public.question_competencies`: vínculo de cada questão às competências normalizadas.
+- `public.curation_questions`: versão, responsável, lease de edição, comentários e estado compartilhado.
+- `public.curation_members`: vínculo administrativo entre Supabase Auth e os três perfis.
+- `curation_private.events` e `requests`: histórico e idempotência, inacessíveis ao navegador.
 
-Manter `public.questions` com o esquema existente. Não criar `public.questoes` nem alterar as colunas calculadas. Como o fluxo atual gera SQL para aplicar correções manualmente, a opção inicial mais conservadora é armazenar os rascunhos de curadoria em tabelas separadas no mesmo projeto Supabase e manter a aplicação em `public.questions` manual. Se a intenção for salvar diretamente no banco publicado, isso deve ser decidido antes do corte.
+As funções originais não existiam no projeto. Foram implementadas `normalize_competencies` (lista JSON ou delimitada por vírgula, ponto e vírgula ou pipe; remove duplicatas/espaços e usa minúsculas), `reassign_conflicting_question_id` (resolve colisões em INSERT, sem renumerar UPDATE) e `sync_question_competencies` (mantém os vínculos). Essas implementações não foram copiadas do banco original, cujas definições não foram fornecidas.
 
-Tabelas propostas:
+O trigger `trg_curation_source` torna as questões importadas disponíveis automaticamente na curadoria. Salvar no site atualiza `questions` dentro da mesma transação que verifica responsável, sessão e versão. ID e `created_at` são editáveis; `ano_int` e `competencias_normalized` são calculados pelo PostgreSQL. Uma alteração de ID conflitante é recusada. Metadados e vínculos acompanham a troca de ID.
 
-| Tabela | Conteúdo |
-|---|---|
-| `curation_members` | UID do Supabase Auth e perfil Patrick/Lucas/Thierry; cadastro apenas administrativo |
-| `question_curation` | `question_id` bigint, conteúdo corrigido em JSONB, status, responsável, versão, modificado, sessão da trava, validade e data da revisão |
-| `question_comments` | Questão, autor verificado, texto e data |
-| `question_audit` | Histórico durável com autor, ação, versão e ID único da operação para idempotência |
+O SQL de Estatísticas continua acumulando as correções de todos os curadores, mas no modo Supabase os dados já foram salvos em `questions`. O SQL pode replicar as correções em outra base com os mesmos IDs.
 
-O autor de toda alteração deve vir de `auth.uid()`, e não de um perfil escolhido pelo navegador. Usar Supabase Auth com três contas individuais; cadastrar os UIDs em `curation_members`.
+## Contas e ativação
 
-Habilitar RLS, permitindo leitura somente aos membros. Escritas da curadoria devem ocorrer por RPC, sem permissão de UPDATE direto ao navegador. As funções devem validar associação, responsável, sessão e versão, com `search_path` fixo e EXECUTE restrito a usuários autenticados. A chave publishable/anon pode estar no frontend; service_role/secret nunca deve estar em `VITE_*`.
+1. Criar três contas individuais em Supabase Auth (e-mails reais ainda precisam ser informados; os endereços de exemplo em `defaultCurators.ts` não são cadastro).
+2. Vincular seus UUIDs em `curation_members` aos perfis `patrick`, `lucas` e `thierry`. Somente o administrador pode criar esses vínculos. O login identifica o perfil pelo banco, sem troca livre de identidade no navegador.
+3. O usuário importa os registros em `questions`. Não importar valores nas duas colunas `GENERATED ALWAYS`. Os campos `difficulty_bucket` aceitam NULL ou `easy`/`medium`/`hard`; não usar o texto literal `null` como dificuldade.
+4. Configurar no ambiente de hospedagem: `VITE_CURATOR_BACKEND=supabase`, `VITE_SUPABASE_URL` e uma chave pública em `VITE_SUPABASE_PUBLISHABLE_KEY` ou `VITE_SUPABASE_ANON_KEY`. Fazer novo deploy, pois Vite lê essas variáveis no build.
+5. Testar o acesso das três contas e a disputa pela mesma questão. Desativar as escritas no backend Sheets antes de retomar o trabalho para não haver duas bases independentes em uso.
 
-Uma RPC transacional deve receber ação, IDs, versões esperadas, patches, sessão e UUID da operação. Ela trava as linhas em ordem de ID (`FOR UPDATE`, para evitar deadlock entre lotes), valida todos os itens e grava o lote inteiro ou nada. Uma versão antiga ou uma reserva de outro usuário cancela a operação. Reservas de responsabilidade persistem; a trava de edição expira e é renovada por heartbeat. Ao abrir uma questão, claim e leitura do conteúdo podem voltar na mesma resposta.
+O padrão do código continua `sheets` até configurar o ambiente. Não colocar service_role, senha de banco ou a chave do Apps Script em variáveis `VITE_*`.
 
-Realtime informa alterações confirmadas das tabelas de curadoria e comentários. É um aviso de mudança, não o mecanismo de exclusão. O cliente mantém um único canal, atualiza apenas as questões afetadas e refaz uma leitura incremental ao reconectar. Polling contínuo de 5 segundos deixa de ser o fluxo principal.
+## Sincronização e interface
 
-## Ordem da migração
+A carga inicial registra o cursor antes de ler as páginas, evitando reprocessar o histórico inteiro da importação. Realtime avisa sobre mudanças; a RPC incremental recupera as versões confirmadas, inclusive após reconexão, com verificação adicional a cada 30 segundos. Reservas de edição duram 90 segundos e são renovadas a cada 25 segundos. A responsabilidade continua reservada até sua liberação explícita. Marcar um lote para revisão usa uma transação: um conflito desfaz o lote todo.
 
-1. Identificar o projeto existente e a URL. Confirmar se `public.questions` é a base publicada e se as correções devem continuar como rascunhos/SQL manual.
-2. Fazer backup da planilha original e de `_apex_collaboration_v2`. Exportar o estado composto (base + todos os patches em ordem), não apenas a aba base: ela não contém as correções recentes. Preservar IDs, versões, reservas, comentários e o histórico. Não apagar o journal.
-3. Criar e testar as tabelas, Auth, RLS e RPCs em uma branch/projeto de teste. Cadastrar as três contas. Habilitar Realtime nas tabelas necessárias.
-4. Criar um adaptador Supabase no frontend para substituir `fetchShared`/`mutateShared` e adaptar o login. Remover a seleção livre de identidade e os caminhos legados de broadcast como fonte de verdade. Manter a interface atual de seleção múltipla e o SQL global baseado nos dados compartilhados.
-5. Importar o estado composto para as tabelas de curadoria. Se `public.questions` já contém os IDs, não reinserir as perguntas: o trigger `trg_reassign_question_id` pode remapear IDs de INSERTs conflitantes. Não escrever `ano_int` nem `competencias_normalized`; o banco calcula essas colunas.
-6. Comparar IDs, contagens, versões, correções e comentários. Testar duas contas disputando a mesma questão, duas abas da mesma conta, lote com conflito, versão antiga, expiração, reconexão e exportação SQL.
-7. Para o corte, pausar edições no Sheets, importar o delta final, confirmar que todos os usuários atualizaram o frontend e ativar exclusivamente o Supabase. Não manter dois backends aceitando escritas simultâneas. Retomar as edições após a conferência.
-8. Preservar o backup e o backend antigo sem escrita. Um rollback depois de novas alterações no Supabase exige copiar essas alterações de volta antes de reativar Sheets; simplesmente trocar a URL perderia trabalho.
+O editor organiza os campos em enunciado/alternativas, resolução e classificação, com gabarito selecionável, campos de texto multilinha e barra fixa para salvar. A navegação é bloqueada durante a edição para evitar descarte acidental. Falhas de gravação preservam o rascunho.
 
-## Dados necessários para executar
+## Validação
 
-- URL do projeto Supabase e chave **pública** publishable/anon.
-- E-mails dos três curadores para configurar as identidades.
-- Acesso administrativo ao projeto para aplicar tabelas/RLS/RPCs (não enviar service_role ou senha de banco na conversa).
-- Confirmação: rascunhos com aplicação por SQL manual, ou atualização direta de `public.questions`.
+`npm run lint`, `npm test`, `npm run build`.
 
-A migração ainda não está ativada. Não basta preencher variáveis de ambiente: primeiro implementar e validar Auth/RPCs/adaptador e fazer o corte dos dados.
+Os testes PostgreSQL locais executam as migrations no PGlite e verificam autenticação, RLS, conflito de responsáveis/abas/versões, expiração de leases, rollback do lote, idempotência, comentários, importação administrativa, gravação em `questions`, colunas geradas e alteração de IDs. Os registros de teste existem apenas no banco local em memória.
 
-Referências oficiais:
-- https://supabase.com/docs/guides/database/functions
-- https://supabase.com/docs/guides/database/postgres/row-level-security
-- https://supabase.com/docs/guides/realtime/postgres-changes
+As RPCs SECURITY DEFINER têm EXECUTE revogado de PUBLIC/anon e validam `auth.uid()` contra membros ativos. O advisor informa que usuários autenticados podem executá-las; é o acesso intencional, necessário para proibir UPDATE direto e centralizar as verificações. Referência: https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable

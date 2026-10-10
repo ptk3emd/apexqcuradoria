@@ -7,6 +7,8 @@ export type QuestionStatus =
 
 export interface Question {
   sync_version?: number;
+  sync_source_id?: string;
+  previous_id?: string | null;
   shared_comments?: QuestionComment[];
   id: string;
   categoria: string;

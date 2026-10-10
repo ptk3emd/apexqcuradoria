@@ -1,3 +1,4 @@
+import { usesSupabase, fetchSupabaseShared, mutateSupabase } from './supabaseCuration';
 import { getStoredSheetsSyncConfig } from './googleSheetsSync';
 import { Curator, Question, CuratorPresence } from '../types/question';
 import { mergeShared, type SharedRow } from './sharedState';
@@ -39,6 +40,7 @@ export function fetchShared(): Promise<SharedSnapshot> {
   return syncInFlight;
 }
 async function loadShared(): Promise<SharedSnapshot> {
+  if (usesSupabase) return fetchSupabaseShared();
   let result;
   do {
     result = await sheetsRequest({action:'sync', cursor});
@@ -55,6 +57,7 @@ async function loadShared(): Promise<SharedSnapshot> {
 }
 export async function mutateShared(questions: Question[], action: string, actor: Curator, target?: Curator | null): Promise<Question[]> {
   if (!questions.length) return [];
+  if (usesSupabase) return mutateSupabase(questions, action, target);
   const result = await sheetsRequest({action, request:crypto.randomUUID(), items:questions.map(q=>({
     id:q.id,version:q.sync_version ?? 0,patch: action==='save' ? q : undefined,target:target?.id || null,
   }))});

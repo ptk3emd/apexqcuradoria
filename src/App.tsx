@@ -21,6 +21,8 @@ import { BatchAssignModal } from './components/BatchAssignModal';
 import { GoogleSheetsSyncModal } from './components/GoogleSheetsSyncModal';
 import { SqlEditorModal } from './components/SqlEditorModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
+import { SupabaseAuthGate } from './components/SupabaseAuthGate';
+import { usesSupabase, loadSupabaseBase, subscribeSupabaseChanges, signOutSupabase, curationClient } from './lib/supabaseCuration';
 import { MasterAuthGate } from './components/MasterAuthGate';
 import { 
   getStoredSheetsSyncConfig 
@@ -40,6 +42,7 @@ export default function App() {
   const [curators] = useState<Curator[]>(DEFAULT_CURATORS);
   
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (usesSupabase) return false;
     if (typeof window !== 'undefined') {
       try {
         const token = sessionStorage.getItem('apexmed_master_auth_token');
@@ -66,7 +69,7 @@ export default function App() {
   });
 
   // 2. Questions State (Starts instantly with the 150 items sample from the requested Google Sheet)
-  const [questions, setQuestions] = useState<Question[]>(INITIAL_QUESTIONS_SAMPLE);
+  const [questions, setQuestions] = useState<Question[]>(usesSupabase ? [] : INITIAL_QUESTIONS_SAMPLE);
   const [isLoadingFullDataset, setIsLoadingFullDataset] = useState(false);
 
   const [syncMessage, setSyncMessage] = useState('Conectando à curadoria compartilhada…');
@@ -105,6 +108,7 @@ export default function App() {
 
   // 6. UI Views & Filter Search
   const [activeView, setActiveView] = useState<'table' | 'detail' | 'cockpit'>('table');
+  const [isEditingQuestion, setIsEditingQuestion] = useState(false);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -141,12 +145,27 @@ export default function App() {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
+  useEffect(() => {
+    if (!usesSupabase) return;
+    const {data} = curationClient().auth.onAuthStateChange(event => {
+      if (event === 'SIGNED_OUT') {setIsAuthenticated(false); setActiveView('table'); setQuestions([]);}
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  const shouldLoadDataset = !usesSupabase || isAuthenticated;
   // Asynchronously load the full 13,945 questions dataset from IndexedDB or base_questoes.json
   useEffect(() => {
+    if (!shouldLoadDataset) {setDatasetReady(false); return;}
     let isMounted = true;
     async function loadDataset() {
       setIsLoadingFullDataset(true);
       try {
+        if (usesSupabase) {
+          const full = await loadSupabaseBase();
+          if (isMounted) {setQuestions(full); setDatasetReady(true);}
+          return;
+        }
         const res = await fetch('./base_questoes.json');
         if (res.ok) {
           const full = await res.json();
@@ -158,8 +177,9 @@ export default function App() {
         }
       } catch (err) {
         console.warn('Carregamento inicial completo:', err);
+        if (isMounted) setSyncMessage(`Falha ao carregar questões: ${String(err)}`);
       } finally {
-        if (isMounted) { setIsLoadingFullDataset(false); setDatasetReady(true); }
+        if (isMounted) { setIsLoadingFullDataset(false); if (!usesSupabase) setDatasetReady(true); }
       }
     }
 
@@ -167,7 +187,7 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [shouldLoadDataset]);
 
   // Save audit logs to localStorage
   useEffect(() => {
@@ -192,8 +212,10 @@ export default function App() {
     if (!datasetReady || !isAuthenticated) return;
     let stopped = false;
     let loading = false;
+    let refreshAgain = false;
     const refresh = async () => {
-      if (loading || stopped) return;
+      if (stopped) return;
+      if (loading) {refreshAgain = true; return;}
       loading = true;
       try {
         const rows = await fetchShared();
@@ -207,17 +229,18 @@ export default function App() {
                 old.status_atividade === next.status_atividade && old.ultima_atividade === next.ultima_atividade;
             }) ? previous : rows.presences;
           });
-          setSyncMessage('Google Sheets conectado • atualização automática a cada 5 segundos');
+          setSyncMessage(usesSupabase ? 'Supabase conectado • sincronização automática' : 'Google Sheets conectado • atualização automática a cada 5 segundos');
         }
       } catch (error: any) {
         if (!stopped) setSyncMessage(`Sincronização indisponível: ${error.message}`);
-      } finally { loading = false; }
+      } finally { loading = false; if (refreshAgain && !stopped) {refreshAgain = false; void refresh();} }
     };
     void refresh();
-    const timer = setInterval(refresh, 5000);
+    const unsubscribe = usesSupabase ? subscribeSupabaseChanges(refresh) : undefined;
+    const timer = setInterval(refresh, usesSupabase ? 30000 : 5000);
     window.addEventListener('online', refresh);
     return () => {
-      stopped = true; clearInterval(timer);
+      stopped = true; clearInterval(timer); unsubscribe?.();
       window.removeEventListener('online', refresh);
 
     };
@@ -247,12 +270,13 @@ export default function App() {
 
   const applyConfirmed = useCallback((updated: Question[]) => {
     setQuestions(prev => {
-      const changes = new Map(updated.map(q => [q.id, q]));
+      const changes = new Map(updated.map(q => [q.previous_id || q.id, {...q, sync_source_id:q.id,previous_id:null}]));
       return prev.map(q => {
         const next = changes.get(q.id);
         return next && (next.sync_version ?? 0) >= (q.sync_version ?? 0) ? next : q;
       });
     });
+    updated.forEach(q => {if(q.previous_id) setSelectedQuestionId(old => old === q.previous_id ? q.id : old);});
     updated.forEach(q => { void updateSingleQuestionInDb(q); });
   }, []);
 
@@ -262,7 +286,7 @@ export default function App() {
       return null;
     }
     if (actionPending.current) {
-      showToast('Operação em andamento', 'Aguarde a confirmação do Google Sheets.', 'info');
+      showToast('Operação em andamento', 'Aguarde a confirmação do servidor.', 'info');
       return null;
     }
     actionPending.current = true;
@@ -315,6 +339,7 @@ export default function App() {
   const handleUpdateStatus = async (id: string, status: QuestionStatus, notas?: string): Promise<boolean> => {
     let q = questions.find(q => q.id === id);
     if (!q) return false;
+    if (usesSupabase) return (await runShared([{...q, status, notas_revisao: notas ?? q.notas_revisao}], 'status')) !== null;
     if (activeView !== 'detail' || selectedQuestionId !== id) {
       const claimed = await runShared([q], 'claim');
       if (!claimed) return false;
@@ -356,7 +381,10 @@ export default function App() {
       if (action === 'assign') {
         applyConfirmed(await mutateShared(targets, 'assign', activeCurator, activeCurator));
       } else {
-        const saved = await reviewSelection(targets, activeCurator, mutateShared, applyConfirmed);
+        const saved = usesSupabase
+          ? await mutateShared(targets, 'review', activeCurator)
+          : await reviewSelection(targets, activeCurator, mutateShared, applyConfirmed);
+        if (usesSupabase) applyConfirmed(saved);
         setAuditLogs(logs => [...saved.map(q => ({
           id: crypto.randomUUID(), questao_id: q.id, curador_id: activeCurator.id,
           curador_nome: activeCurator.nome, tipo_acao: 'status_alterado' as const,
@@ -400,12 +428,17 @@ export default function App() {
     const comment: QuestionComment = { id:crypto.randomUUID(), questao_id:questionId,
       curador_id:activeCurator.id,curador_nome:activeCurator.nome,curador_cor:activeCurator.avatarCor,
       texto:text,criado_em:new Date().toISOString() };
+    if (usesSupabase) return (await runShared([{...q, shared_comments:[...(q.shared_comments || []),comment]}], 'comment')) !== null;
     return handleUpdateQuestion({...q, shared_comments:[...(q.shared_comments || []),comment]});
   };
 
   // Actions: Lock session / Switch user with master password
-  const handleLockSession = useCallback(() => {
-    if (actionPending.current) { showToast('Operação em andamento', 'Aguarde antes de bloquear a sessão.', 'info'); return; }
+  const handleLockSession = useCallback(async () => {
+    if (actionPending.current || isEditingQuestion) { showToast('Operação em andamento', 'Salve ou cancele a edição antes de bloquear a sessão.', 'info'); return; }
+    if (usesSupabase) {
+      try {await signOutSupabase();} catch (error) {showToast('Falha ao sair', String(error), 'error'); return;}
+    }
+    setActiveView('table');
     try {
       sessionStorage.removeItem('apexmed_master_auth_token');
       sessionStorage.removeItem('apexmed_sheets_access_key');
@@ -414,8 +447,8 @@ export default function App() {
       // ignore
     }
     setIsAuthenticated(false);
-    showToast('Sessão Bloqueada', 'Digite a senha mestra para desbloquear.', 'info');
-  }, [showToast]);
+    showToast('Sessão Bloqueada', usesSupabase ? 'Entre novamente com sua conta.' : 'Digite a senha mestra para desbloquear.', 'info');
+  }, [showToast,isEditingQuestion]);
 
   const modifiedCount = useMemo(() => {
     return questions.filter(q => q.status !== 'pendente').length;
@@ -424,7 +457,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#31302e] text-[#f8fafc] flex flex-col font-sans selection:bg-[#A43939] selection:text-white">
       {/* Master Password Gate Overlay */}
-      {!isAuthenticated && (
+      {!isAuthenticated && usesSupabase && <SupabaseAuthGate onAuthenticated={curator => {setActiveCurator(curator); setIsAuthenticated(true);}} />}
+      {!isAuthenticated && !usesSupabase && (
         <MasterAuthGate
           curators={curators}
           onAuthenticated={(curator) => {
@@ -437,9 +471,12 @@ export default function App() {
 
       {/* Top Navbar */}
       <TopNavbar
+        allowCuratorSwitch={!usesSupabase}
+        showSheets={!usesSupabase}
         curators={curators}
         activeCurator={activeCurator}
         onSelectCurator={(c) => {
+          if (usesSupabase || isEditingQuestion) return;
           if (actionPending.current) { showToast('Operação em andamento', 'Aguarde antes de trocar de usuário.', 'info'); return; }
           setActiveView('table');
           setActiveCurator(c);
@@ -454,7 +491,7 @@ export default function App() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         activeView={activeView}
-        onViewChange={(view) => { if (actionPending.current) return; if (view === 'detail' && currentQuestion) void openQuestion(currentQuestion); else setActiveView(view); }}
+        onViewChange={(view) => { if (isEditingQuestion) {showToast('Edição em andamento', 'Salve ou cancele antes de sair.', 'info');return;} if (actionPending.current) return; if (view === 'detail' && currentQuestion) void openQuestion(currentQuestion); else setActiveView(view); }}
         onOpenSqlModal={() => setIsSqlModalOpen(true)}
         onOpenSheetsModal={() => setIsSheetsModalOpen(true)}
         onOpenBatchAssignModal={() => setIsBatchAssignModalOpen(true)}
@@ -465,7 +502,8 @@ export default function App() {
         sheetsSyncMessage={sheetsSyncMessage}
       />
 
-      <div role="status" className="px-6 py-2 text-sm bg-black/20">{isActionPending ? 'Salvando no Google Sheets… Aguarde a confirmação.' : syncMessage}</div>
+      <div role="status" className="px-6 py-2 text-sm bg-black/20">{isActionPending ? 'Salvando… Aguarde a confirmação.' : syncMessage}</div>
+      {usesSupabase && datasetReady && questions.length===0 && <p className="mx-auto max-w-3xl p-8 text-center text-[#bdbdbd]">Nenhuma questão cadastrada. Importe sua base na tabela questions do Supabase e atualize esta página.</p>}
       {/* Main Content Area */}
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 lg:px-6 py-6">
         {activeView === 'table' && (
@@ -486,6 +524,7 @@ export default function App() {
         {activeView === 'detail' && currentQuestion && (
           <QuestionDetailView
             busy={isActionPending}
+            onEditingChange={setIsEditingQuestion}
             key={currentQuestion.id}
             question={currentQuestion}
             allQuestions={searchedQuestions}
@@ -533,7 +572,7 @@ export default function App() {
       />
 
       {/* Google Sheets Sync Hub Modal */}
-      <GoogleSheetsSyncModal
+      {!usesSupabase && <GoogleSheetsSyncModal
         isOpen={isSheetsModalOpen}
         onClose={() => setIsSheetsModalOpen(false)}
         questions={questions}
@@ -546,7 +585,7 @@ export default function App() {
           setSheetsSyncStatus(status);
           if (message) setSheetsSyncMessage(message);
         }}
-      />
+      />}
 
       <BatchAssignModal
         isOpen={isBatchAssignModalOpen}
