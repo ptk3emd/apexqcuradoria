@@ -26,6 +26,7 @@ import { generateSqlForQuestion } from '../lib/sqlGenerator';
 
 interface QuestionDetailViewProps {
   question: Question;
+  busy: boolean;
   allQuestions: Question[];
   activeCurator: Curator;
   presences: Record<string, CuratorPresence>;
@@ -42,6 +43,7 @@ interface QuestionDetailViewProps {
 
 export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
   question,
+  busy,
   allQuestions,
   activeCurator,
   presences,
@@ -82,7 +84,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger if user is typing in an input or textarea
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+      if (busy || isEditing || showRevisionModal || (e.target as HTMLElement).isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes((e.target as HTMLElement).tagName)) {
         return;
       }
       if (e.key === 'ArrowLeft' && currentIndex > 0) {
@@ -93,7 +95,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, total, onNavigateQuestion]);
+  }, [currentIndex, total, onNavigateQuestion, busy, isEditing, showRevisionModal]);
 
   const handleCopy = async () => {
     const formatted = formatQuestionForAiPrompt(question);
@@ -146,12 +148,13 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
   const isAssignedToMe = question.responsavel_id === activeCurator.id;
 
   return (
-    <div className="w-full space-y-5 animate-in fade-in duration-200">
+    <fieldset disabled={busy} aria-busy={busy} className="w-full min-w-0 space-y-5 animate-in fade-in duration-200">
       {/* Top Navigation & Status Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-[#1e1d1b] p-4 rounded-2xl border border-white/[0.08] shadow-lg">
         {/* Left: Back button & Counter */}
         <div className="flex items-center gap-3">
           <button
+            disabled={isEditing}
             onClick={onBackToList}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-[#bdbdbd] hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all"
           >
@@ -161,7 +164,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              disabled={currentIndex <= 0}
+              disabled={isEditing || currentIndex <= 0}
               onClick={() => onNavigateQuestion(currentIndex - 1)}
               className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] disabled:opacity-30 disabled:pointer-events-none text-white transition-all"
               title="Questão anterior (Seta para a esquerda)"
@@ -174,7 +177,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             </span>
 
             <button
-              disabled={currentIndex >= total - 1}
+              disabled={isEditing || currentIndex >= total - 1}
               onClick={() => onNavigateQuestion(currentIndex + 1)}
               className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] disabled:opacity-30 disabled:pointer-events-none text-white transition-all"
               title="Próxima questão (Seta para a direita)"
@@ -765,6 +768,6 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           </div>
         </div>
       )}
-    </div>
+    </fieldset>
   );
 };

@@ -34,7 +34,6 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
   onClearLogs,
   onShowToast,
 }) => {
-  if (!isOpen) return null;
 
   const [regexPattern, setRegexPattern] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'progressive' | 'ddl'>('progressive');
@@ -95,6 +94,8 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
     document.body.removeChild(link);
     onShowToast('Arquivo baixado!', `Salvo como ${filename}.`, 'success');
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">

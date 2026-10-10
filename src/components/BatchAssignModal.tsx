@@ -4,6 +4,7 @@ import { Question, Curator } from '../types/question';
 
 interface BatchAssignModalProps {
   isOpen: boolean;
+  busy: boolean;
   onClose: () => void;
   questions: Question[];
   curators: Curator[];
@@ -15,6 +16,7 @@ interface BatchAssignModalProps {
 
 export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
   isOpen,
+  busy,
   onClose,
   questions,
   curators,
@@ -23,7 +25,6 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
   onReleaseAllMyAssignments,
   onShowToast,
 }) => {
-  if (!isOpen) return null;
 
   const [quantity, setQuantity] = useState<number>(10);
   const [specialtyFilter, setSpecialtyFilter] = useState<string>('todas');
@@ -77,8 +78,10 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
     onClose();
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in">
+    <fieldset disabled={busy} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in">
       <div className="w-full max-w-xl rounded-2xl bg-[#1e1d1b] border border-white/[0.12] p-6 space-y-5 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
@@ -214,6 +217,6 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 };

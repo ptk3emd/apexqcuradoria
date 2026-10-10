@@ -42,7 +42,6 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
   onShowToast,
   onSyncStatusChange,
 }) => {
-  if (!isOpen) return null;
 
   const [config, setConfig] = useState(getStoredSheetsSyncConfig());
   const [activeTab, setActiveTab] = useState<'sync' | 'webhook' | 'export'>('sync');
@@ -136,6 +135,8 @@ export const GoogleSheetsSyncModal: React.FC<GoogleSheetsSyncModalProps> = ({
   };
 
   const modifiedCount = questions.filter(q => q.status !== 'pendente').length;
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in select-none">

@@ -11,6 +11,7 @@ import {
   AuditLogItem 
 } from './types/question';
 import { fetchShared, mergeShared, mutateShared } from './lib/collaboration';
+import { reviewSelection } from './lib/bulkActions';
 import { generateSqlForQuestion } from './lib/sqlGenerator';
 import { TopNavbar } from './components/TopNavbar';
 import { QuestionsTable } from './components/QuestionsTable';
@@ -71,6 +72,7 @@ export default function App() {
   const [syncMessage, setSyncMessage] = useState('Conectando à curadoria compartilhada…');
   const [datasetReady, setDatasetReady] = useState(false);
   const actionPending = useRef(false);
+  const [isActionPending, setIsActionPending] = useState(false);
 
   // 3. Audit Logs State
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(() => {
@@ -247,8 +249,16 @@ export default function App() {
   }, []);
 
   const runShared = async (targets: Question[], action: string, target?: Curator | null) => {
-    if (!isAuthenticated || !datasetReady || actionPending.current) return null;
+    if (!isAuthenticated || !datasetReady) {
+      showToast('Aguarde a conexão', 'Entre na sessão e aguarde o carregamento das questões.', 'info');
+      return null;
+    }
+    if (actionPending.current) {
+      showToast('Operação em andamento', 'Aguarde a confirmação do Google Sheets.', 'info');
+      return null;
+    }
     actionPending.current = true;
+    setIsActionPending(true);
     try {
       const updated = await mutateShared(targets, action, activeCurator, target);
       applyConfirmed(updated);
@@ -257,7 +267,7 @@ export default function App() {
       showToast('Ação não salva', error.message, 'error');
       try { const rows = await fetchShared(); setQuestions(prev => mergeShared(prev, rows.rows)); } catch {}
       return null;
-    } finally { actionPending.current = false; }
+    } finally { actionPending.current = false; setIsActionPending(false); }
   };
 
   const openQuestion = async (question: Question) => {
@@ -318,14 +328,62 @@ export default function App() {
   };
 
   const handleAssignBatch = async (ids: string[], curatorId: string): Promise<boolean> => {
-    const result = await runShared(questions.filter(q => ids.includes(q.id)), 'assign', curators.find(c => c.id === curatorId));
+    const target = curators.find(c => c.id === curatorId);
+    if (!target) return false;
+    const result = await runShared(questions.filter(q => ids.includes(q.id)), 'assign', target);
     return result !== null;
   };
 
+  const handleSelectedQuestions = async (ids: string[], action: 'assign' | 'review'): Promise<boolean> => {
+    if (actionPending.current || !isAuthenticated || !datasetReady) return false;
+    const idSet = new Set(ids);
+    const targets = questions.filter(q => idSet.has(q.id));
+    if (!targets.length || targets.length > 100 || targets.length !== idSet.size) {
+      showToast('Seleção inválida', 'Selecione entre 1 e 100 questões.', 'error');
+      return false;
+    }
+    actionPending.current = true;
+    setIsActionPending(true);
+    try {
+      if (action === 'assign') {
+        applyConfirmed(await mutateShared(targets, 'assign', activeCurator, activeCurator));
+      } else {
+        const saved = await reviewSelection(targets, activeCurator, mutateShared, applyConfirmed);
+        setAuditLogs(logs => [...saved.map(q => ({
+          id: crypto.randomUUID(), questao_id: q.id, curador_id: activeCurator.id,
+          curador_nome: activeCurator.nome, tipo_acao: 'status_alterado' as const,
+          detalhes: `Questão #${q.id} marcada para revisão em lote`, timestamp: new Date().toISOString(),
+          sql_gerado: generateSqlForQuestion(q, activeCurator.nome),
+        })), ...logs]);
+      }
+      showToast(action === 'assign' ? 'Questões assumidas' : 'Questões marcadas para revisão',
+        `${targets.length} questões • ${activeCurator.nome}`, 'success');
+      return true;
+    } catch (error: any) {
+      showToast('Operação não concluída', error.message, 'error');
+      try { const shared = await fetchShared(); setQuestions(prev => mergeShared(prev, shared.rows)); } catch {}
+      return false;
+    } finally { actionPending.current = false; setIsActionPending(false); }
+  };
+
   const handleReleaseAllMyAssignments = async (curatorId: string): Promise<boolean> => {
-    const result = await runShared(questions.filter(q => q.responsavel_id === curatorId && q.status === 'pendente'), 'assign', null);
-    if (result) setActiveView('table');
-    return result !== null;
+    if (actionPending.current) return false;
+    const targets = questions.filter(q => q.responsavel_id === curatorId && q.status === 'pendente');
+    actionPending.current = true;
+    setIsActionPending(true);
+    let released = 0;
+    try {
+      for (let offset = 0; offset < targets.length; offset += 100) {
+        const updated = await mutateShared(targets.slice(offset, offset + 100), 'assign', activeCurator, null);
+        applyConfirmed(updated);
+        released += updated.length;
+      }
+      setActiveView('table');
+      return true;
+    } catch (error: any) {
+      showToast('Liberação interrompida', `${released} questões liberadas. ${error.message}`, 'error');
+      return false;
+    } finally { actionPending.current = false; setIsActionPending(false); }
   };
 
   const handleAddComment = async (questionId: string, text: string): Promise<boolean> => {
@@ -339,6 +397,7 @@ export default function App() {
 
   // Actions: Lock session / Switch user with master password
   const handleLockSession = useCallback(() => {
+    if (actionPending.current) { showToast('Operação em andamento', 'Aguarde antes de bloquear a sessão.', 'info'); return; }
     try {
       sessionStorage.removeItem('apexmed_master_auth_token');
       sessionStorage.removeItem('apexmed_sheets_access_key');
@@ -373,6 +432,7 @@ export default function App() {
         curators={curators}
         activeCurator={activeCurator}
         onSelectCurator={(c) => {
+          if (actionPending.current) { showToast('Operação em andamento', 'Aguarde antes de trocar de usuário.', 'info'); return; }
           setActiveView('table');
           setActiveCurator(c);
           try {
@@ -386,7 +446,7 @@ export default function App() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         activeView={activeView}
-        onViewChange={(view) => { if (view === 'detail' && currentQuestion) void openQuestion(currentQuestion); else setActiveView(view); }}
+        onViewChange={(view) => { if (actionPending.current) return; if (view === 'detail' && currentQuestion) void openQuestion(currentQuestion); else setActiveView(view); }}
         onOpenSqlModal={() => setIsSqlModalOpen(true)}
         onOpenSheetsModal={() => setIsSheetsModalOpen(true)}
         onOpenBatchAssignModal={() => setIsBatchAssignModalOpen(true)}
@@ -397,7 +457,7 @@ export default function App() {
         sheetsSyncMessage={sheetsSyncMessage}
       />
 
-      <div role="status" className="px-6 py-2 text-sm bg-black/20">{syncMessage}</div>
+      <div role="status" className="px-6 py-2 text-sm bg-black/20">{isActionPending ? 'Salvando no Google Sheets… Aguarde a confirmação.' : syncMessage}</div>
       {/* Main Content Area */}
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 lg:px-6 py-6">
         {activeView === 'table' && (
@@ -406,6 +466,8 @@ export default function App() {
             activeCurator={activeCurator}
             presences={presences}
             comments={{...commentsMap, ...Object.fromEntries(questions.filter(q=>q.shared_comments).map(q=>[q.id,q.shared_comments!]))}}
+            busy={isActionPending}
+            onSelectedQuestions={handleSelectedQuestions}
             onSelectQuestion={(q) => { void openQuestion(q); }}
             onUpdateStatus={handleUpdateStatus}
             onAssignQuestion={handleAssignQuestion}
@@ -415,6 +477,7 @@ export default function App() {
 
         {activeView === 'detail' && currentQuestion && (
           <QuestionDetailView
+            busy={isActionPending}
             key={currentQuestion.id}
             question={currentQuestion}
             allQuestions={searchedQuestions}
@@ -482,6 +545,7 @@ export default function App() {
         questions={questions}
         curators={curators}
         activeCurator={activeCurator}
+        busy={isActionPending}
         onAssignBatch={handleAssignBatch}
         onReleaseAllMyAssignments={handleReleaseAllMyAssignments}
         onShowToast={showToast}
