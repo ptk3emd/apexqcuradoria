@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Layers, X, UserCheck, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { Question, Curator } from '../types/question';
+import { useDialog } from '../lib/useDialog';
 
 interface BatchAssignModalProps {
   isOpen: boolean;
@@ -78,11 +79,13 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
     onClose();
   };
 
+  const dialogRef = useDialog<HTMLDivElement>(() => { if (!busy) onClose(); }, isOpen);
+
   if (!isOpen) return null;
 
   return (
     <fieldset disabled={busy} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in">
-      <div className="w-full max-w-xl rounded-2xl bg-shell-2 border border-white/[0.12] p-6 space-y-5 shadow-2xl">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="batch-dialog-title" className="w-full max-w-xl rounded-2xl bg-shell-2 border border-white/[0.12] p-6 space-y-5 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
           <div className="flex items-center gap-2.5">
@@ -90,7 +93,7 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
               <Layers className="w-4 h-4 text-brand-muted" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-apex-text">Divisão de Lotes de Questões</h3>
+              <h3 id="batch-dialog-title" className="font-bold text-base text-apex-text">Divisão de Lotes de Questões</h3>
               <p className="text-xs text-shell-muted">
                 Evite redundância atribuindo lotes de questões não auditadas para cada especialista
               </p>

@@ -16,6 +16,7 @@ import {
 import { Question, AuditLogItem } from '../types/question';
 import { generateProgressiveSqlScript, getSupabaseInitialSchemaSql } from '../lib/sqlGenerator';
 import { copyTextToClipboard } from '../lib/clipboardHelper';
+import { useDialog } from '../lib/useDialog';
 
 interface SqlEditorModalProps {
   isOpen: boolean;
@@ -95,11 +96,13 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
     onShowToast('Arquivo baixado!', `Salvo como ${filename}.`, 'success');
   };
 
+  const dialogRef = useDialog<HTMLDivElement>(onClose, isOpen);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-      <div className="w-full max-w-4xl rounded-2xl bg-shell-2 border border-white/[0.12] p-4 sm:p-6 space-y-4 shadow-2xl flex flex-col max-h-[90dvh] overflow-y-auto">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="sql-dialog-title" className="w-full max-w-4xl rounded-2xl bg-shell-2 border border-white/[0.12] p-4 sm:p-6 space-y-4 shadow-2xl flex flex-col max-h-[90dvh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
           <div className="flex items-center gap-2.5">
@@ -107,7 +110,7 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
               <Code2 className="w-4 h-4 text-amber-400" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-apex-text">
+              <h3 id="sql-dialog-title" className="font-bold text-base text-apex-text">
                 Supabase SQL Editor — Geração Progressiva
               </h3>
               <p className="text-xs text-shell-muted">
