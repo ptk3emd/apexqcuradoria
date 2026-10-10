@@ -20,7 +20,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     pendente: {
       label: 'Pendente',
       bg: 'rgba(255, 255, 255, 0.05)',
-      text: '#bdbdbd',
+      text: 'var(--warm-muted-readable)',
       border: 'rgba(255, 255, 255, 0.12)',
       icon: <Clock className="w-3.5 h-3.5" />,
     },

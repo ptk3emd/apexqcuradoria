@@ -77,22 +77,22 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-white/[0.07] bg-[#31302e]/90 backdrop-blur-xl transition-all">
+    <header className="sticky top-0 z-40 w-full border-b border-white/[0.07] bg-shell/90 backdrop-blur-xl transition-all">
       <div className="max-w-[1600px] mx-auto px-4 lg:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
         {/* Brand Logo & Tagline */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#A43939] flex items-center justify-center shadow-[0_0_16px_rgba(164,57,57,0.4)]">
+            <div className="w-8 h-8 rounded-lg bg-brand flex items-center justify-center shadow-[0_0_16px_rgba(164,57,57,0.4)]">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-lg tracking-tight text-[#f8fafc]">ApexMed</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#A43939]/20 text-[#DF9696] border border-[#A43939]/30">
+                <span className="font-bold text-lg tracking-tight text-apex-text">ApexMed</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-brand/20 text-brand-muted border border-brand/30">
                   Curadoria
                 </span>
               </div>
-              <p className="text-[11px] text-[#7a7468] hidden sm:block">
+              <p className="text-[11px] text-shell-muted hidden sm:block">
                 Validação de Questões Médicas & SQL Progressivo
               </p>
             </div>
@@ -102,7 +102,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         {/* Quick Search Bar */}
         <div className="flex-1 max-w-md min-w-[240px]">
           <div className="relative flex items-center">
-            <Search className="w-4 h-4 text-[#7a7468] absolute left-3.5 pointer-events-none" />
+            <Search className="w-4 h-4 text-shell-muted absolute left-3.5 pointer-events-none" />
             <input
               aria-label="Buscar questões"
               ref={searchInputRef}
@@ -110,14 +110,14 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Buscar por ID, tema, especialidade ou enunciado... (Ctrl+K)"
-              className="w-full bg-white/[0.04] hover:bg-white/[0.06] focus:bg-[#1e1d1b] border border-white/[0.09] focus:border-[#A43939] rounded-full pl-9 pr-10 py-1.5 text-xs text-[#f8fafc] placeholder-[#7a7468] transition-all outline-none"
+              className="w-full bg-white/[0.04] hover:bg-white/[0.06] focus:bg-shell-2 border border-white/[0.09] focus:border-brand rounded-full pl-9 pr-10 py-1.5 text-xs text-apex-text placeholder-shell-muted transition-all outline-none"
             />
             {searchQuery && (
               <button
                 type="button"
                 aria-label="Limpar busca"
                 onClick={() => onSearchChange('')}
-                className="absolute right-1.5 flex items-center justify-center w-7 h-7 rounded-full text-xs text-[#7a7468] hover:text-[#f8fafc]"
+                className="absolute right-1.5 flex items-center justify-center w-7 h-7 rounded-full text-xs text-shell-muted hover:text-apex-text"
               >
                 <X className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
@@ -126,13 +126,13 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </div>
 
         {/* View Switcher Tabs */}
-        <div className="flex items-center bg-[#1e1d1b] p-1 rounded-full border border-white/[0.07]">
+        <div className="flex items-center bg-shell-2 p-1 rounded-full border border-white/[0.07]">
           <button
             onClick={() => onViewChange('table')}
             className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full transition-all ${
               activeView === 'table'
-                ? 'bg-[#A43939] text-white shadow-[0_0_14px_rgba(164,57,57,0.4)]'
-                : 'text-[#bdbdbd] hover:text-white'
+                ? 'bg-brand text-white shadow-[0_0_14px_rgba(164,57,57,0.4)]'
+                : 'text-apex-readable hover:text-white'
             }`}
           >
             <LayoutList className="w-3.5 h-3.5" />
@@ -144,8 +144,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             onClick={() => onViewChange('detail')}
             className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full transition-all ${
               activeView === 'detail'
-                ? 'bg-[#A43939] text-white shadow-[0_0_14px_rgba(164,57,57,0.4)]'
-                : 'text-[#bdbdbd] hover:text-white'
+                ? 'bg-brand text-white shadow-[0_0_14px_rgba(164,57,57,0.4)]'
+                : 'text-apex-readable hover:text-white'
             }`}
           >
             <CheckSquare className="w-3.5 h-3.5" />
@@ -156,8 +156,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             onClick={() => onViewChange('cockpit')}
             className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full transition-all ${
               activeView === 'cockpit'
-                ? 'bg-[#A43939] text-white shadow-[0_0_14px_rgba(164,57,57,0.4)]'
-                : 'text-[#bdbdbd] hover:text-white'
+                ? 'bg-brand text-white shadow-[0_0_14px_rgba(164,57,57,0.4)]'
+                : 'text-apex-readable hover:text-white'
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
@@ -170,23 +170,23 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           {/* Batch Reserve Button */}
           <button
             onClick={onOpenBatchAssignModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-[#f8fafc] bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-apex-text bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] transition-all"
             title="Reservar lote de questões para evitar sobreposição"
           >
-            <Layers className="w-3.5 h-3.5 text-[#DF9696]" />
+            <Layers className="w-3.5 h-3.5 text-brand-muted" />
             <span className="hidden md:inline">Reservar Lote</span>
           </button>
 
           {/* Progressive SQL Editor */}
           <button
             onClick={onOpenSqlModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-[#f8fafc] bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] relative transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-apex-text bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] relative transition-all cursor-pointer"
             title="Visualizar SQL gerado progressivamente pela curadoria"
           >
             <Code2 className="w-3.5 h-3.5 text-amber-400" />
             <span>SQL</span>
             {modifiedCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-[#A43939] text-white text-[10px] flex items-center justify-center font-bold">
+              <span className="w-4 h-4 rounded-full bg-brand text-white text-[10px] flex items-center justify-center font-bold">
                 {modifiedCount}
               </span>
             )}
@@ -196,7 +196,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           <div className="relative" ref={curatorMenuRef}>
             <button
               onClick={() => setIsCuratorMenuOpen(!isCuratorMenuOpen)}
-              className="flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full bg-[#1e1d1b] border border-white/[0.1] hover:border-[#A43939] transition-all"
+              className="flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full bg-shell-2 border border-white/[0.1] hover:border-brand transition-all"
             >
               <div
                 className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white shadow-sm"
@@ -204,19 +204,19 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               >
                 {activeCurator.iniciais}
               </div>
-              <span className="text-xs font-bold text-[#f8fafc] max-w-[100px] truncate hidden lg:inline">
+              <span className="text-xs font-bold text-apex-text max-w-[100px] truncate hidden lg:inline">
                 {activeCurator.nome}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 text-[#7a7468]" />
+              <ChevronDown className="w-3.5 h-3.5 text-shell-muted" />
             </button>
 
             {isCuratorMenuOpen && (
-              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-[#1e1d1b] border border-white/[0.12] shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2">
+              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-shell-2 border border-white/[0.12] shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2">
                 <div className="px-3 py-2 border-b border-white/[0.07] mb-1">
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-[#DF9696] leading-tight">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-brand-muted leading-tight">
                     Responsáveis pela curadoria: Patrick, Lucas, Thierry.
                   </p>
-                  <p className="text-xs text-[#7a7468] mt-0.5">Sessão ativa de curadoria</p>
+                  <p className="text-xs text-shell-muted mt-0.5">Sessão ativa de curadoria</p>
                 </div>
 
                 <div className="space-y-1">
@@ -232,8 +232,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                         }}
                         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-all ${
                           isCurrent
-                            ? 'bg-[#A43939]/15 border border-[#A43939]/40 text-white'
-                            : 'hover:bg-white/[0.05] text-[#bdbdbd]'
+                            ? 'bg-brand/15 border border-brand/40 text-white'
+                            : 'hover:bg-white/[0.05] text-apex-readable'
                         }`}
                       >
                         <div
@@ -243,17 +243,17 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                           {c.iniciais}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-[#f8fafc] truncate">{c.nome}</p>
-                          <p className="text-[10px] text-[#7a7468] truncate">{c.cargo}</p>
+                          <p className="text-xs font-bold text-apex-text truncate">{c.nome}</p>
+                          <p className="text-[10px] text-shell-muted truncate">{c.cargo}</p>
                         </div>
-                        {isCurrent && <UserCheck className="w-4 h-4 text-[#DF9696] shrink-0" />}
+                        {isCurrent && <UserCheck className="w-4 h-4 text-brand-muted shrink-0" />}
                       </button>
                     );
                   })}
                 </div>
 
                 <div className="mt-2 pt-2 border-t border-white/[0.07] px-2 flex flex-col gap-2">
-                  <div className="text-[11px] text-[#7a7468] flex items-center justify-between">
+                  <div className="text-[11px] text-shell-muted flex items-center justify-between">
                     <span>Sincronização ao vivo</span>
                     <span className="flex items-center gap-1 text-emerald-400 text-[10px] font-bold">
                       <Wifi className="w-3 h-3 animate-pulse" /> Ativa

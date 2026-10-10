@@ -83,18 +83,18 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
   return (
     <div className="w-full space-y-6 animate-in fade-in duration-200">
       {/* Hero Analytics Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e1d1b] to-[#272522] border border-white/[0.09] p-6 lg:p-8 shadow-2xl">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#A43939]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-shell-2 to-shell-3 border border-white/[0.09] p-6 lg:p-8 shadow-2xl">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex flex-wrap items-center justify-between gap-6 relative z-10">
           <div className="space-y-2 max-w-xl">
             <span className="label-micro">
               Estatísticas de Curadoria Médica
             </span>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#f8fafc]">
-              Progresso Geral de Auditoria: <span className="text-[#DF9696]">{auditProgressPct}%</span>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-apex-text">
+              Progresso Geral de Auditoria: <span className="text-brand-muted">{auditProgressPct}%</span>
             </h2>
-            <p className="text-xs sm:text-sm text-[#bdbdbd] leading-relaxed">
+            <p className="text-xs sm:text-sm text-apex-readable leading-relaxed">
               Acompanhe a auditoria dos três curadores e gere o SQL acumulado das questões corrigidas, atualizado com as alterações confirmadas no Supabase.
             </p>
           </div>
@@ -102,17 +102,17 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
           {/* Quick Apex Stat Gauge */}
           <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/[0.08]">
             <div className="text-right">
-              <p className="text-[10px] uppercase font-bold tracking-wider text-[#7a7468]">
+              <p className="text-[10px] uppercase font-bold tracking-wider text-shell-muted">
                 Questões Auditadas
               </p>
-              <p className="text-3xl font-bold text-[#f8fafc]">
-                {auditedCount} <span className="text-sm font-normal text-[#7a7468]">/ {total}</span>
+              <p className="text-3xl font-bold text-apex-text">
+                {auditedCount} <span className="text-sm font-normal text-shell-muted">/ {total}</span>
               </p>
               <p className="text-[11px] text-emerald-400 font-bold mt-0.5">
                 {counts.pendentes} restantes na fila
               </p>
             </div>
-            <div className="w-16 h-16 rounded-full border-4 border-white/[0.08] border-t-[#A43939] border-r-[#A43939] flex items-center justify-center font-bold text-sm text-[#f8fafc]">
+            <div className="w-16 h-16 rounded-full border-4 border-white/[0.08] border-t-brand border-r-brand flex items-center justify-center font-bold text-sm text-apex-text">
               {auditProgressPct}%
             </div>
           </div>
@@ -153,8 +153,8 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
             <span className="text-[10px] font-bold uppercase tracking-wider">Aprovadas</span>
             <CheckCircle2 className="w-4 h-4" />
           </div>
-          <p className="text-2xl font-bold text-[#f8fafc]">{counts.aprovadas}</p>
-          <p className="text-[11px] text-[#7a7468]">
+          <p className="text-2xl font-bold text-apex-text">{counts.aprovadas}</p>
+          <p className="text-[11px] text-shell-muted">
             {total > 0 ? Math.round((counts.aprovadas / total) * 100) : 0}% do banco
           </p>
         </div>
@@ -165,8 +165,8 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
             <span className="text-[10px] font-bold uppercase tracking-wider">Eliminar (DELETE)</span>
             <Trash2 className="w-4 h-4" />
           </div>
-          <p className="text-2xl font-bold text-[#f8fafc]">{counts.eliminar}</p>
-          <p className="text-[11px] text-[#7a7468]">
+          <p className="text-2xl font-bold text-apex-text">{counts.eliminar}</p>
+          <p className="text-[11px] text-shell-muted">
             {total > 0 ? Math.round((counts.eliminar / total) * 100) : 0}% do banco
           </p>
         </div>
@@ -177,8 +177,8 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
             <span className="text-[10px] font-bold uppercase tracking-wider">Revisar</span>
             <AlertTriangle className="w-4 h-4" />
           </div>
-          <p className="text-2xl font-bold text-[#f8fafc]">{counts.revisar}</p>
-          <p className="text-[11px] text-[#7a7468]">Com notas anexadas</p>
+          <p className="text-2xl font-bold text-apex-text">{counts.revisar}</p>
+          <p className="text-[11px] text-shell-muted">Com notas anexadas</p>
         </div>
 
         {/* Corrigidas */}
@@ -187,40 +187,40 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
             <span className="text-[10px] font-bold uppercase tracking-wider">Corrigidas (UPDATE)</span>
             <PenTool className="w-4 h-4" />
           </div>
-          <p className="text-2xl font-bold text-[#f8fafc]">{counts.corrigidas}</p>
-          <p className="text-[11px] text-[#7a7468]">Gabarito ou texto retificado</p>
+          <p className="text-2xl font-bold text-apex-text">{counts.corrigidas}</p>
+          <p className="text-[11px] text-shell-muted">Gabarito ou texto retificado</p>
         </div>
 
         {/* Pendentes */}
         <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-1 col-span-2 sm:col-span-1">
-          <div className="flex items-center justify-between text-[#bdbdbd]">
+          <div className="flex items-center justify-between text-apex-readable">
             <span className="text-[10px] font-bold uppercase tracking-wider">Pendentes</span>
             <Clock className="w-4 h-4" />
           </div>
-          <p className="text-2xl font-bold text-[#f8fafc]">{counts.pendentes}</p>
-          <p className="text-[11px] text-[#7a7468]">Aguardando análise inicial</p>
+          <p className="text-2xl font-bold text-apex-text">{counts.pendentes}</p>
+          <p className="text-[11px] text-shell-muted">Aguardando análise inicial</p>
         </div>
       </div>
 
       {/* 2-Column Cockpit Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Specialty Progress Breakdown */}
-        <div className="p-6 rounded-2xl bg-[#1e1d1b] border border-white/[0.08] space-y-4">
+        <div className="p-6 rounded-2xl bg-shell-2 border border-white/[0.08] space-y-4">
           <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
             <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-[#DF9696]" />
-              <h3 className="font-bold text-sm text-[#f8fafc]">Progresso por Especialidade</h3>
+              <Layers className="w-4 h-4 text-brand-muted" />
+              <h3 className="font-bold text-sm text-apex-text">Progresso por Especialidade</h3>
             </div>
-            <span className="text-xs text-[#7a7468]">{specialtyBreakdown.length} áreas</span>
+            <span className="text-xs text-shell-muted">{specialtyBreakdown.length} áreas</span>
           </div>
 
           <div className="space-y-3">
             {specialtyBreakdown.map((spec) => (
               <div key={spec.name} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-[#f8fafc]">{spec.name}</span>
+                  <span className="font-bold text-apex-text">{spec.name}</span>
                   <div className="flex items-center gap-2 text-[11px]">
-                    <span className="text-[#bdbdbd]">
+                    <span className="text-apex-readable">
                       {spec.audited} / {spec.total}
                     </span>
                     <span className="font-bold text-white px-2 py-0.5 rounded bg-white/[0.05]">
@@ -231,7 +231,7 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
                 <div className="w-full h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
                   <div
                     style={{ width: `${spec.pct}%` }}
-                    className="h-full bg-[#A43939] rounded-full transition-all"
+                    className="h-full bg-brand rounded-full transition-all"
                   />
                 </div>
               </div>
@@ -242,15 +242,15 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
         {/* Curator Workload & Consistency Heatmap */}
         <div className="space-y-6">
           {/* Curator Allocation Card */}
-          <div className="p-6 rounded-2xl bg-[#1e1d1b] border border-white/[0.08] space-y-4">
+          <div className="p-6 rounded-2xl bg-shell-2 border border-white/[0.08] space-y-4">
             <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
               <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#DF9696]" />
-                <h3 className="font-bold text-sm text-[#f8fafc]">
+                <Users className="w-4 h-4 text-brand-muted" />
+                <h3 className="font-bold text-sm text-apex-text">
                   Responsáveis pela curadoria: Patrick, Lucas, Thierry
                 </h3>
               </div>
-              <span className="text-xs text-[#7a7468]">Equipe Curadora</span>
+              <span className="text-xs text-shell-muted">Equipe Curadora</span>
             </div>
 
             <div className="space-y-3">
@@ -267,13 +267,13 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
                       {curator.iniciais}
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-[#f8fafc]">{curator.nome}</p>
-                      <p className="text-[10px] text-[#7a7468]">{curator.cargo}</p>
+                      <p className="text-xs font-bold text-apex-text">{curator.nome}</p>
+                      <p className="text-[10px] text-shell-muted">{curator.cargo}</p>
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <p className="text-xs font-bold text-[#f8fafc]">
+                    <p className="text-xs font-bold text-apex-text">
                       {assigned} reservadas
                     </p>
                     <p className="text-[11px] text-emerald-400">
@@ -286,25 +286,25 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
           </div>
 
           {/* Consistency Rhythm Heatmap (Matching design.md hm-0 to hm-4) */}
-          <div className="p-6 rounded-2xl bg-[#1e1d1b] border border-white/[0.08] space-y-3">
+          <div className="p-6 rounded-2xl bg-shell-2 border border-white/[0.08] space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-[#DF9696]" />
-                <h3 className="font-bold text-sm text-[#f8fafc]">Ritmo de Curadoria</h3>
+                <Activity className="w-4 h-4 text-brand-muted" />
+                <h3 className="font-bold text-sm text-apex-text">Ritmo de Curadoria</h3>
               </div>
-              <span className="text-[10px] uppercase font-bold text-[#7a7468]">
+              <span className="text-[10px] uppercase font-bold text-shell-muted">
                 Atividade Recente
               </span>
             </div>
 
-            <p className="text-xs text-[#bdbdbd]">
+            <p className="text-xs text-apex-readable">
               Intensidade de alterações auditadas na base de dados por questão:
             </p>
 
             {/* Heatmap grid */}
             <div className="grid grid-cols-10 sm:grid-cols-12 gap-1.5 pt-2">
               {questions.slice(0, 48).map((q, idx) => {
-                let cellColor = '#4a4540'; // hm-0
+                let cellColor = 'var(--warm-subtle)'; // hm-0
                 if (q.status === 'aprovadas') cellColor = '#16a34a';
                 else if (q.status === 'eliminar_questao') cellColor = '#dc2626';
                 else if (q.status === 'revisar_questao') cellColor = '#d97706';
@@ -322,10 +322,10 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
               })}
             </div>
 
-            <div className="flex items-center justify-between text-[10px] text-[#7a7468] pt-2">
+            <div className="flex items-center justify-between text-[10px] text-shell-muted pt-2">
               <span>Pendente</span>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-[2px] bg-[#4a4540]" />
+                <span className="w-2.5 h-2.5 rounded-[2px] bg-shell-subtle" />
                 <span className="w-2.5 h-2.5 rounded-[2px] bg-emerald-600" />
                 <span className="w-2.5 h-2.5 rounded-[2px] bg-blue-600" />
                 <span className="w-2.5 h-2.5 rounded-[2px] bg-amber-600" />

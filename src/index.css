@@ -38,6 +38,24 @@
   --app-success-subtle: rgba(22, 163, 74, 0.06);
 }
 
+/* Tailwind color utilities read the :root tokens above (design.md 20), e.g. text-shell-muted, bg-brand/15. */
+@theme inline {
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-h);
+  --color-brand-light: var(--brand-light);
+  --color-brand-muted: var(--brand-muted);
+  --color-brand-soft: var(--brand-soft);
+
+  --color-shell: var(--shell);
+  --color-shell-2: var(--shell2);
+  --color-shell-3: var(--shell3);
+  --color-shell-subtle: var(--warm-subtle);
+  --color-shell-muted: var(--warm-muted);
+
+  --color-apex-text: var(--w);
+  --color-apex-readable: var(--warm-muted-readable);
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -135,7 +153,7 @@ input[type='radio'] {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4a4540;
+  background: var(--warm-subtle);
   border-radius: 4px;
 }
 
@@ -204,7 +222,7 @@ input[type='radio'] {
   cursor: pointer;
 }
 .btn-secondary-apex:hover {
-  border-color: #C96565;
+  border-color: var(--brand-soft);
   color: var(--w);
   background: rgba(255,255,255,.06);
 }

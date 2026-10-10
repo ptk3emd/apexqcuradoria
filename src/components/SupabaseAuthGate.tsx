@@ -11,6 +11,6 @@ export function SupabaseAuthGate({onAuthenticated}:{onAuthenticated:(curator:Cur
   if(hasSupabaseSession()) void currentSupabaseCurator().then(curator=>{if(!stopped) onAuthenticated(curator);}).catch(()=>{}).finally(()=>{if(!stopped)setChecking(false);});
   return ()=>{stopped=true;};
  },[]);
- if(checking) return <div role="status" className="fixed inset-0 z-50 flex items-center justify-center bg-[#1e1d1b]">Verificando sessão…</div>;
+ if(checking) return <div role="status" className="fixed inset-0 z-50 flex items-center justify-center bg-shell-2">Verificando sessão…</div>;
  return <MasterAuthGate curators={DEFAULT_CURATORS} authenticate={loginSupabase} onAuthenticated={onAuthenticated}/>;
 }
