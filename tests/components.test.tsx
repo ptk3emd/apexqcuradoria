@@ -64,3 +64,18 @@ test('open button stops row propagation, causing one open request', async () => 
   assert.equal(opens,1);
   await act(async()=>renderer.unmount());
 });
+
+test('statistics SQL panel updates when shared corrections arrive from another curator', async () => {
+  const {CorrectedQuestionsSql}=await import('../src/components/CorrectedQuestionsSql');
+  let renderer:any;
+  await act(async()=>{renderer=create(<CorrectedQuestionsSql questions={[]} onShowToast={()=>{}}/>);});
+  const sql=()=>renderer.root.findByProps({'aria-label':'SQL acumulado de correções'}).props.value;
+  assert.match(sql(),/Nenhuma questão/);
+  await act(async()=>{renderer.update(<CorrectedQuestionsSql questions={[
+    {...rows[0],status:'questao_corrigida',revisado_por:'Lucas'},
+    {...rows[1],status:'aprovadas',modificado:true,revisado_por:'Thierry'},
+  ]} onShowToast={()=>{}}/>);});
+  assert.match(sql(),/WHERE id = 1;/);assert.match(sql(),/WHERE id = 2;/);
+  assert.equal((sql().match(/UPDATE public.questions/g)||[]).length,2);
+  await act(async()=>renderer.unmount());
+});

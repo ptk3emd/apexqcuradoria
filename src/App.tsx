@@ -312,7 +312,7 @@ export default function App() {
       if (!claimed) return false;
       q = claimed[0];
     }
-    const saved = await handleUpdateQuestion({ ...q, status, notas_revisao: notas ?? q.notas_revisao,
+    const saved = await handleUpdateQuestion({ ...q, status, modificado: status === 'questao_corrigida' ? true : q.modificado, notas_revisao: notas ?? q.notas_revisao,
       revisado_por: activeCurator.nome, revisado_em: new Date().toISOString() });
     if (activeView !== 'detail' || selectedQuestionId !== id) void mutateShared([q], 'unlock', activeCurator).catch(() => {});
     return saved;
@@ -500,6 +500,7 @@ export default function App() {
 
         {activeView === 'cockpit' && (
           <AuditCockpit
+            onShowToast={showToast}
             questions={questions}
             curators={curators}
             onOpenQuestionById={(id) => {

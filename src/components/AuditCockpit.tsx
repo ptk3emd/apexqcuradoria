@@ -12,11 +12,13 @@ import {
   Award,
   ChevronRight
 } from 'lucide-react';
+import { CorrectedQuestionsSql } from './CorrectedQuestionsSql';
 import { Question, Curator } from '../types/question';
 
 interface AuditCockpitProps {
   questions: Question[];
   curators: Curator[];
+  onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
   onOpenQuestionById: (id: string) => void;
 }
 
@@ -24,6 +26,7 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
   questions,
   curators,
   onOpenQuestionById,
+  onShowToast,
 }) => {
   const total = questions.length;
 
@@ -86,13 +89,13 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-6 relative z-10">
           <div className="space-y-2 max-w-xl">
             <span className="label-micro">
-              Cockpit de Curadoria Médica
+              Estatísticas de Curadoria Médica
             </span>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#f8fafc]">
               Progresso Geral de Auditoria: <span className="text-[#DF9696]">{auditProgressPct}%</span>
             </h2>
             <p className="text-xs sm:text-sm text-[#bdbdbd] leading-relaxed">
-              Curadoria clínica em tempo real sincronizada entre 3 especialistas. A cada aprovação, eliminação ou correção, os comandos SQL para o Supabase são gerados progressivamente.
+              Acompanhe a auditoria dos três curadores e gere o SQL acumulado das questões corrigidas, atualizado com as alterações confirmadas no Google Sheets.
             </p>
           </div>
 
@@ -139,6 +142,8 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
           />
         </div>
       </div>
+
+      <CorrectedQuestionsSql questions={questions} onShowToast={onShowToast} />
 
       {/* Semantic Stat Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
