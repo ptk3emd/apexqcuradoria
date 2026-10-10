@@ -18,6 +18,8 @@ import {
 import { Curator } from '../types/question';
 
 interface TopNavbarProps {
+  allowCuratorSwitch?: boolean;
+  showSheets?: boolean;
   curators: Curator[];
   activeCurator: Curator;
   onSelectCurator: (curator: Curator) => void;
@@ -37,6 +39,8 @@ interface TopNavbarProps {
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({
+  allowCuratorSwitch = true,
+  showSheets = true,
   curators,
   activeCurator,
   onSelectCurator,
@@ -179,7 +183,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           </button>
 
           {/* Google Sheets Synchronization Hub with Status Indicator */}
-          <button
+          {showSheets && <button
             onClick={onOpenSheetsModal}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border cursor-pointer shadow-sm ${
               sheetsSyncStatus === 'pending'
@@ -228,7 +232,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 </>
               )}
             </span>
-          </button>
+          </button>}
 
           {/* Progressive SQL Editor */}
           <button
@@ -273,11 +277,12 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  {curators.map((c) => {
+                  {(allowCuratorSwitch ? curators : [activeCurator]).map((c) => {
                     const isCurrent = c.id === activeCurator.id;
                     return (
                       <button
                         key={c.id}
+                        disabled={!allowCuratorSwitch}
                         onClick={() => {
                           onSelectCurator(c);
                           setIsCuratorMenuOpen(false);

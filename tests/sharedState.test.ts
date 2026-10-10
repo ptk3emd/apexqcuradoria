@@ -15,3 +15,10 @@ test('only newer confirmed versions replace objects; untouched questions stay st
   assert.notEqual(next,rows);assert.equal(next[1],rows[1]);assert.equal(next[0].enunciado,'new');
   assert.equal(mergeShared(next,[{id:'1',version:5,patch:{enunciado:'new'}}]),next);
 });
+
+test('source imports append questions and renamed IDs remove the previous row',()=>{
+ const before=[{id:'1',enunciado:'old',sync_version:2}] as Question[];
+ const result=mergeShared(before,[{id:'1',patch:{},version:0,deleted:true},{id:'9',patch:{id:'9',enunciado:'new'},version:3}]);
+ assert.deepEqual(result.map(q=>q.id),['9']);
+ assert.equal(mergeShared(result,[{id:'1',patch:{},version:0,deleted:true},{id:'9',patch:{id:'9',enunciado:'new'},version:3}]),result);
+});

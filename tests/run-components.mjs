@@ -7,7 +7,7 @@ const temp=await mkdtemp(join(tmpdir(),'apex-tests-'));
 try {
   const file=join(temp,'components.cjs');
   await build({entryPoints:['tests/components.test.tsx'],outfile:file,bundle:true,platform:'node',format:'cjs',
-    loader:{'.gs':'text'}});
+    define:{'import.meta.env':'{}'}, loader:{'.gs':'text'}});
   const result=spawnSync(process.execPath,['--test','--test-force-exit',file],{stdio:'inherit'});
   process.exitCode=result.status??1;
 } finally {await rm(temp,{recursive:true,force:true});}

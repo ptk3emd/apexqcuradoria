@@ -20,6 +20,7 @@ import {
   Info
 } from 'lucide-react';
 import { Question, QuestionStatus, Curator, CuratorPresence, QuestionComment } from '../types/question';
+import { QuestionEditor } from './QuestionEditor';
 import { StatusBadge } from './StatusBadge';
 import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboardHelper';
 import { generateSqlForQuestion } from '../lib/sqlGenerator';
@@ -61,7 +62,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
   const total = allQuestions.length;
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editedQuestion, setEditedQuestion] = useState<Question>({ ...question });
+  const [editedQuestion, setEditedQuestion] = useState<Question>({ ...question, sync_source_id:question.id });
 
   useEffect(() => {
     if (onEditingChange) {
@@ -74,11 +75,11 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
 
   // Sync state when selected question changes
   useEffect(() => {
-    setEditedQuestion({ ...question });
+    setEditedQuestion({ ...question, sync_source_id:question.id });
     setIsEditing(false);
   }, [question.id]);
 
-  useEffect(() => { if (!isEditing) setEditedQuestion({ ...question }); }, [question, isEditing]);
+  useEffect(() => { if (!isEditing) setEditedQuestion({ ...question, sync_source_id:question.id }); }, [question, isEditing]);
 
   // Keyboard navigation Left/Right arrow keys
   useEffect(() => {
@@ -146,6 +147,8 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
 
   const sqlPreview = generateSqlForQuestion(question, activeCurator.nome);
   const isAssignedToMe = question.responsavel_id === activeCurator.id;
+
+  if (isEditing) return <QuestionEditor question={editedQuestion} busy={busy} onChange={setEditedQuestion} onSave={handleSaveChanges} onCancel={() => {setEditedQuestion({...question, sync_source_id:question.id}); setIsEditing(false);}}/>;
 
   return (
     <fieldset disabled={busy} aria-busy={busy} className="w-full min-w-0 space-y-5 animate-in fade-in duration-200">
@@ -355,7 +358,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                   className="flex items-center gap-1 text-xs font-bold text-[#bdbdbd] hover:text-white px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1]"
                 >
                   <Edit3 className="w-3.5 h-3.5 text-[#DF9696]" />
-                  <span>{isEditing ? 'Cancelar Edição' : 'Editar Texto'}</span>
+                  <span>{isEditing ? 'Cancelar Edição' : 'Editar questão'}</span>
                 </button>
               </div>
 

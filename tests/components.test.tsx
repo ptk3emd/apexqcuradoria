@@ -101,3 +101,19 @@ test('overlapping polling and recovery share one incremental sync request', asyn
     else delete (globalThis as any).sessionStorage;
   }
 });
+
+import {QuestionEditor} from '../src/components/QuestionEditor';
+test('question editor exposes every writable field and preserves edits across sections',async()=>{
+ let renderer:any;let latest:Question={...rows[0],sync_source_id:'1'};let saves=0;
+ const render=()=> <QuestionEditor question={latest} busy={false} onChange={q=>{latest=q;renderer.update(render());}} onSave={async()=>{saves++;}} onCancel={()=>{}}/>;
+ await act(async()=>{renderer=create(render());});
+ await act(async()=>renderer.root.findByProps({'aria-label':'Alternativa A'}).props.onChange({target:{value:'Updated alternative'}}));
+ await act(async()=>renderer.root.findAllByProps({role:'tab'})[1].props.onClick());
+ assert.equal(renderer.root.findAllByType('textarea').length,6);
+ await act(async()=>renderer.root.findByProps({'aria-label':'Comentário geral'}).props.onChange({target:{value:'Explanation'}}));
+ await act(async()=>renderer.root.findAllByProps({role:'tab'})[2].props.onClick());
+ for(const label of ['ID da questão','Categoria','Especialidade','Tema específico','Ano','Origem','Data de criação','Dificuldade','Competências','Descritores']) assert.ok(renderer.root.findByProps({'aria-label':label}));
+ await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));
+ assert.equal(latest.a,'Updated alternative');assert.equal(latest.comentario,'Explanation');assert.equal(saves,1);
+ await act(async()=>renderer.unmount());
+});
