@@ -28,7 +28,21 @@ interface QuestionsTableProps {
   onUpdateStatus: (id: string, status: QuestionStatus, notas?: string) => Promise<boolean>;
   onAssignQuestion: (id: string, curator: Curator | null) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
+  searchActive?: boolean;
+  onClearSearch?: () => void;
 }
+
+const INITIAL_FILTER_STATE: AdvancedFilterState = {
+  status: 'todas',
+  responsavel: 'todos',
+  categorias: [],
+  origens: [],
+  anos: [],
+  especialidades: [],
+  competencias: [],
+  temas_especificos: [],
+  searchQueries: [],
+};
 
 export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   questions,
@@ -41,18 +55,10 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   onUpdateStatus,
   onAssignQuestion,
   onShowToast,
+  searchActive = false,
+  onClearSearch,
 }) => {
-  const [filterState, setFilterState] = useState<AdvancedFilterState>({
-    status: 'todas',
-    responsavel: 'todos',
-    categorias: [],
-    origens: [],
-    anos: [],
-    especialidades: [],
-    competencias: [],
-    temas_especificos: [],
-    searchQueries: [],
-  });
+  const [filterState, setFilterState] = useState<AdvancedFilterState>(INITIAL_FILTER_STATE);
 
   const [sortBy, setSortBy] = useState<'id' | 'especialidade' | 'status'>('id');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -206,11 +212,11 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         totalFilteredCount={filteredQuestions.length}
       />
 
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-shell-3 p-3" aria-live="polite">
-        <span>{selectedIds.size} selecionadas (máximo 100)</span>
-        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('assign')} className="rounded-lg bg-brand px-4 py-2 disabled:opacity-40">Assumir selecionadas</button>
-        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('review')} className="rounded-lg bg-amber-700 px-4 py-2 disabled:opacity-40">Marcar selecionadas para revisão</button>
-        <button disabled={busy || !selectedIds.size} onClick={() => setSelectedIds(new Set())} className="px-3 py-2 disabled:opacity-40">Limpar seleção</button>
+      <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-white/[0.08] bg-shell-2 px-4 py-3" aria-live="polite">
+        <span className="text-xs font-bold text-apex-text mr-1"><span className="tabular-nums">{selectedIds.size}</span> selecionadas <span className="font-normal text-shell-muted">(máximo 100)</span></span>
+        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('assign')} className="px-4 py-2 rounded-full text-xs font-bold text-white bg-brand hover:bg-brand-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand">Assumir selecionadas</button>
+        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('review')} className="px-4 py-2 rounded-full text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-amber-500/10">Marcar selecionadas para revisão</button>
+        <button disabled={busy || !selectedIds.size} onClick={() => setSelectedIds(new Set())} className="px-3 py-2 rounded-full text-xs font-bold text-shell-muted hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-shell-muted">Limpar seleção</button>
         <span className="text-xs text-apex-readable">A seleção acompanha a paginação. Alterar filtros limpa a seleção.</span>
       </div>
       {/* Main Questions Table */}
@@ -273,6 +279,15 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                       <AlertCircle className="w-8 h-8 text-brand/60" />
                       <p className="text-sm font-bold text-apex-text">Nenhuma questão encontrada</p>
                       <p className="text-xs">Tente ajustar seus filtros de status ou busca.</p>
+                      {(searchActive || filteredQuestions.length < questions.length) && (
+                        <button
+                          type="button"
+                          onClick={() => { setFilterState(INITIAL_FILTER_STATE); onClearSearch?.(); }}
+                          className="mt-2 px-4 py-2 rounded-full text-xs font-bold text-apex-text bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] transition-all"
+                        >
+                          Limpar busca e filtros
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

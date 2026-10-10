@@ -15,6 +15,15 @@ import {
 import { CorrectedQuestionsSql } from './CorrectedQuestionsSql';
 import { Question, Curator } from '../types/question';
 
+// Shared by the activity heatmap cells and its legend so colors and names stay in step.
+const HEATMAP_STATES = [
+  { status: 'pendente', label: 'Pendente', color: 'var(--warm-subtle)' },
+  { status: 'aprovadas', label: 'Aprovada', color: '#16a34a' },
+  { status: 'questao_corrigida', label: 'Corrigida', color: '#2563eb' },
+  { status: 'revisar_questao', label: 'Revisar', color: '#d97706' },
+  { status: 'eliminar_questao', label: 'Eliminar', color: '#dc2626' },
+] as const;
+
 interface AuditCockpitProps {
   questions: Question[];
   curators: Curator[];
@@ -304,35 +313,29 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
             {/* Heatmap grid */}
             <div className="grid grid-cols-10 sm:grid-cols-12 gap-1.5 pt-2">
               {questions.slice(0, 48).map((q, idx) => {
-                let cellColor = 'var(--warm-subtle)'; // hm-0
-                if (q.status === 'aprovadas') cellColor = '#16a34a';
-                else if (q.status === 'eliminar_questao') cellColor = '#dc2626';
-                else if (q.status === 'revisar_questao') cellColor = '#d97706';
-                else if (q.status === 'questao_corrigida') cellColor = '#2563eb';
+                const state = HEATMAP_STATES.find(s => s.status === q.status) ?? HEATMAP_STATES[0];
 
                 return (
                   <button
                     key={q.id}
                     onClick={() => onOpenQuestionById(q.id)}
                     className="aspect-square rounded-[3px] transition-all hover:scale-125 focus:outline-none"
-                    style={{ backgroundColor: cellColor }}
-                    title={`Questão #${q.id} (${q.especialidade}) - Status: ${q.status}`}
+                    style={{ backgroundColor: state.color }}
+                    title={`Questão #${q.id} (${q.especialidade}): ${state.label}`}
+                    aria-label={`Abrir questão #${q.id}, ${state.label}`}
                   />
                 );
               })}
             </div>
 
-            <div className="flex items-center justify-between text-[10px] text-shell-muted pt-2">
-              <span>Pendente</span>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-[2px] bg-shell-subtle" />
-                <span className="w-2.5 h-2.5 rounded-[2px] bg-emerald-600" />
-                <span className="w-2.5 h-2.5 rounded-[2px] bg-blue-600" />
-                <span className="w-2.5 h-2.5 rounded-[2px] bg-amber-600" />
-                <span className="w-2.5 h-2.5 rounded-[2px] bg-rose-600" />
-              </div>
-              <span>Auditadas</span>
-            </div>
+            <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-apex-readable pt-2" aria-label="Legenda">
+              {HEATMAP_STATES.map(s => (
+                <li key={s.status} className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-[2px]" style={{ backgroundColor: s.color }} aria-hidden="true" />
+                  {s.label}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>

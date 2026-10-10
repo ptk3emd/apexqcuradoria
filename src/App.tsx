@@ -424,7 +424,7 @@ export default function App() {
         onlineCuratorsCount={new Set([...Object.values(presences).map(p => p.curador_id), ...(isAuthenticated ? [activeCurator.id] : [])]).size}
       />
 
-      <div role="status" className="px-6 py-2 text-sm bg-black/20">{isActionPending ? 'Salvando… Aguarde a confirmação.' : isLoadingFullDataset ? `${questions.length} questões disponíveis • Carregando o restante…` : syncMessage}</div>
+      <div role="status" className="px-6 py-2 text-xs text-apex-readable bg-shell-2/60">{isActionPending ? 'Salvando… Aguarde a confirmação.' : isLoadingFullDataset ? `${questions.length} questões disponíveis • Carregando o restante…` : syncMessage}</div>
       {datasetReady && questions.length===0 && <p className="mx-auto max-w-3xl p-8 text-center text-apex-readable">Nenhuma questão cadastrada. Importe sua base na tabela questions do Supabase e atualize esta página.</p>}
       {/* Main Content Area */}
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 lg:px-6 py-6">
@@ -440,6 +440,8 @@ export default function App() {
             onUpdateStatus={handleUpdateStatus}
             onAssignQuestion={handleAssignQuestion}
             onShowToast={showToast}
+            searchActive={Boolean(searchQuery.trim())}
+            onClearSearch={() => setSearchQuery('')}
           />
         )}
 

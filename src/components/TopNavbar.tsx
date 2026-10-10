@@ -67,6 +67,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   // Keyboard shortcut Ctrl+K or / to focus search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsCuratorMenuOpen(false);
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         searchInputRef.current?.focus();
@@ -196,6 +197,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           <div className="relative" ref={curatorMenuRef}>
             <button
               onClick={() => setIsCuratorMenuOpen(!isCuratorMenuOpen)}
+              aria-label={`Menu do curador ${activeCurator.nome}`}
+              aria-expanded={isCuratorMenuOpen}
               className="flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full bg-shell-2 border border-white/[0.1] hover:border-brand transition-all"
             >
               <div

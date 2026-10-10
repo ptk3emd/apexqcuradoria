@@ -19,6 +19,7 @@ import {
   Sparkles,
   Info
 } from 'lucide-react';
+import { useDialog } from '../lib/useDialog';
 import { Question, QuestionStatus, Curator, CuratorPresence, QuestionComment } from '../types/question';
 import { QuestionEditor } from './QuestionEditor';
 import { StatusBadge } from './StatusBadge';
@@ -72,6 +73,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
   const [commentInput, setCommentInput] = useState('');
   const [revisionNotesInput, setRevisionNotesInput] = useState('');
   const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const revisionDialogRef = useDialog<HTMLDivElement>(() => setShowRevisionModal(false), showRevisionModal);
 
   // Sync state when selected question changes
   useEffect(() => {
@@ -256,21 +258,21 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
 
       {/* Active Curator Collision Banner (prevents another curator from doing the same question) */}
       {activeViewers.length > 0 && (
-        <div className="p-4 rounded-2xl bg-amber-950/40 border-2 border-amber-500/50 flex items-center justify-between gap-4 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
-          <div className="flex items-center gap-3">
+        <div className="p-4 rounded-2xl bg-amber-950/40 border-2 border-amber-500/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0 border border-amber-500/40">
-              <AlertTriangle className="w-5 h-5 text-amber-400 animate-bounce" />
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
             </div>
             <div>
               <p className="text-sm font-bold text-amber-200">
                 Atenção: Questão em uso por outro curador!
               </p>
               <p className="text-xs text-amber-300/80 mt-0.5">
-                <b className="text-white underline">{activeViewers.map(v => v.curador_nome).join(', ')}</b> está {activeViewers[0].status_atividade === 'editando' ? 'editando o texto desta questão neste instante' : 'analisando e auditando esta questão agora'}. Evite modificar simultaneamente para não sobrepor o trabalho.
+                <b className="text-white">{activeViewers.map(v => v.curador_nome).join(', ')}</b> está {activeViewers[0].status_atividade === 'editando' ? 'editando o texto desta questão neste instante' : 'analisando e auditando esta questão agora'}. Evite modificar simultaneamente para não sobrepor o trabalho.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 sm:shrink-0">
             {question.responsavel_nome && (
               <span className="text-xs px-2.5 py-1 rounded-full bg-white/[0.08] text-white font-bold">
                 Responsável atribuído: {question.responsavel_nome}
@@ -742,10 +744,10 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
       {/* Revision Note Modal Dialog */}
       {showRevisionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md rounded-2xl bg-shell-2 border border-white/[0.15] p-6 space-y-4 shadow-2xl">
+          <div ref={revisionDialogRef} role="dialog" aria-modal="true" aria-labelledby="revision-dialog-title" className="w-full max-w-md rounded-2xl bg-shell-2 border border-white/[0.15] p-6 space-y-4 shadow-2xl">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-400" />
-              <h3 className="font-bold text-base text-apex-text">Solicitar Revisão de Questão</h3>
+              <h3 id="revision-dialog-title" className="font-bold text-base text-apex-text">Solicitar Revisão de Questão</h3>
             </div>
 
             <p className="text-xs text-apex-readable leading-relaxed">

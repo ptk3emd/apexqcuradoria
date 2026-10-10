@@ -29,17 +29,17 @@ export function CorrectedQuestionsSql({questions, onShowToast}: Props) {
   return <section className="rounded-2xl bg-shell-2 border border-white/10 p-6 space-y-4" aria-label="SQL de todas as correções">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h3 className="font-bold flex items-center gap-2"><Database className="w-5 h-5 text-brand-muted"/> SQL de todas as questões corrigidas</h3>
-        <p className="text-sm text-apex-readable mt-2" aria-live="polite">{result.count} questões acumuladas • Todos os curadores • public.questions</p>
+        <h3 className="text-sm font-bold text-apex-text flex items-center gap-2"><Database className="w-4 h-4 text-brand-muted"/> SQL de todas as questões corrigidas</h3>
+        <p className="text-xs text-shell-muted mt-1" aria-live="polite">{result.count} questões acumuladas • Todos os curadores • public.questions</p>
       </div>
       <div className="flex gap-2">
-        <button disabled={!available || copying} onClick={() => void copy()} className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 disabled:opacity-40"><Copy className="w-4 h-4"/>{copying ? 'Copiando…' : 'Copiar SQL de correções'}</button>
-        <button disabled={!available} onClick={download} className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 disabled:opacity-40"><Download className="w-4 h-4"/>Baixar .sql</button>
+        <button disabled={!available || copying} onClick={() => void copy()} className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-white bg-brand hover:bg-brand-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand"><Copy className="w-3.5 h-3.5"/>{copying ? 'Copiando…' : 'Copiar SQL de correções'}</button>
+        <button disabled={!available} onClick={download} className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-apex-text bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] transition-all disabled:opacity-40 disabled:cursor-not-allowed"><Download className="w-3.5 h-3.5"/>Baixar .sql</button>
       </div>
     </div>
-    <p className="text-sm text-apex-readable">Cada nova correção confirmada na base compartilhada entra neste script automaticamente. Se uma questão for corrigida novamente, seu UPDATE usa a versão mais recente. Questões já modificadas continuam incluídas mesmo após mudança de status.</p>
-    <p className="text-xs text-apex-readable">As alterações já são salvas em questions. Este SQL consolidado pode aplicar as mesmas correções em outra base com os mesmos IDs.</p>
-    {result.errors.length > 0 ? <div role="alert" className="text-amber-300"><p>Corrija estes dados para gerar o script completo:</p><ul className="list-disc pl-5">{result.errors.map((error,index)=><li key={index}>{error}</li>)}</ul></div> :
-      <textarea aria-label="SQL acumulado de correções" readOnly value={result.count ? result.sql : '-- Nenhuma questão corrigida até o momento.'} className="w-full min-h-72 max-h-[600px] rounded-xl bg-black/40 border border-white/10 p-4 font-mono text-xs text-apex-text" spellCheck={false}/>}
+    <p className="text-xs text-apex-readable leading-relaxed">Cada nova correção confirmada na base compartilhada entra neste script automaticamente. Se uma questão for corrigida novamente, seu UPDATE usa a versão mais recente. Questões já modificadas continuam incluídas mesmo após mudança de status.</p>
+    <p className="text-xs text-shell-muted">As alterações já são salvas em questions. Este SQL consolidado pode aplicar as mesmas correções em outra base com os mesmos IDs.</p>
+    {result.errors.length > 0 ? <div role="alert" className="text-xs text-amber-300"><p>Corrija estes dados para gerar o script completo:</p><ul className="list-disc pl-5">{result.errors.map((error,index)=><li key={index}>{error}</li>)}</ul></div> :
+      <textarea aria-label="SQL acumulado de correções" readOnly value={result.count ? result.sql : '-- Nenhuma questão corrigida até o momento.'} className="w-full min-h-72 max-h-[600px] rounded-xl bg-shell-3 border border-white/[0.08] p-4 font-mono text-xs text-apex-text" spellCheck={false}/>}
   </section>;
 }
