@@ -22,7 +22,7 @@ import { GoogleSheetsSyncModal } from './components/GoogleSheetsSyncModal';
 import { SqlEditorModal } from './components/SqlEditorModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { SupabaseAuthGate } from './components/SupabaseAuthGate';
-import { usesSupabase, loadSupabaseBase, subscribeSupabaseChanges, signOutSupabase, curationClient } from './lib/supabaseCuration';
+import { usesSupabase, loadSupabaseBase, subscribeSupabaseChanges, signOutSupabase } from './lib/supabaseCuration';
 import { MasterAuthGate } from './components/MasterAuthGate';
 import { 
   getStoredSheetsSyncConfig 
@@ -145,13 +145,12 @@ export default function App() {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
-  useEffect(() => {
-    if (!usesSupabase) return;
-    const {data} = curationClient().auth.onAuthStateChange(event => {
-      if (event === 'SIGNED_OUT') {setIsAuthenticated(false); setActiveView('table'); setQuestions([]);}
-    });
-    return () => data.subscription.unsubscribe();
-  }, []);
+  useEffect(()=>{
+    if(!usesSupabase) return;
+    const expired=()=>{setIsAuthenticated(false);setActiveView('table');setQuestions([]);};
+    window.addEventListener('apex-session-expired',expired);
+    return ()=>window.removeEventListener('apex-session-expired',expired);
+  },[]);
 
   const shouldLoadDataset = !usesSupabase || isAuthenticated;
   // Asynchronously load the full 13,945 questions dataset from IndexedDB or base_questoes.json

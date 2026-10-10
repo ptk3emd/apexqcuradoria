@@ -16,8 +16,20 @@ const session='10000000-0000-0000-0000-000000000001';
 let seq=0;
 await db.query('insert into auth.users values($1),($2)',[patrick,lucas]);
 await db.query("insert into public.curation_members values($1,'patrick','Patrick',true),($2,'lucas','Lucas',true)",[patrick,lucas]);
+await db.exec(`create schema extensions;
+-- PGlite lacks pgcrypto: isolate password hashing with a stub; live RPC tests verify bcrypt separately.
+create function extensions.crypt(value text,salt text) returns text language sql immutable as $$select 'hash:'||value$$;
+create schema realtime; create function realtime.send(jsonb,text,text,boolean) returns void language sql as $$ select $$;`);
+const masterSql=(await readFile('supabase/migrations/20261010150224_master_password_sessions.sql','utf8')).replace('create extension if not exists pgcrypto with schema extensions;','');
+await db.exec(masterSql);
+await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
-const asUser=async user=>{await db.query("select set_config('request.jwt.claim.sub',$1,false)",[user]);await db.exec('set role authenticated');};
+const asUser=async user=>{
+ await db.exec('reset role');
+ await db.query("insert into curation_private.sessions(token_hash,user_id,expires_at) select encode(sha256(convert_to($1,'UTF8')),'hex'),user_id,now()+interval '1 hour' from public.curation_members where user_id=$2 on conflict(token_hash) do update set expires_at=excluded.expires_at",['test-'+user,user]);
+ await db.query("select set_config('request.headers',$1,false)",[JSON.stringify({'x-apex-session':'test-'+user})]);
+ await db.exec('set role authenticated');
+};
 const call=async(action,items,request)=> (await db.query('select public.curation_mutate($1,$2,$3,$4::jsonb) as result',[action,session,request||`20000000-0000-0000-0000-${String(++seq).padStart(12,'0')}`,JSON.stringify(items)])).rows[0].result;
 
 test('RPC ownership, stale versions, content persistence, comments and idempotency',async()=>{
@@ -52,7 +64,8 @@ test('nonmembers and anonymous callers cannot read or mutate drafts',async()=>{
  assert.equal((await db.query('select * from public.curation_questions')).rows.length,0);
  await assert.rejects(db.query('select public.curation_base()'),/não autorizado/);
  await db.exec('set role anon');
- await assert.rejects(db.query('select public.curation_sync(0)'),/permission denied/);
+ await assert.rejects(db.query('select public.curation_sync(0)'),/não autorizado/);
+ assert.equal((await db.query('select * from public.questions')).rows.length,0);
 });
 
 test.after(async()=>{await db.close();});
@@ -87,4 +100,19 @@ test('source imports, all writable columns and ID changes synchronize without wr
  const synced=(await db.query('select public.curation_sync(0) as result')).rows[0].result;
  assert.ok(synced.removed_ids.includes('20'));assert.ok(synced.questions.some(q=>q.id==='21'));
  await assert.rejects(call('save',[{id:'21',version:saved.questions[0].sync_version,patch:{id:'1'}}]),/duplicate key/);
+});
+
+test('master login requires only password/profile, rejects forged tokens and revokes logout',async()=>{
+ await db.exec('reset role');await db.query("select set_config('request.headers','{}',false)");await db.exec('set role anon');
+ const login=async(curator,password)=>(await db.query('select public.curation_login($1,$2) as result',[curator,password])).rows[0].result;
+ assert.equal((await login('patrick','wrong')).ok,false);
+ assert.equal((await login('invalid','test-master-password')).ok,false);
+ const result=await login('patrick','test-master-password');assert.equal(result.ok,true);assert.equal(result.curator_id,'patrick');
+ await db.query("select set_config('request.headers',$1,false)",[JSON.stringify({'x-apex-session':result.token,actor:'lucas'})]);
+ assert.equal((await db.query('select public.curation_session() as result')).rows[0].result.curator_id,'patrick');
+ const member=(await db.query('select public.curation_is_member() as value')).rows[0].value;assert.equal(member,true);
+ await db.query('select public.curation_logout()');
+ await assert.rejects(db.query('select public.curation_session()'),/expirada/);
+ await db.query("select set_config('request.headers',$1,false)",[JSON.stringify({'x-apex-session':'invented'})]);
+ await assert.rejects(db.query('select public.curation_base()'),/não autorizado/);
 });

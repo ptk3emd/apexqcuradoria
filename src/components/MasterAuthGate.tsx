@@ -4,16 +4,19 @@ import { Curator } from '../types/question';
 import { sheetsRequest } from '../lib/collaboration';
 
 interface MasterAuthGateProps {
+  authenticate?: (id:string,password:string)=>Promise<Curator>;
   curators: Curator[];
   onAuthenticated: (selectedCurator: Curator) => void;
 }
 
 
 export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
+  authenticate,
   curators,
   onAuthenticated,
 }) => {
   const [selectedCuratorId, setSelectedCuratorId] = useState<string>('');
+  const [busy,setBusy]=useState(false);
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -21,6 +24,7 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if(busy) return;
     setErrorMessage('');
 
     if (!selectedCuratorId) {
@@ -28,22 +32,28 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
       return;
     }
 
+    setBusy(true);
+    let verified:Curator|undefined;
     try {
-      await sheetsRequest({action:'authenticate'}, {key:password.trim(), actor:selectedCuratorId});
+      if(authenticate) verified=await authenticate(selectedCuratorId,password.trim());
+      else await sheetsRequest({action:'authenticate'}, {key:password.trim(), actor:selectedCuratorId});
     } catch (error: any) {
-      setErrorMessage(error.message || 'Não foi possível autenticar no Google Sheets.');
+      setErrorMessage(error.message || 'Não foi possível validar a senha no servidor.');
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 600);
       setPassword('');
+      setBusy(false);
       return;
     }
 
-    const curator = curators.find(c => c.id === selectedCuratorId);
+    setBusy(false);
+    const curator = verified || curators.find(c => c.id === selectedCuratorId);
     if (curator) {
       // Store authenticated state in sessionStorage so refreshing doesn't lose session during active work
       try {
         sessionStorage.setItem('apexmed_authenticated_curator_id', curator.id);
-        sessionStorage.setItem('apexmed_sheets_access_key', password.trim());
+        if(authenticate) sessionStorage.removeItem('apexmed_sheets_access_key');
+        else sessionStorage.setItem('apexmed_sheets_access_key', password.trim());
         sessionStorage.setItem('apexmed_master_auth_token', 'apex-auth-valid');
       } catch {
         // ignore
@@ -74,7 +84,7 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit}><fieldset disabled={busy} className="space-y-6">
           {/* Step 1: Select User */}
           <div className="space-y-2.5">
             <label className="block text-xs font-bold uppercase tracking-wider text-[#bdbdbd]">
@@ -131,6 +141,9 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
                   setPassword(e.target.value);
                   setErrorMessage('');
                 }}
+                aria-label="Senha mestra"
+                required
+                autoComplete="current-password"
                 placeholder="Insira a senha mestra..."
                 className="w-full bg-[#1e1d1b] border border-white/[0.15] focus:border-[#A43939] rounded-xl px-4 py-3 text-sm text-[#f8fafc] placeholder-[#7a7468] outline-none transition-all pr-12 font-mono"
               />
@@ -159,9 +172,9 @@ export const MasterAuthGate: React.FC<MasterAuthGateProps> = ({
             className="w-full py-3.5 rounded-full font-bold text-xs uppercase tracking-wider bg-[#A43939] hover:bg-[#913232] text-white shadow-[0_0_28px_rgba(164,57,57,0.4)] hover:shadow-[0_0_38px_rgba(164,57,57,0.6)] transition-all cursor-pointer flex items-center justify-center gap-2"
           >
             <UserCheck className="w-4 h-4" />
-            <span>Entrar na Curadoria</span>
+            <span>{busy?'Entrando…':'Entrar na Curadoria'}</span>
           </button>
-        </form>
+        </fieldset></form>
 
         <p className="text-center text-[11px] text-[#7a7468]">
           Plataforma protegida • Apenas curadores designados autorizados
