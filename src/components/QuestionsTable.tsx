@@ -5,6 +5,7 @@ import {
   UserPlus, 
   Filter, 
   Eye, 
+  PenTool, 
   Sparkles,
   ChevronRight,
   MessageSquare,
@@ -307,7 +308,9 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                                   style={{ backgroundColor: viewers[0].curador_cor }}
                                 />
                                 <span className="truncate max-w-[80px]">
-                                  {viewers[0].status_atividade === 'editando' ? '✍️ ' : '👀 '}
+                                  {viewers[0].status_atividade === 'editando'
+                                    ? <PenTool className="inline-block w-3 h-3 mr-1 align-[-2px]" aria-hidden="true" />
+                                    : <Eye className="inline-block w-3 h-3 mr-1 align-[-2px]" aria-hidden="true" />}
                                   {viewers[0].curador_nome.split(' ')[0]}
                                 </span>
                               </span>
@@ -343,7 +346,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                             {q.enunciado}
                           </p>
                           {qComments.length > 0 && (
-                            <div className="flex items-center gap-1 text-[11px] text-[#DF9696] mt-1 font-semibold">
+                            <div className="flex items-center gap-1 text-[11px] text-[#DF9696] mt-1 font-bold">
                               <MessageSquare className="w-3 h-3" />
                               <span>{qComments.length} comentário{qComments.length > 1 ? 's' : ''}</span>
                             </div>

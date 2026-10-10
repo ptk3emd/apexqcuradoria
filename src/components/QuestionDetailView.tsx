@@ -192,7 +192,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
 
         {/* Center: Live Presence Beacon */}
         {activeViewers.length > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold animate-pulse">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold animate-pulse">
             <span className="w-2 h-2 rounded-full bg-amber-400" />
             <span>
               {activeViewers.map(v => v.curador_nome).join(', ')} {activeViewers.length === 1 ? 'está' : 'estão'} visualizando esta questão agora
@@ -272,7 +272,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {question.responsavel_nome && (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-white/[0.08] text-white font-semibold">
+              <span className="text-xs px-2.5 py-1 rounded-full bg-white/[0.08] text-white font-bold">
                 Responsável atribuído: {question.responsavel_nome}
               </span>
             )}
@@ -467,7 +467,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                           />
                         ) : (
                           <p
-                            className={`text-xs leading-relaxed font-medium ${
+                            className={`text-xs leading-relaxed font-normal ${
                               isCorrect ? 'text-white font-bold' : 'text-[#f8fafc]'
                             }`}
                           >
@@ -726,7 +726,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               </button>
             </div>
 
-            <pre className="p-2.5 rounded-xl bg-[#121110] border border-white/[0.05] text-[10px] font-mono text-[#bdbdbd] overflow-x-auto max-h-[140px] leading-relaxed">
+            <pre className="p-2.5 rounded-xl bg-[#1e1d1b] border border-white/[0.05] text-[10px] font-mono text-[#bdbdbd] overflow-x-auto max-h-[140px] leading-relaxed">
               {sqlPreview || '-- Nenhuma alteração pendente de SQL para esta questão (Status: Pendente)'}
             </pre>
           </div>

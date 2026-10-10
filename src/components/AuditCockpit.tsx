@@ -108,7 +108,7 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({
               <p className="text-3xl font-bold text-[#f8fafc]">
                 {auditedCount} <span className="text-sm font-normal text-[#7a7468]">/ {total}</span>
               </p>
-              <p className="text-[11px] text-emerald-400 font-semibold mt-0.5">
+              <p className="text-[11px] text-emerald-400 font-bold mt-0.5">
                 {counts.pendentes} restantes na fila
               </p>
             </div>

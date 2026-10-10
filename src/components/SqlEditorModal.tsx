@@ -168,7 +168,7 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
                     onClick={() => setRegexPattern('')}
                     className="absolute right-2.5 top-2 text-xs text-[#7a7468] hover:text-white"
                   >
-                    ✕
+                    <X className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -198,7 +198,7 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
         )}
 
         {/* Code Editor Preview Box */}
-        <div className="flex-1 min-h-[300px] overflow-hidden rounded-xl border border-white/[0.08] bg-[#121110] relative flex flex-col">
+        <div className="flex-1 min-h-[300px] overflow-hidden rounded-xl border border-white/[0.08] bg-[#1e1d1b] relative flex flex-col">
           <div className="flex items-center justify-between px-3 py-1.5 bg-[#1e1d1b] border-b border-white/[0.06] text-[11px] text-[#7a7468] font-mono">
             <span>
               {activeTab === 'progressive' ? 'curadoria_progressiva.sql' : 'supabase_ddl_schema.sql'}

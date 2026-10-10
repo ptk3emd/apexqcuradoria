@@ -12,7 +12,8 @@ import {
   ChevronDown,
   Sparkles,
   UserCheck,
-  Lock
+  Lock,
+  X
 } from 'lucide-react';
 import { Curator } from '../types/question';
 
@@ -115,7 +116,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 onClick={() => onSearchChange('')}
                 className="absolute right-3 text-xs text-[#7a7468] hover:text-[#f8fafc]"
               >
-                ✕
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             )}
           </div>

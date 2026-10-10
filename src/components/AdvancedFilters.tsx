@@ -131,7 +131,7 @@ export const FilterSection = React.memo<FilterSectionProps>(({
                   onClick={() => setSearchTerm('')}
                   className="absolute right-2.5 top-2 text-xs text-[#7a7468] hover:text-white"
                 >
-                  ✕
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               )}
             </div>
@@ -543,7 +543,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             {appliedChips.map((chip) => (
               <span
                 key={`${chip.key}_${chip.value}`}
-                className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.1] text-xs text-[#f8fafc] font-medium"
+                className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.1] text-xs text-[#f8fafc] font-normal"
               >
                 <span>{chip.label}</span>
                 <button
