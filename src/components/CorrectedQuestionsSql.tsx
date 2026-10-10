@@ -1,4 +1,3 @@
-import {usesSupabase} from '../lib/supabaseCuration';
 import React, {useMemo, useState} from 'react';
 import {Copy, Download, Database} from 'lucide-react';
 import type {Question} from '../types/question';
@@ -39,7 +38,7 @@ export function CorrectedQuestionsSql({questions, onShowToast}: Props) {
       </div>
     </div>
     <p className="text-sm text-[#bdbdbd]">Cada nova correção confirmada na base compartilhada entra neste script automaticamente. Se uma questão for corrigida novamente, seu UPDATE usa a versão mais recente. Questões já modificadas continuam incluídas mesmo após mudança de status.</p>
-    <p className="text-xs text-[#bdbdbd]">{usesSupabase ? 'As alterações já são salvas em questions. Este SQL consolidado pode ser usado para aplicar as mesmas correções em outra base com os mesmos IDs.' : 'Copie o script completo e execute no SQL Editor do Supabase. A execução é manual; o aplicativo apenas gera o código.'}</p>
+    <p className="text-xs text-[#bdbdbd]">As alterações já são salvas em questions. Este SQL consolidado pode aplicar as mesmas correções em outra base com os mesmos IDs.</p>
     {result.errors.length > 0 ? <div role="alert" className="text-amber-300"><p>Corrija estes dados para gerar o script completo:</p><ul className="list-disc pl-5">{result.errors.map((error,index)=><li key={index}>{error}</li>)}</ul></div> :
       <textarea aria-label="SQL acumulado de correções" readOnly value={result.count ? result.sql : '-- Nenhuma questão corrigida até o momento.'} className="w-full min-h-72 max-h-[600px] rounded-xl bg-black/40 border border-white/10 p-4 font-mono text-xs text-[#f8fafc]" spellCheck={false}/>}
   </section>;

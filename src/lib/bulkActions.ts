@@ -3,7 +3,7 @@ import type { Curator, Question } from '../types/question';
 type Mutate = (questions: Question[], action: string, actor: Curator, target?: Curator | null) => Promise<Question[]>;
 
 // Claim the entire selection before saving. Send only the changed fields so
-// large question texts do not overflow the Sheets journal's cell limit.
+// avoid resending unchanged question text.
 export async function reviewSelection(targets: Question[], actor: Curator, mutate: Mutate, confirm: (rows: Question[]) => void) {
   const claimed = await mutate(targets, 'claim', actor);
   confirm(claimed);

@@ -3,7 +3,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {create, act} from 'react-test-renderer';
 import {BatchAssignModal} from '../src/components/BatchAssignModal';
-import {GoogleSheetsSyncModal} from '../src/components/GoogleSheetsSyncModal';
 import {SqlEditorModal} from '../src/components/SqlEditorModal';
 import {QuestionsTable} from '../src/components/QuestionsTable';
 import {DEFAULT_CURATORS} from '../src/data/defaultCurators';
@@ -16,7 +15,6 @@ const common = {questions:rows,activeCurator:actor,curators:DEFAULT_CURATORS,onC
 
 for (const [name, Component, props] of [
   ['batch', BatchAssignModal, {onAssignBatch:async()=>true,onReleaseAllMyAssignments:async()=>true}],
-  ['sheets', GoogleSheetsSyncModal, {onQuestionsUpdated:()=>{}}],
   ['sql', SqlEditorModal, {auditLogs:[],allQuestions:rows,onClearLogs:()=>{}}],
 ] as const) {
   test(`${name} modal can open, close, and reopen without changing hook order`, async () => {
@@ -87,12 +85,12 @@ test('overlapping polling and recovery share one incremental sync request', asyn
   let calls=0;
   let finish:(value:any)=>void;
   const response=new Promise(resolve=>{finish=resolve;});
-  Object.defineProperty(globalThis,'sessionStorage',{configurable:true,value:{getItem:(key:string)=>key.includes('access_key')?'test-key':'patrick'}});
-  globalThis.fetch=(async()=>{calls++;return await response;}) as typeof fetch;
+  Object.defineProperty(globalThis,'sessionStorage',{configurable:true,value:{getItem:(key:string)=>key.includes('supabase_session')?'test-token':null}});
+  globalThis.fetch=(async()=>{calls++;return (await response as Response).clone();}) as typeof fetch;
   try {
     const first=fetchShared();const second=fetchShared();
-    assert.equal(first,second);assert.equal(calls,1);
-    finish!({ok:true,json:async()=>({protocol:2,ok:true,entries:[],cursor:0,more:false,leases:{}})});
+    assert.equal(first,second);await new Promise(resolve=>setTimeout(resolve,0));assert.equal(calls,1);
+    finish!(new Response(JSON.stringify({questions:[],removed_ids:[],cursor:0,more:false,leases:{}}),{status:200,headers:{'Content-Type':'application/json'}}));
     await first;
     await fetchShared();assert.equal(calls,2);
   } finally {
@@ -116,4 +114,42 @@ test('question editor exposes every writable field and preserves edits across se
  await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));
  assert.equal(latest.a,'Updated alternative');assert.equal(latest.comentario,'Explanation');assert.equal(saves,1);
  await act(async()=>renderer.unmount());
+});
+
+
+test('Supabase first page is delivered before remaining pages and idle sync does not replay changes', async () => {
+  const {loadSupabaseBase, fetchSupabaseShared}=await import('../src/lib/supabaseCuration');
+  const originalFetch=globalThis.fetch;
+  const originalStorage=Object.getOwnPropertyDescriptor(globalThis,'sessionStorage');
+  Object.defineProperty(globalThis,'sessionStorage',{configurable:true,value:{getItem:()=> 'test-token'}});
+  let baseCalls=0, syncCalls=0;
+  let release:()=>void;
+  const remaining=new Promise<void>(resolve=>{release=resolve;});
+  const page=Array.from({length:500},(_,index)=>({...rows[0],id:String(index+1),sync_version:0}));
+  const delivered:Question[][]=[];
+  globalThis.fetch=(async(input:any)=> {
+    const url=String(input);
+    assert.ok(url.startsWith('https://jcbinmjiimqomjdyfdia.supabase.co/rest/v1/rpc/'));
+    let result:any;
+    if(url.endsWith('curation_initial_cursor')) result=10;
+    else if(url.endsWith('curation_base')) {
+      if(++baseCalls===1) result=page;
+      else {await remaining;result=[];}
+    } else {
+      result={questions:++syncCalls===1?[{...rows[0],sync_version:1}]:[],removed_ids:[],cursor:11,more:false,leases:{}};
+    }
+    return new Response(JSON.stringify(result),{status:200,headers:{'Content-Type':'application/json'}});
+  }) as typeof fetch;
+  try {
+    const loading=loadSupabaseBase(part=>delivered.push(part));
+    for(let i=0;i<20 && !delivered.length;i++) await new Promise(resolve=>setTimeout(resolve,0));
+    assert.equal(delivered[0].length,500);
+    release!();assert.equal((await loading).length,500);
+    assert.equal((await fetchSupabaseShared()).rows.length,1);
+    assert.equal((await fetchSupabaseShared()).rows.length,0);
+  } finally {
+    release!();globalThis.fetch=originalFetch;
+    if(originalStorage) Object.defineProperty(globalThis,'sessionStorage',originalStorage);
+    else delete (globalThis as any).sessionStorage;
+  }
 });

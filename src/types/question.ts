@@ -84,5 +84,3 @@ export interface AuditLogItem {
   timestamp: string;
   sql_gerado: string;
 }
-
-export type GoogleSheetsSyncStatus = 'idle' | 'pending' | 'success' | 'error';

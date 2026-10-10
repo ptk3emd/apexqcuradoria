@@ -14,7 +14,7 @@ export function sqlText(value: string | null): string {
 }
 
 export function isCorrectedQuestion(q: Question): boolean {
-  // Sheets imports can represent booleans as strings. A string "false" is
+  // Legacy imports can represent booleans as strings. A string "false" is
   // truthy in JavaScript but must not include an untouched question.
   return q.status === 'questao_corrigida' || q.modificado === true ||
     String(q.modificado).toLowerCase() === 'true';
