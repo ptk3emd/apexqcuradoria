@@ -11,23 +11,28 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Question, QuestionStatus, Curator, CuratorPresence, QuestionComment } from '../types/question';
+import { canSelectQuestion } from '../lib/bulkActions';
 import { StatusBadge } from './StatusBadge';
 import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboardHelper';
 import { AdvancedFilters, AdvancedFilterState, GRANDES_AREAS_MAP } from './AdvancedFilters';
 
 interface QuestionsTableProps {
   questions: Question[];
+  busy: boolean;
+  onSelectedQuestions: (ids: string[], action: 'assign' | 'review') => Promise<boolean>;
   activeCurator: Curator;
   presences: Record<string, CuratorPresence>;
   comments: Record<string, QuestionComment[]>;
   onSelectQuestion: (question: Question) => void;
-  onUpdateStatus: (id: string, status: QuestionStatus, notas?: string) => void;
+  onUpdateStatus: (id: string, status: QuestionStatus, notas?: string) => Promise<boolean>;
   onAssignQuestion: (id: string, curator: Curator | null) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   questions,
+  busy,
+  onSelectedQuestions,
   activeCurator,
   presences,
   comments,
@@ -52,6 +57,30 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(50);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  useEffect(() => { setSelectedIds(new Set()); }, [filterState, activeCurator.id]);
+  useEffect(() => {
+    const eligible = new Set(questions.filter(q => canSelectQuestion(q, activeCurator)).map(q => q.id));
+    setSelectedIds(previous => {
+      const next = new Set([...previous].filter(id => eligible.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [questions, activeCurator.id]);
+  const toggleSelection = (id: string) => {
+    if (!selectedIds.has(id) && selectedIds.size >= 100) {
+      onShowToast('Limite de seleção', 'Selecione até 100 questões por operação.', 'info');
+      return;
+    }
+    setSelectedIds(previous => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const submitSelection = async (action: 'assign' | 'review') => {
+    if (await onSelectedQuestions([...selectedIds], action)) setSelectedIds(new Set());
+  };
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -133,6 +162,11 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
       });
   }, [questions, filterState, sortBy, sortOrder, activeCurator.id]);
 
+  const pageQuestions = filteredQuestions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const selectablePage = pageQuestions.filter(q => canSelectQuestion(q, activeCurator));
+  const allPageSelected = selectablePage.length > 0 && selectablePage.every(q => selectedIds.has(q.id));
+  useEffect(() => { setCurrentPage(page => Math.min(page, Math.max(1, Math.ceil(filteredQuestions.length / pageSize)))); }, [filteredQuestions.length, pageSize]);
+
   // Counts for status chips
   const counts = useMemo(() => {
     return {
@@ -171,12 +205,29 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         totalFilteredCount={filteredQuestions.length}
       />
 
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-[#272522] p-3" aria-live="polite">
+        <span>{selectedIds.size} selecionadas (máximo 100)</span>
+        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('assign')} className="rounded-lg bg-[#A43939] px-4 py-2 disabled:opacity-40">Assumir selecionadas</button>
+        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('review')} className="rounded-lg bg-amber-700 px-4 py-2 disabled:opacity-40">Marcar selecionadas para revisão</button>
+        <button disabled={busy || !selectedIds.size} onClick={() => setSelectedIds(new Set())} className="px-3 py-2 disabled:opacity-40">Limpar seleção</button>
+        <span className="text-xs text-[#bdbdbd]">A seleção acompanha a paginação. Alterar filtros limpa a seleção.</span>
+      </div>
       {/* Main Questions Table */}
       <div className="w-full rounded-2xl bg-[#1e1d1b] border border-white/[0.08] overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-[#f8fafc] border-collapse">
             <thead>
               <tr className="border-b border-white/[0.08] bg-[#272522]/80 text-[#7a7468] uppercase text-[10px] tracking-wider select-none">
+                <th className="px-3">
+                  <input type="checkbox" aria-label="Selecionar questões disponíveis desta página" disabled={busy || !selectablePage.length} checked={allPageSelected}
+                    ref={el => { if (el) el.indeterminate = !allPageSelected && selectablePage.some(q => selectedIds.has(q.id)); }}
+                    onChange={() => {
+                      const next = new Set(selectedIds);
+                      if (allPageSelected) selectablePage.forEach(q => next.delete(q.id));
+                      else selectablePage.forEach(q => { if (next.size < 100) next.add(q.id); });
+                      setSelectedIds(next);
+                    }} />
+                </th>
                 <th
                   onClick={() => {
                     if (sortBy === 'id') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -214,7 +265,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
             <tbody className="divide-y divide-white/[0.04]">
               {filteredQuestions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-[#7a7468]">
+                  <td colSpan={9} className="py-12 text-center text-[#7a7468]">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <AlertCircle className="w-8 h-8 text-[#A43939]/60" />
                       <p className="text-sm font-bold text-[#f8fafc]">Nenhuma questão encontrada</p>
@@ -223,9 +274,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredQuestions
-                  .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                  .map((q) => {
+                pageQuestions.map((q) => {
                     const qComments = comments[q.id] || [];
                     const viewers = Object.values(presences).filter(
                       p => p.questao_atual_id === q.id && p.curador_id !== activeCurator.id
@@ -235,9 +284,13 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                     return (
                       <tr
                         key={q.id}
-                        onClick={() => onSelectQuestion(q)}
+                        onClick={() => { if (!busy) onSelectQuestion(q); }}
                         className="group hover:bg-white/[0.03] transition-colors cursor-pointer"
                       >
+                        <td className="px-3" onClick={e => e.stopPropagation()}>
+                          <input type="checkbox" aria-label={`Selecionar questão ${q.id}`} checked={selectedIds.has(q.id)}
+                            disabled={busy || !canSelectQuestion(q, activeCurator)} onChange={() => toggleSelection(q.id)} />
+                        </td>
                         {/* ID with active viewer beacon */}
                         <td className="py-3.5 px-4 font-bold text-[#f8fafc] whitespace-nowrap">
                           <div className="flex items-center gap-2">
@@ -319,6 +372,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                             </span>
                           ) : (
                             <button
+                              disabled={busy}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onAssignQuestion(q.id, activeCurator);
@@ -344,11 +398,13 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
 
                             {/* Quick Status Select */}
                             <select
+                              aria-label={`Status da questão ${q.id}`}
+                              disabled={busy || !canSelectQuestion(q, activeCurator)}
                               value={q.status}
                               onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 e.stopPropagation();
-                                onUpdateStatus(q.id, e.target.value as QuestionStatus);
+                                if (await onUpdateStatus(q.id, e.target.value as QuestionStatus)) onShowToast('Status atualizado', `Questão #${q.id} salva no Google Sheets.`, 'success');
                               }}
                               className="bg-[#272522] hover:bg-[#31302e] border border-white/[0.1] rounded-lg px-2 py-1 text-[11px] text-[#f8fafc] outline-none cursor-pointer"
                             >
@@ -361,7 +417,8 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
 
                             {/* Abrir 1 a 1 */}
                             <button
-                              onClick={() => onSelectQuestion(q)}
+                              disabled={busy}
+                              onClick={(e) => { e.stopPropagation(); onSelectQuestion(q); }}
                               className="p-1.5 rounded-lg bg-[#A43939]/20 hover:bg-[#A43939]/40 text-[#DF9696] hover:text-white transition-all"
                               title="Abrir em tela cheia"
                             >
