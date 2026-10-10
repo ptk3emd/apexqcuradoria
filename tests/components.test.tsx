@@ -79,3 +79,25 @@ test('statistics SQL panel updates when shared corrections arrive from another c
   assert.equal((sql().match(/UPDATE public.questions/g)||[]).length,2);
   await act(async()=>renderer.unmount());
 });
+
+test('overlapping polling and recovery share one incremental sync request', async () => {
+  const {fetchShared}=await import('../src/lib/collaboration');
+  const originalFetch=globalThis.fetch;
+  const originalStorage=Object.getOwnPropertyDescriptor(globalThis,'sessionStorage');
+  let calls=0;
+  let finish:(value:any)=>void;
+  const response=new Promise(resolve=>{finish=resolve;});
+  Object.defineProperty(globalThis,'sessionStorage',{configurable:true,value:{getItem:(key:string)=>key.includes('access_key')?'test-key':'patrick'}});
+  globalThis.fetch=(async()=>{calls++;return await response;}) as typeof fetch;
+  try {
+    const first=fetchShared();const second=fetchShared();
+    assert.equal(first,second);assert.equal(calls,1);
+    finish!({ok:true,json:async()=>({protocol:2,ok:true,entries:[],cursor:0,more:false,leases:{}})});
+    await first;
+    await fetchShared();assert.equal(calls,2);
+  } finally {
+    globalThis.fetch=originalFetch;
+    if(originalStorage) Object.defineProperty(globalThis,'sessionStorage',originalStorage);
+    else delete (globalThis as any).sessionStorage;
+  }
+});

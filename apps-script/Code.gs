@@ -36,8 +36,8 @@ function apexBase(ss) {
   if (!sheet || name === APEX_JOURNAL) throw new Error('Configure APEX_BASE_SHEET com o nome exato da aba de questões.');
   return sheet;
 }
-function apexQuestion(sheet, id) {
-  var headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0].map(String);
+function apexQuestion(sheet, id, headers) {
+  headers = headers || sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0].map(String);
   var col = headers.indexOf('id');
   if (col < 0) throw new Error('A aba base precisa da coluna id.');
   var match = sheet.getRange(2,col+1,Math.max(1,sheet.getLastRow()-1),1).createTextFinder(id).matchEntireCell(true).findNext();
@@ -92,12 +92,23 @@ function apexHandle(p, props) {
   var entries=apexRead(journal,2,total), confirmed=[];
   var previous=entries.filter(function(entry){return entry.request===p.request;})[0];
   if(previous) return {protocol:2,ok:true,changes:previous.changes};
-  var seen={};
+  // Reconstruct requested patches in one journal pass, not once per item.
+  var wanted=Object.create(null), history=Object.create(null);
+  items.forEach(function(item) { wanted[String(item.id)]=true; });
+  entries.forEach(function(entry) { entry.changes.forEach(function(change) {
+    if (!wanted[change.id]) return;
+    var state=history[change.id] || {patch:{},version:0};
+    Object.assign(state.patch,change.patch); state.version=change.version;
+    history[change.id]=state;
+  }); });
+  var baseSheet=apexBase(ss);
+  var headers=baseSheet.getRange(1,1,1,baseSheet.getLastColumn()).getValues()[0].map(String);
+  var seen=Object.create(null);
   var changes=items.map(function(item) {
     var id=String(item.id);
     if (seen[id]) throw new Error('Questão duplicada no lote'); seen[id]=true;
-    var q=apexQuestion(apexBase(ss),id);
-    entries.forEach(function(entry){ entry.changes.forEach(function(change){if(change.id===id) Object.assign(q,change.patch,{sync_version:change.version});}); });
+    var q=apexQuestion(baseSheet,id,headers);
+    if(history[id]) Object.assign(q,history[id].patch,{sync_version:history[id].version});
     var l=leases[id];
     if (q.responsavel_id && q.responsavel_id!==p.actor) throw new Error('Questão '+id+' reservada por '+q.responsavel_nome);
     if (l && l.session!==p.session) throw new Error('Questão '+id+' aberta em outra sessão');
