@@ -16,9 +16,9 @@
   --panel-hover: rgba(255, 255, 255, 0.08);
 
   --warm-border: rgba(255, 255, 255, 0.07);
-  --warm-border-strong: rgba(255, 255, 255, 0.12);
-  --brand-border: rgba(164, 57, 57, 0.25);
-  --brand-border-hover: rgba(164, 57, 57, 0.45);
+  --warm-border-strong: rgba(255, 255, 255, 0.10);
+  --brand-border: rgba(164, 57, 57, 0.20);
+  --brand-border-hover: rgba(164, 57, 57, 0.30);
 
   --warm-muted: #7a7468;
   --warm-muted-readable: #bdbdbd;
@@ -26,6 +26,16 @@
 
   --w: #f8fafc;
   --font: 'Atkinson Hyperlegible', Arial, system-ui, sans-serif;
+
+  /* Semantic priority roles (design.md 5.6). Dark-theme text values. */
+  --app-danger: #fecaca;
+  --app-warning: #fbbf24;
+  --app-info: #93c5fd;
+  --app-success: #6ee7b7;
+  --app-danger-subtle: rgba(220, 38, 38, 0.06);
+  --app-warning-subtle: rgba(217, 119, 6, 0.06);
+  --app-info-subtle: rgba(37, 99, 235, 0.06);
+  --app-success-subtle: rgba(22, 163, 74, 0.06);
 }
 
 *, *::before, *::after {
@@ -44,6 +54,18 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  caret-color: var(--brand-muted);
+}
+
+/* Browser-drawn surfaces follow the palette (design.md 17.2, craft floor). */
+::selection {
+  background: rgba(164, 57, 57, 0.35);
+  color: var(--w);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(164, 57, 57, 0.28);
 }
 
 /* Custom Scrollbar for clinical data cockpit feel */
@@ -78,7 +100,7 @@ body {
 }
 .label-micro::before {
   content: '';
-  width: 14px;
+  width: 16px;
   height: 2px;
   background: var(--brand-muted);
   display: inline-block;
@@ -115,7 +137,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 1px solid rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.15);
   background: rgba(255,255,255,.03);
   color: var(--warm-muted-readable);
   padding: 9px 20px;
