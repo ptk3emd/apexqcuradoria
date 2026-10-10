@@ -1,8 +1,11 @@
 import { getStoredSheetsSyncConfig } from './googleSheetsSync';
 import { Curator, Question, CuratorPresence } from '../types/question';
+import { mergeShared, type SharedRow } from './sharedState';
+export { mergeShared } from './sharedState';
+export type { SharedRow } from './sharedState';
 import { DEFAULT_CURATORS } from '../data/defaultCurators';
 const session = crypto.randomUUID();
-export type SharedRow = { id: string; patch: Partial<Question>; version: number };
+
 let cursor = 0;
 const shared = new Map<string, SharedRow>();
 export async function sheetsRequest(payload: Record<string, unknown>, credentials?: {key:string; actor:string}) {
@@ -28,14 +31,14 @@ function remember(changes: SharedRow[]) {
     });
   }
 }
-export function mergeShared(local: Question[], rows: SharedRow[]): Question[] {
-  const byId = new Map(rows.map(r => [r.id,r]));
-  return local.map(q => {
-    const r = byId.get(q.id);
-    return r && r.version >= (q.sync_version ?? -1) ? { ...q, ...r.patch, sync_version:r.version } : q;
-  });
+type SharedSnapshot = {rows: SharedRow[]; presences: Record<string, CuratorPresence>};
+let syncInFlight: Promise<SharedSnapshot> | null = null;
+export function fetchShared(): Promise<SharedSnapshot> {
+  // Polling, reconnects and conflict recovery share one cursor pipeline.
+  if (!syncInFlight) syncInFlight = loadShared().finally(() => {syncInFlight = null;});
+  return syncInFlight;
 }
-export async function fetchShared(): Promise<{rows: SharedRow[]; presences: Record<string, CuratorPresence>}> {
+async function loadShared(): Promise<SharedSnapshot> {
   let result;
   do {
     result = await sheetsRequest({action:'sync', cursor});
@@ -46,7 +49,7 @@ export async function fetchShared(): Promise<{rows: SharedRow[]; presences: Reco
   for (const [id, lease] of Object.entries(result.leases) as [string, any][]) {
     const curator = DEFAULT_CURATORS.find(c=>c.id===lease.actor);
     presences[lease.session] = { curador_id:lease.actor,curador_nome:lease.name,
-      curador_cor:curator?.avatarCor || '#888',questao_atual_id:id,status_atividade:'visualizando',ultima_atividade:new Date().toISOString() };
+      curador_cor:curator?.avatarCor || '#888',questao_atual_id:id,status_atividade:'visualizando',ultima_atividade:new Date(lease.until - 90000).toISOString() };
   }
   return {rows:[...shared.values()], presences};
 }

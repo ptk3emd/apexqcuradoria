@@ -28,7 +28,7 @@ import {
 
 import { INITIAL_QUESTIONS_SAMPLE } from './data/initialQuestions';
 import { 
-  saveQuestionsToDb, 
+  saveQuestionsToDb,
   updateSingleQuestionInDb 
 } from './lib/indexedDbHelper';
 
@@ -152,7 +152,8 @@ export default function App() {
           const full = await res.json();
           if (isMounted && Array.isArray(full) && full.length > 0) {
             setQuestions(full);
-            await saveQuestionsToDb(full);
+            // This immutable bundled base is already available as JSON; do not
+            // block collaboration while rewriting 13,945 rows into IndexedDB.
           }
         }
       } catch (err) {
@@ -198,7 +199,14 @@ export default function App() {
         const rows = await fetchShared();
         if (!stopped) {
           setQuestions(prev => mergeShared(prev, rows.rows));
-          setPresences(rows.presences);
+          setPresences(previous => {
+            const entries = Object.entries(rows.presences);
+            return entries.length === Object.keys(previous).length && entries.every(([id, next]) => {
+              const old = previous[id];
+              return old && old.curador_id === next.curador_id && old.questao_atual_id === next.questao_atual_id &&
+                old.status_atividade === next.status_atividade && old.ultima_atividade === next.ultima_atividade;
+            }) ? previous : rows.presences;
+          });
           setSyncMessage('Google Sheets conectado • atualização automática a cada 5 segundos');
         }
       } catch (error: any) {

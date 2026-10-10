@@ -71,3 +71,16 @@ test('unauthenticated and oversized operations fail without writes',()=>{
  assert.equal(call('save',[{id:'1',version:1,patch:{enunciado:'x'.repeat(46000)}}]).ok,false);
  assert.equal(sheets._apex_collaboration_v2.rows.length,2);
 });
+
+test('batch history reconstruction preserves earlier content and latest ownership/version',()=>{
+ const {call}=fixture();
+ call('claim',[{id:'1',version:0}]);
+ call('save',[{id:'1',version:1,patch:{enunciado:'edited',modificado:true}}]);
+ call('assign',[{id:'1',version:2,target:null}]);
+ const batch=call('assign',[{id:'1',version:3,target:'patrick'},{id:'2',version:0,target:'patrick'}]);
+ assert.equal(batch.ok,true);
+ assert.equal(batch.questions[0].enunciado,'edited');
+ assert.equal(batch.questions[0].modificado,true);
+ assert.equal(batch.questions[0].sync_version,4);
+ assert.equal(batch.questions[1].sync_version,1);
+});
