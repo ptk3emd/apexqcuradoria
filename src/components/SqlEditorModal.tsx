@@ -99,7 +99,7 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-      <div className="w-full max-w-4xl rounded-2xl bg-[#1e1d1b] border border-white/[0.12] p-6 space-y-4 shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-4xl rounded-2xl bg-[#1e1d1b] border border-white/[0.12] p-4 sm:p-6 space-y-4 shadow-2xl flex flex-col max-h-[90dvh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
           <div className="flex items-center gap-2.5">
@@ -116,6 +116,8 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
+            aria-label="Fechar"
             onClick={onClose}
             className="p-1 rounded-lg text-[#7a7468] hover:text-white hover:bg-white/[0.06] transition-colors"
           >
@@ -155,18 +157,21 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
           {activeTab === 'progressive' && (
             <div className="flex items-center gap-2 flex-1 max-w-sm min-w-[200px]">
               <div className="relative w-full">
-                <Search className="w-3.5 h-3.5 text-[#7a7468] absolute left-3 top-2.5" />
+                <Search className="w-3.5 h-3.5 text-[#7a7468] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
+                  aria-label="Filtrar SQL por expressão regular"
                   type="text"
                   value={regexPattern}
                   onChange={(e) => setRegexPattern(e.target.value)}
                   placeholder="Filtrar SQL via Regex (ex: DELETE, correta, ID 12)..."
-                  className="w-full bg-[#272522] border border-white/[0.1] rounded-full pl-8 pr-8 py-1.5 text-xs text-[#f8fafc] placeholder-[#7a7468] outline-none focus:border-amber-400 font-mono"
+                  className="w-full bg-[#272522] border border-white/[0.1] rounded-full pl-8 pr-10 py-1.5 text-xs text-[#f8fafc] placeholder-[#7a7468] outline-none focus:border-amber-400 font-mono"
                 />
                 {regexPattern && (
                   <button
+                    type="button"
                     onClick={() => setRegexPattern('')}
-                    className="absolute right-2.5 top-2 text-xs text-[#7a7468] hover:text-white"
+                    aria-label="Limpar busca"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-7 h-7 rounded-full text-xs text-[#7a7468] hover:text-white"
                   >
                     <X className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
@@ -199,11 +204,11 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
 
         {/* Code Editor Preview Box */}
         <div className="flex-1 min-h-[300px] overflow-hidden rounded-xl border border-white/[0.08] bg-[#1e1d1b] relative flex flex-col">
-          <div className="flex items-center justify-between px-3 py-1.5 bg-[#1e1d1b] border-b border-white/[0.06] text-[11px] text-[#7a7468] font-mono">
-            <span>
+          <div className="flex items-center justify-between gap-3 px-3 py-1.5 bg-[#1e1d1b] border-b border-white/[0.06] text-[11px] text-[#7a7468] font-mono">
+            <span className="min-w-0 truncate">
               {activeTab === 'progressive' ? 'curadoria_progressiva.sql' : 'supabase_ddl_schema.sql'}
             </span>
-            <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+            <span className="shrink-0 whitespace-nowrap text-[10px] text-emerald-400 flex items-center gap-1">
               ● Transação Atômica Ativa
             </span>
           </div>

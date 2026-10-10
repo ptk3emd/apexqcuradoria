@@ -68,6 +68,62 @@ body {
   box-shadow: 0 0 0 3px rgba(164, 57, 57, 0.28);
 }
 
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--brand);
+}
+
+/* Touch input: 44px targets and 16px fields (design.md 17.3). Mouse layouts keep their density. */
+@media (pointer: coarse) {
+  button,
+  select,
+  [role='button'] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    min-height: 44px;
+    /* Below 16px, iOS Safari zooms the page when a field gains focus. */
+    font-size: 16px;
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Reduced motion: stop looping and positional motion; color and opacity feedback stays. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-pulse,
+  .animate-bounce,
+  .animate-ping {
+    animation: none;
+  }
+
+  /* Interaction motion utilities only; positional translate utilities are untouched. */
+  [class*='hover:scale-'],
+  [class*='hover:translate-'],
+  [class*='hover:-translate-'],
+  [class*='active:scale-'] {
+    translate: none !important;
+    scale: none !important;
+  }
+
+  .btn-primary-apex:hover,
+  .btn-primary-apex:active {
+    transform: none;
+  }
+}
+
 /* Custom Scrollbar for clinical data cockpit feel */
 ::-webkit-scrollbar {
   width: 6px;

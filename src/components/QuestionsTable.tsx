@@ -219,15 +219,17 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
           <table className="w-full text-left text-xs text-[#f8fafc] border-collapse">
             <thead>
               <tr className="border-b border-white/[0.08] bg-[#272522]/80 text-[#7a7468] uppercase text-[10px] tracking-wider select-none">
-                <th className="px-3">
-                  <input type="checkbox" aria-label="Selecionar questões disponíveis desta página" disabled={busy || !selectablePage.length} checked={allPageSelected}
-                    ref={el => { if (el) el.indeterminate = !allPageSelected && selectablePage.some(q => selectedIds.has(q.id)); }}
-                    onChange={() => {
-                      const next = new Set(selectedIds);
-                      if (allPageSelected) selectablePage.forEach(q => next.delete(q.id));
-                      else selectablePage.forEach(q => { if (next.size < 100) next.add(q.id); });
-                      setSelectedIds(next);
-                    }} />
+                <th className="p-0">
+                  <label className="flex items-center justify-center min-w-11 min-h-11 px-3 cursor-pointer">
+                    <input type="checkbox" aria-label="Selecionar questões disponíveis desta página" disabled={busy || !selectablePage.length} checked={allPageSelected}
+                      ref={el => { if (el) el.indeterminate = !allPageSelected && selectablePage.some(q => selectedIds.has(q.id)); }}
+                      onChange={() => {
+                        const next = new Set(selectedIds);
+                        if (allPageSelected) selectablePage.forEach(q => next.delete(q.id));
+                        else selectablePage.forEach(q => { if (next.size < 100) next.add(q.id); });
+                        setSelectedIds(next);
+                      }} />
+                  </label>
                 </th>
                 <th
                   onClick={() => {
@@ -288,9 +290,11 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                         onClick={() => { if (!busy) onSelectQuestion(q); }}
                         className="group hover:bg-white/[0.03] transition-colors cursor-pointer"
                       >
-                        <td className="px-3" onClick={e => e.stopPropagation()}>
-                          <input type="checkbox" aria-label={`Selecionar questão ${q.id}`} checked={selectedIds.has(q.id)}
-                            disabled={busy || !canSelectQuestion(q, activeCurator)} onChange={() => toggleSelection(q.id)} />
+                        <td className="p-0" onClick={e => e.stopPropagation()}>
+                          <label className="flex items-center justify-center min-w-11 min-h-11 px-3 cursor-pointer">
+                            <input type="checkbox" aria-label={`Selecionar questão ${q.id}`} checked={selectedIds.has(q.id)}
+                              disabled={busy || !canSelectQuestion(q, activeCurator)} onChange={() => toggleSelection(q.id)} />
+                          </label>
                         </td>
                         {/* ID with active viewer beacon */}
                         <td className="py-3.5 px-4 font-bold text-[#f8fafc] whitespace-nowrap">
@@ -456,6 +460,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
               <div className="flex items-center gap-1.5 ml-2">
                 <span className="text-[11px] text-[#7a7468]">Por página:</span>
                 <select
+                  aria-label="Questões por página"
                   value={pageSize}
                   onChange={(e) => {
                     setPageSize(Number(e.target.value));
