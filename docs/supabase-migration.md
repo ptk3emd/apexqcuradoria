@@ -20,8 +20,8 @@ O SQL de Estatísticas continua acumulando as correções de todos os curadores,
 
 ## Contas e ativação
 
-1. Aplicar a migration `master_password_sessions` após a aprovação específica da mudança de autenticação. A aplicação foi bloqueada pela revisão automática; as três migrations anteriores já estão no banco.
-2. Configurar somente no servidor o hash bcrypt da senha mestra em `curation_private.master_access`. Não salvar a senha no frontend, nas variáveis `VITE_*` ou no Git. O usuário escolhe Patrick, Lucas ou Thierry e informa essa senha; nenhum e-mail, convite ou conta Supabase Auth é necessário.
+1. As migrations `master_password_sessions` e `enforce_questions_rls` foram aplicadas após a autorização. RLS está ativo em `questions`.
+2. O hash bcrypt da senha mestra foi configurado somente no servidor em `curation_private.master_access`. Não salvar a senha no frontend, nas variáveis `VITE_*` ou no Git. O usuário escolhe Patrick, Lucas ou Thierry e informa essa senha; nenhum e-mail, convite ou conta Supabase Auth é necessário.
 3. O usuário importa os registros em `questions`. Não importar valores nas duas colunas `GENERATED ALWAYS`. Os campos `difficulty_bucket` aceitam NULL ou `easy`/`medium`/`hard`; não usar o texto literal `null` como dificuldade.
 4. Configurar no ambiente de hospedagem: `VITE_CURATOR_BACKEND=supabase`, `VITE_SUPABASE_URL` e uma chave pública em `VITE_SUPABASE_PUBLISHABLE_KEY` ou `VITE_SUPABASE_ANON_KEY`. Fazer novo deploy, pois Vite lê essas variáveis no build.
 5. Testar o acesso dos três perfis e a disputa pela mesma questão. Desativar as escritas no backend Sheets antes de retomar o trabalho para não haver duas bases independentes em uso.
@@ -44,4 +44,4 @@ Após a migration de senha mestra, as RPCs passam a validar um token aleatório 
 
 As funções de dados têm EXECUTE para anon, mas recusam sessões ausentes, falsas, expiradas ou revogadas. RLS bloqueia SELECT sem sessão válida; UPDATE/INSERT/DELETE diretos continuam proibidos. O login limita tentativas inválidas e verifica a senha com bcrypt. As tabelas privadas não são acessíveis pelo navegador. O Realtime publica apenas um aviso genérico de atualização, sem IDs, conteúdo, comentários ou credenciais; os dados continuam sendo lidos por RPC protegida. Referência: https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable
 
-A migration de senha mestra ainda não foi aplicada, nem seu hash configurado no banco. Até a aprovação específica, não ativar esse novo login em produção.
+Validação no projeto: os três perfis acessam os dados com a senha correta; senha inválida e sessão ausente são recusadas; logout invalida o token. Nenhuma conta Auth foi criada. As questões importadas pelo usuário permanecem intactas. Ativação do frontend depende das variáveis de hospedagem e novo deploy.

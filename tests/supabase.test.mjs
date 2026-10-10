@@ -20,7 +20,7 @@ await db.exec(`create schema extensions;
 -- PGlite lacks pgcrypto: isolate password hashing with a stub; live RPC tests verify bcrypt separately.
 create function extensions.crypt(value text,salt text) returns text language sql immutable as $$select 'hash:'||value$$;
 create schema realtime; create function realtime.send(jsonb,text,text,boolean) returns void language sql as $$ select $$;`);
-const masterSql=(await readFile('supabase/migrations/20261010150224_master_password_sessions.sql','utf8')).replace('create extension if not exists pgcrypto with schema extensions;','');
+const masterSql=(await readFile('supabase/migrations/20261010151200_master_password_sessions.sql','utf8')).replace('create extension if not exists pgcrypto with schema extensions;','');
 await db.exec(masterSql);
 await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
