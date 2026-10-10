@@ -153,3 +153,45 @@ test('Supabase first page is delivered before remaining pages and idle sync does
     else delete (globalThis as any).sessionStorage;
   }
 });
+
+test('difficulty card uses schema values and clears undefined difficulty to null', async()=>{
+ let renderer:any;let latest:Question={...rows[0],difficulty_bucket:'Média'};
+ const render=()=> <QuestionEditor question={latest} busy={false} onChange={q=>{latest=q;renderer.update(render());}} onSave={async()=>{}} onCancel={()=>{}}/>;
+ await act(async()=>{renderer=create(render());});
+ await act(async()=>renderer.root.findAllByProps({role:'tab'})[2].props.onClick());
+ const select=()=>renderer.root.findByProps({'aria-label':'Dificuldade'});
+ assert.equal(select().props.value,'medium');
+ assert.deepEqual(select().findAllByType('option').map((option:any)=>option.props.value),['','easy','medium','hard']);
+ for(const value of ['easy','medium','hard']) {
+   await act(async()=>select().props.onChange({target:{value}}));
+   assert.equal(latest.difficulty_bucket,value);
+ }
+ await act(async()=>select().props.onChange({target:{value:''}}));
+ assert.equal(latest.difficulty_bucket,null);
+ await act(async()=>renderer.unmount());
+});
+
+test('save sends only supported difficulty values to Supabase and rejects unknown labels',async()=>{
+ const {mutateSupabase}=await import('../src/lib/supabaseCuration');
+ const originalFetch=globalThis.fetch;
+ const originalStorage=Object.getOwnPropertyDescriptor(globalThis,'sessionStorage');
+ Object.defineProperty(globalThis,'sessionStorage',{configurable:true,value:{getItem:()=> 'test-token'}});
+ const payloads:any[]=[];
+ globalThis.fetch=(async(_input:any,init:any)=>{
+   payloads.push(JSON.parse(init.body));
+   return new Response(JSON.stringify({questions:[]}),{status:200,headers:{'Content-Type':'application/json'}});
+ }) as typeof fetch;
+ try {
+   for(const [input,expected] of [['Fácil','easy'],['Média','medium'],['Médio','medium'],['Difícil','hard'],['easy','easy'],['medium','medium'],['hard','hard'],['',null],[null,null],[undefined,undefined]] as const) {
+     await mutateSupabase([{...rows[0],difficulty_bucket:input}],'save');
+     assert.equal(payloads.at(-1).p_items[0].patch.difficulty_bucket,expected);
+   }
+   const count=payloads.length;
+   await assert.rejects(mutateSupabase([{...rows[0],difficulty_bucket:'impossível'}],'save'),/easy, medium ou hard/);
+   assert.equal(payloads.length,count);
+ } finally {
+   globalThis.fetch=originalFetch;
+   if(originalStorage) Object.defineProperty(globalThis,'sessionStorage',originalStorage);
+   else delete (globalThis as any).sessionStorage;
+ }
+});
