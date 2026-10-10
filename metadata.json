@@ -1,6 +1,6 @@
 {
   "name": "ApexMed Curadoria de Questões",
-  "description": "Plataforma colaborativa em tempo real para auditoria de questões médicas, curadoria entre 3 especialistas, sincronização Supabase e geração progressiva de SQL.",
+  "description": "Plataforma colaborativa em tempo real para auditoria de questões médicas, curadoria entre 3 especialistas (Patrick, Lucas, Thierry), sincronização Google Sheets e geração progressiva de SQL.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

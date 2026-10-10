@@ -13,7 +13,6 @@ import {
   AuditLogItem 
 } from './types/question';
 import { 
-  getStoredSupabaseConfig, 
   broadcastRealtimeEvent, 
   subscribeToRealtimeEvents 
 } from './lib/supabaseClient';
@@ -23,11 +22,11 @@ import { QuestionsTable } from './components/QuestionsTable';
 import { QuestionDetailView } from './components/QuestionDetailView';
 import { AuditCockpit } from './components/AuditCockpit';
 import { BatchAssignModal } from './components/BatchAssignModal';
-import { GoogleSheetsModal } from './components/GoogleSheetsModal';
+import { GoogleSheetsSyncModal } from './components/GoogleSheetsSyncModal';
 import { SqlEditorModal } from './components/SqlEditorModal';
-import { SupabaseConfigModal } from './components/SupabaseConfigModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { MasterAuthGate } from './components/MasterAuthGate';
+import { syncUpdateToGoogleSheetsWebhook } from './lib/googleSheetsSync';
 
 import { INITIAL_QUESTIONS_SAMPLE } from './data/initialQuestions';
 import { 
@@ -110,7 +109,6 @@ export default function App() {
   // 7. Modals
   const [isSqlModalOpen, setIsSqlModalOpen] = useState(false);
   const [isSheetsModalOpen, setIsSheetsModalOpen] = useState(false);
-  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isBatchAssignModalOpen, setIsBatchAssignModalOpen] = useState(false);
 
   // 8. Toasts
@@ -319,6 +317,16 @@ export default function App() {
           payload: { id, status: newStatus, curatorName: activeCurator.nome, notas },
         });
 
+        // Trigger Google Sheets Webhook background sync if configured
+        syncUpdateToGoogleSheetsWebhook({
+          questionId: id,
+          status: newStatus,
+          curatorName: activeCurator.nome,
+          curatorId: activeCurator.id,
+          notas,
+          responsavelNome: updated.responsavel_nome || undefined,
+        });
+
         // Persist single question in IndexedDB
         updateSingleQuestionInDb(updated);
 
@@ -352,6 +360,15 @@ export default function App() {
         type: 'QUESTION_UPDATED',
         payload: updated,
         curatorName: activeCurator.nome,
+      });
+
+      syncUpdateToGoogleSheetsWebhook({
+        questionId: updated.id,
+        status: updated.status,
+        curatorName: activeCurator.nome,
+        curatorId: activeCurator.id,
+        notas: updated.notas_revisao || undefined,
+        responsavelNome: updated.responsavel_nome || undefined,
       });
     },
     [activeCurator]
@@ -492,8 +509,6 @@ export default function App() {
     showToast('Sessão Bloqueada', 'Digite a senha mestra para desbloquear.', 'info');
   }, [showToast]);
 
-  // Check Supabase connection state
-  const supabaseConfig = getStoredSupabaseConfig();
   const modifiedCount = useMemo(() => {
     return questions.filter(q => q.status !== 'pendente').length;
   }, [questions]);
@@ -532,9 +547,7 @@ export default function App() {
         onViewChange={setActiveView}
         onOpenSqlModal={() => setIsSqlModalOpen(true)}
         onOpenSheetsModal={() => setIsSheetsModalOpen(true)}
-        onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
         onOpenBatchAssignModal={() => setIsBatchAssignModalOpen(true)}
-        isSupabaseConnected={supabaseConfig.isConnected}
         totalQuestions={questions.length}
         modifiedCount={modifiedCount}
         onlineCuratorsCount={3}
@@ -603,19 +616,15 @@ export default function App() {
         onShowToast={showToast}
       />
 
-      <GoogleSheetsModal
+      {/* Google Sheets Sync Hub Modal */}
+      <GoogleSheetsSyncModal
         isOpen={isSheetsModalOpen}
         onClose={() => setIsSheetsModalOpen(false)}
         questions={questions}
-        onImportQuestions={handleImportQuestions}
-        onShowToast={showToast}
-      />
-
-      <SupabaseConfigModal
-        isOpen={isSupabaseModalOpen}
-        onClose={() => setIsSupabaseModalOpen(false)}
-        questions={questions}
-        onQuestionsLoadedFromSupabase={handleImportQuestions}
+        onQuestionsUpdated={(updated) => {
+          setQuestions(updated);
+          saveQuestionsToDb(updated);
+        }}
         onShowToast={showToast}
       />
 

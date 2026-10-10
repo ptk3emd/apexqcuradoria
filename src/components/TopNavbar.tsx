@@ -27,9 +27,7 @@ interface TopNavbarProps {
   onViewChange: (view: 'table' | 'detail' | 'cockpit') => void;
   onOpenSqlModal: () => void;
   onOpenSheetsModal: () => void;
-  onOpenSupabaseModal: () => void;
   onOpenBatchAssignModal: () => void;
-  isSupabaseConnected: boolean;
   totalQuestions: number;
   modifiedCount: number;
   onlineCuratorsCount: number;
@@ -47,9 +45,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   onViewChange,
   onOpenSqlModal,
   onOpenSheetsModal,
-  onOpenSupabaseModal,
   onOpenBatchAssignModal,
-  isSupabaseConnected,
   totalQuestions,
   modifiedCount,
 }) => {
@@ -178,21 +174,22 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             <span className="hidden md:inline">Reservar Lote</span>
           </button>
 
-          {/* Google Sheets / CSV Import */}
+          {/* Google Sheets Synchronization Hub */}
           <button
             onClick={onOpenSheetsModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-[#f8fafc] bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] transition-all"
-            title="Importar do Google Sheets ou CSV"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border bg-emerald-950/40 border-emerald-600/40 text-emerald-300 hover:bg-emerald-900/50 cursor-pointer shadow-sm"
+            title="Sincronização com Google Sheets (Planilha Oficial Ativa)"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden md:inline">Planilha / CSV</span>
+            <span className="hidden sm:inline">Google Sheets</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           </button>
 
           {/* Progressive SQL Editor */}
           <button
             onClick={onOpenSqlModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-[#f8fafc] bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] relative transition-all"
-            title="Visualizar SQL gerado progressivamente"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-[#f8fafc] bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] relative transition-all cursor-pointer"
+            title="Visualizar SQL gerado progressivamente pela curadoria"
           >
             <Code2 className="w-3.5 h-3.5 text-amber-400" />
             <span>SQL</span>
@@ -201,25 +198,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 {modifiedCount}
               </span>
             )}
-          </button>
-
-          {/* Supabase Status & Config */}
-          <button
-            onClick={onOpenSupabaseModal}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
-              isSupabaseConnected
-                ? 'bg-emerald-950/40 border-emerald-600/40 text-emerald-300 hover:bg-emerald-900/50'
-                : 'bg-white/[0.04] border-white/[0.1] text-[#bdbdbd] hover:bg-white/[0.08]'
-            }`}
-            title="Configuração do Supabase & Realtime"
-          >
-            <Database className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Supabase</span>
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isSupabaseConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-              }`}
-            />
           </button>
 
           {/* Active Curator Profile Switcher (3 Curators) */}

@@ -13,6 +13,7 @@ import {
 import { Question, QuestionStatus, Curator, CuratorPresence, QuestionComment } from '../types/question';
 import { StatusBadge } from './StatusBadge';
 import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboardHelper';
+import { AdvancedFilters, AdvancedFilterState, GRANDES_AREAS_MAP } from './AdvancedFilters';
 
 interface QuestionsTableProps {
   questions: Question[];
@@ -35,9 +36,18 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   onAssignQuestion,
   onShowToast,
 }) => {
-  const [statusFilter, setStatusFilter] = useState<string>('todas');
-  const [especialidadeFilter, setEspecialidadeFilter] = useState<string>('todas');
-  const [responsavelFilter, setResponsavelFilter] = useState<string>('todos');
+  const [filterState, setFilterState] = useState<AdvancedFilterState>({
+    status: 'todas',
+    responsavel: 'todos',
+    categorias: [],
+    origens: [],
+    anos: [],
+    especialidades: [],
+    competencias: [],
+    temas_especificos: [],
+    searchQueries: [],
+  });
+
   const [sortBy, setSortBy] = useState<'id' | 'especialidade' | 'status'>('id');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -46,34 +56,66 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, especialidadeFilter, responsavelFilter, sortBy, sortOrder]);
+  }, [filterState, sortBy, sortOrder]);
 
-  // Extract unique specialties
-  const specialties = useMemo(() => {
-    const set = new Set<string>();
-    questions.forEach(q => {
-      if (q.especialidade) set.add(q.especialidade);
-      else if (q.categoria) set.add(q.categoria);
-    });
-    return Array.from(set).sort();
-  }, [questions]);
-
-  // Filtered and sorted questions
+  // Filtered and sorted questions with all facets
   const filteredQuestions = useMemo(() => {
     return questions
       .filter(q => {
-        if (statusFilter !== 'todas' && q.status !== statusFilter) return false;
-        if (especialidadeFilter !== 'todas' && q.especialidade !== especialidadeFilter) return false;
-        if (responsavelFilter === 'minhas' && q.responsavel_id !== activeCurator.id) return false;
-        if (responsavelFilter === 'sem_responsavel' && q.responsavel_id) return false;
+        // 1. Status Filter
+        if (filterState.status !== 'todas' && q.status !== filterState.status) return false;
+
+        // 2. Responsável Filter
+        if (filterState.responsavel === 'minhas' && q.responsavel_id !== activeCurator.id) return false;
+        if (filterState.responsavel === 'sem_responsavel' && q.responsavel_id) return false;
         if (
-          responsavelFilter !== 'todos' &&
-          responsavelFilter !== 'minhas' &&
-          responsavelFilter !== 'sem_responsavel' &&
-          q.responsavel_id !== responsavelFilter
+          filterState.responsavel !== 'todos' &&
+          filterState.responsavel !== 'minhas' &&
+          filterState.responsavel !== 'sem_responsavel' &&
+          q.responsavel_id !== filterState.responsavel
         ) {
           return false;
         }
+
+        // 3. Disciplinas (Categorias)
+        if (filterState.categorias.length > 0 && (!q.categoria || !filterState.categorias.includes(q.categoria))) {
+          return false;
+        }
+
+        // 4. Instituições / Bancas (Origens)
+        if (filterState.origens.length > 0 && (!q.origem || !filterState.origens.includes(q.origem))) {
+          return false;
+        }
+
+        // 5. Anos
+        if (filterState.anos.length > 0 && (!q.ano || !filterState.anos.includes(q.ano))) {
+          return false;
+        }
+
+        // 6. Especialidades
+        if (filterState.especialidades.length > 0 && (!q.especialidade || !filterState.especialidades.includes(q.especialidade))) {
+          return false;
+        }
+
+        // 7. Competências
+        if (filterState.competencias.length > 0) {
+          const cLow = (q.competencias || '').toLowerCase();
+          const matchComp = filterState.competencias.some(c => cLow.includes(c.toLowerCase()));
+          if (!matchComp) return false;
+        }
+
+        // 8. Temas Específicos
+        if (filterState.temas_especificos.length > 0 && (!q.tema_especifico || !filterState.temas_especificos.includes(q.tema_especifico))) {
+          return false;
+        }
+
+        // 9. Search Queries / Palavras-chave
+        if (filterState.searchQueries.length > 0) {
+          const haystack = `${q.id} ${q.enunciado || ''} ${q.tema_especifico || ''} ${q.especialidade || ''} ${q.categoria || ''} ${q.a || ''} ${q.b || ''} ${q.c || ''} ${q.d || ''} ${q.e || ''} ${q.comentario || ''}`.toLowerCase();
+          const matchesAll = filterState.searchQueries.every(term => haystack.includes(term.toLowerCase()));
+          if (!matchesAll) return false;
+        }
+
         return true;
       })
       .sort((a, b) => {
@@ -89,7 +131,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         }
         return sortOrder === 'asc' ? comp : -comp;
       });
-  }, [questions, statusFilter, especialidadeFilter, responsavelFilter, sortBy, sortOrder, activeCurator.id]);
+  }, [questions, filterState, sortBy, sortOrder, activeCurator.id]);
 
   // Counts for status chips
   const counts = useMemo(() => {
@@ -120,110 +162,14 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
 
   return (
     <div className="w-full space-y-4">
-      {/* Status Bar / Filter Chips */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#1e1d1b] p-3 rounded-2xl border border-white/[0.07]">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] uppercase font-bold tracking-wider text-[#7a7468] mr-2 flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5 text-[#DF9696]" />
-            Status:
-          </span>
-
-          <button
-            onClick={() => setStatusFilter('todas')}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-              statusFilter === 'todas'
-                ? 'bg-white/10 text-white border border-white/20'
-                : 'text-[#bdbdbd] hover:bg-white/[0.04]'
-            }`}
-          >
-            Todas ({counts.total})
-          </button>
-
-          <button
-            onClick={() => setStatusFilter('pendente')}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-              statusFilter === 'pendente'
-                ? 'bg-white/10 text-[#f8fafc] border border-white/20'
-                : 'text-[#7a7468] hover:text-[#f8fafc]'
-            }`}
-          >
-            Pendentes ({counts.pendente})
-          </button>
-
-          <button
-            onClick={() => setStatusFilter('aprovadas')}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-              statusFilter === 'aprovadas'
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                : 'text-[#7a7468] hover:text-emerald-400'
-            }`}
-          >
-            Aprovadas ({counts.aprovadas})
-          </button>
-
-          <button
-            onClick={() => setStatusFilter('eliminar_questao')}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-              statusFilter === 'eliminar_questao'
-                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                : 'text-[#7a7468] hover:text-rose-400'
-            }`}
-          >
-            Eliminar ({counts.eliminar_questao})
-          </button>
-
-          <button
-            onClick={() => setStatusFilter('revisar_questao')}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-              statusFilter === 'revisar_questao'
-                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                : 'text-[#7a7468] hover:text-amber-400'
-            }`}
-          >
-            Revisar ({counts.revisar_questao})
-          </button>
-
-          <button
-            onClick={() => setStatusFilter('questao_corrigida')}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-              statusFilter === 'questao_corrigida'
-                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                : 'text-[#7a7468] hover:text-blue-400'
-            }`}
-          >
-            Corrigidas ({counts.questao_corrigida})
-          </button>
-        </div>
-
-        {/* Secondary dropdown filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Especialidade Select */}
-          <select
-            value={especialidadeFilter}
-            onChange={(e) => setEspecialidadeFilter(e.target.value)}
-            className="bg-[#272522] border border-white/[0.1] rounded-xl px-2.5 py-1 text-xs text-[#f8fafc] outline-none focus:border-[#A43939]"
-          >
-            <option value="todas">Todas as Especialidades</option>
-            {specialties.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-
-          {/* Responsável Select */}
-          <select
-            value={responsavelFilter}
-            onChange={(e) => setResponsavelFilter(e.target.value)}
-            className="bg-[#272522] border border-white/[0.1] rounded-xl px-2.5 py-1 text-xs text-[#f8fafc] outline-none focus:border-[#A43939]"
-          >
-            <option value="todos">Todos os Responsáveis</option>
-            <option value="minhas">Atribuídas a mim ({activeCurator.nome})</option>
-            <option value="sem_responsavel">Não atribuídas (Livres)</option>
-            <option value="patrick">Patrick</option>
-            <option value="lucas">Lucas</option>
-            <option value="thierry">Thierry</option>
-          </select>
-        </div>
-      </div>
+      {/* Advanced Filters Component (Todas as opções do FilterScreen) */}
+      <AdvancedFilters
+        questions={questions}
+        activeCurator={activeCurator}
+        filterState={filterState}
+        onChangeFilterState={setFilterState}
+        totalFilteredCount={filteredQuestions.length}
+      />
 
       {/* Main Questions Table */}
       <div className="w-full rounded-2xl bg-[#1e1d1b] border border-white/[0.08] overflow-hidden shadow-2xl">
