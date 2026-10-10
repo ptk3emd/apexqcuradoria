@@ -97,6 +97,8 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
+            aria-label="Fechar"
             onClick={onClose}
             className="p-1 rounded-lg text-[#7a7468] hover:text-white hover:bg-white/[0.06] transition-colors"
           >
@@ -174,10 +176,11 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
 
           {availableSpecialties.length > 0 && (
             <div>
-              <label className="block text-xs font-bold text-[#f8fafc] mb-1.5">
+              <label htmlFor="batch-specialty-filter" className="block text-xs font-bold text-[#f8fafc] mb-1.5">
                 Filtrar especialidade para o lote (opcional):
               </label>
               <select
+                id="batch-specialty-filter"
                 value={specialtyFilter}
                 onChange={(e) => setSpecialtyFilter(e.target.value)}
                 className="w-full bg-[#272522] border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-[#f8fafc] outline-none focus:border-[#A43939]"

@@ -104,6 +104,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           <div className="relative flex items-center">
             <Search className="w-4 h-4 text-[#7a7468] absolute left-3.5 pointer-events-none" />
             <input
+              aria-label="Buscar questões"
               ref={searchInputRef}
               type="text"
               value={searchQuery}
@@ -113,8 +114,10 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             />
             {searchQuery && (
               <button
+                type="button"
+                aria-label="Limpar busca"
                 onClick={() => onSearchChange('')}
-                className="absolute right-3 text-xs text-[#7a7468] hover:text-[#f8fafc]"
+                className="absolute right-1.5 flex items-center justify-center w-7 h-7 rounded-full text-xs text-[#7a7468] hover:text-[#f8fafc]"
               >
                 <X className="w-3.5 h-3.5" aria-hidden="true" />
               </button>

@@ -117,19 +117,21 @@ export const FilterSection = React.memo<FilterSectionProps>(({
         <div className="space-y-2 px-3 pb-3 pt-1 animate-in fade-in duration-150">
           {enableSearch && (
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-[#7a7468] absolute left-3 top-2.5 pointer-events-none" />
+              <Search className="w-3.5 h-3.5 text-[#7a7468] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
+                aria-label={`Buscar ${title.toLowerCase()}`}
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder={`Buscar ${title.toLowerCase()}...`}
-                className="w-full bg-[#1e1d1b] border border-white/[0.1] rounded-xl pl-8 pr-7 py-1.5 text-xs text-[#f8fafc] placeholder-[#7a7468] outline-none focus:border-[#A43939]"
+                className="w-full bg-[#1e1d1b] border border-white/[0.1] rounded-xl pl-8 pr-10 py-1.5 text-xs text-[#f8fafc] placeholder-[#7a7468] outline-none focus:border-[#A43939]"
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-2.5 top-2 text-xs text-[#7a7468] hover:text-white"
+                  aria-label="Limpar busca"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-7 h-7 rounded-full text-xs text-[#7a7468] hover:text-white"
                 >
                   <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
@@ -494,6 +496,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           {/* Responsável Select */}
           <select
+            aria-label="Filtrar por responsável"
             value={filterState.responsavel}
             onChange={(e) => onChangeFilterState({ ...filterState, responsavel: e.target.value })}
             className="bg-[#272522] border border-white/[0.1] rounded-xl px-2.5 py-1 text-xs text-[#f8fafc] outline-none focus:border-[#A43939] cursor-pointer"
@@ -591,8 +594,9 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             {/* Keyword tag input */}
             <form onSubmit={handleAddKeyword} className="flex items-center gap-2 max-w-sm w-full">
               <div className="relative flex-1">
-                <Tag className="w-3.5 h-3.5 text-[#7a7468] absolute left-3 top-2.5" />
+                <Tag className="w-3.5 h-3.5 text-[#7a7468] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
+                  aria-label="Buscar palavra-chave"
                   type="text"
                   value={keywordInput}
                   onChange={(e) => setKeywordInput(e.target.value)}

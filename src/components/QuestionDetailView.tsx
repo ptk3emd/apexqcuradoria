@@ -317,6 +317,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                 </p>
                 {isEditing ? (
                   <input
+                    aria-label="Especialidade médica"
                     type="text"
                     value={editedQuestion.especialidade}
                     onChange={(e) => setEditedQuestion({ ...editedQuestion, especialidade: e.target.value })}
@@ -333,6 +334,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                 </p>
                 {isEditing ? (
                   <input
+                    aria-label="Tema específico"
                     type="text"
                     value={editedQuestion.tema_especifico}
                     onChange={(e) => setEditedQuestion({ ...editedQuestion, tema_especifico: e.target.value })}
@@ -365,6 +367,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               {isEditing ? (
                 <div className="space-y-2">
                   <textarea
+                    aria-label="Enunciado da questão"
                     rows={6}
                     value={editedQuestion.enunciado}
                     onChange={(e) => setEditedQuestion({ ...editedQuestion, enunciado: e.target.value })}
@@ -458,6 +461,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                       <div className="flex-1 min-w-0 space-y-1.5">
                         {isEditing ? (
                           <input
+                            aria-label={`Texto da alternativa ${letter}`}
                             type="text"
                             value={text}
                             onChange={(e) =>
@@ -483,6 +487,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                             </p>
                             {isEditing ? (
                               <input
+                                aria-label={`Justificativa da alternativa ${letter}`}
                                 type="text"
                                 value={justification || ''}
                                 onChange={(e) =>
@@ -688,6 +693,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             {/* Comment Input Form */}
             <form onSubmit={handleSendComment} className="pt-2 flex gap-2">
               <input
+                aria-label="Novo comentário"
                 type="text"
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
@@ -747,6 +753,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             </p>
 
             <textarea
+              aria-label="Pontos para revisão"
               rows={4}
               value={revisionNotesInput}
               onChange={(e) => setRevisionNotesInput(e.target.value)}
