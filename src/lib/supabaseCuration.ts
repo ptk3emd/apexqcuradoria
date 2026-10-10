@@ -2,6 +2,7 @@ import {createClient, type SupabaseClient} from '@supabase/supabase-js';
 import type {Curator, CuratorPresence, Question} from '../types/question';
 import type {SharedRow} from './sharedState';
 import {DEFAULT_CURATORS} from '../data/defaultCurators';
+import {normalizeDifficulty} from './difficulty';
 
 let client:SupabaseClient | null = null;
 const tabSession = crypto.randomUUID();
@@ -95,7 +96,7 @@ export async function mutateSupabase(questions:Question[],action:string,target?:
   const result=await rpc('curation_mutate',{
     p_action:action,p_session:tabSession,p_request:crypto.randomUUID(),
     p_items:questions.map(q=>({id:q.sync_source_id || q.id,version:q.sync_version??0,target:target?.id||null,
-      patch:['save','status'].includes(action)?{...q,created_at:q.created_at === '' ? null : q.created_at}:undefined,
+      patch:['save','status'].includes(action)?{...q,created_at:q.created_at === '' ? null : q.created_at,difficulty_bucket:normalizeDifficulty(q.difficulty_bucket)}:undefined,
       comment:action==='comment'?q.shared_comments?.at(-1)?.texto:undefined})),
   });
   return result.questions;

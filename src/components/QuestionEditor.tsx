@@ -1,11 +1,14 @@
 import React,{useState} from 'react';
 import {Save,ArrowLeft,CheckCircle2} from 'lucide-react';
 import type {Question} from '../types/question';
+import {normalizeDifficulty} from '../lib/difficulty';
 
 const fieldClass='mt-2 w-full rounded-xl border border-white/15 bg-shell-2 px-4 py-3 text-base leading-7 text-white outline-none focus:border-brand-muted focus:ring-2 focus:ring-brand-muted/20';
 export function QuestionEditor({question,busy,onChange,onSave,onCancel}:{question:Question;busy:boolean;onChange:(q:Question)=>void;onSave:()=>Promise<void>;onCancel:()=>void}) {
  const [section,setSection]=useState('questao');
  const [error,setError]=useState('');
+ let difficultyValue = question.difficulty_bucket || '';
+ try {difficultyValue = normalizeDifficulty(question.difficulty_bucket) || '';} catch { /* Invalid legacy values must be replaced before saving. */ }
  const set=(key:keyof Question,value:string)=>onChange({...question,[key]:value});
  const text=(key:keyof Question,label:string,rows=3)=><label className="block text-sm font-bold text-apex-readable" key={key}>{label}<textarea aria-label={label} rows={rows} value={String(question[key]??'')} onChange={e=>set(key,e.target.value)} className={fieldClass}/></label>;
  const save=async(e:React.FormEvent)=>{
@@ -14,6 +17,7 @@ export function QuestionEditor({question,busy,onChange,onSave,onCancel}:{questio
   if(!question.enunciado?.trim()) {setSection('questao');setError('Preencha o enunciado.');return;}
   if(!/^[A-E]$/i.test(question.correta??'')) {setSection('questao');setError('Selecione a alternativa correta.');return;}
   if([...question.descritores??''].length>500){setSection('classificacao');setError('Os descritores devem ter até 500 caracteres.');return;}
+  try {normalizeDifficulty(question.difficulty_bucket);} catch (error) {setSection('classificacao');setError((error as Error).message);return;}
   setError('');await onSave();
  };
  return <form onSubmit={save} className="mx-auto max-w-5xl space-y-6 pb-24">
@@ -37,7 +41,7 @@ export function QuestionEditor({question,busy,onChange,onSave,onCancel}:{questio
    {section==='resolucao'&&<section id="editor-resolucao" role="tabpanel" className="space-y-6">{text('comentario','Comentário geral',6)}{['a','b','c','d','e'].map(key=>text(`justificativa_${key}` as keyof Question,`Justificativa da alternativa ${key.toUpperCase()}`,4))}</section>}
    {section==='classificacao'&&<section id="editor-classificacao" role="tabpanel" className="space-y-6">
     <div className="grid gap-5 sm:grid-cols-2">{[['id','ID da questão'],['categoria','Categoria'],['especialidade','Especialidade'],['tema_especifico','Tema específico'],['ano','Ano'],['origem','Origem']].map(([key,label])=><label key={key} className="text-sm font-bold text-apex-readable">{label}<input aria-label={label} value={String(question[key as keyof Question]??'')} onChange={e=>set(key as keyof Question,e.target.value)} className={fieldClass}/></label>)}
-     <label className="text-sm font-bold text-apex-readable">Dificuldade<select aria-label="Dificuldade" value={question.difficulty_bucket||''} onChange={e=>set('difficulty_bucket',e.target.value)} className={fieldClass}><option value="">Não definida</option><option value="easy">Fácil</option><option value="medium">Média</option><option value="hard">Difícil</option></select></label>
+     <label className="text-sm font-bold text-apex-readable">Dificuldade<select aria-label="Dificuldade" value={difficultyValue} onChange={e=>onChange({...question,difficulty_bucket:normalizeDifficulty(e.target.value)})} className={fieldClass}><option value="">Não definida</option><option value="easy">easy — Fácil</option><option value="medium">medium — Média</option><option value="hard">hard — Difícil</option>{difficultyValue && !['easy','medium','hard'].includes(difficultyValue) && <option value={difficultyValue} disabled>Valor inválido — selecione a dificuldade</option>}</select></label>
     </div>
     <label className="block text-sm font-bold text-apex-readable">Data de criação (ISO 8601)<input aria-label="Data de criação" placeholder="2026-10-10T12:00:00Z" value={question.created_at??''} onChange={e=>set('created_at',e.target.value)} className={fieldClass}/></label>
     <div className="rounded-xl bg-white/5 p-4 text-sm text-apex-readable"><p>Calculadas pelo banco após salvar:</p><p className="mt-2">Ano numérico: {question.ano_int??'—'}</p><p>Competências normalizadas: {Array.isArray(question.competencias_normalized)?question.competencias_normalized.join(', '):question.competencias_normalized||'—'}</p></div>

@@ -33,7 +33,7 @@ export interface Question {
   competencias?: string;
   ano_int?: string;
   competencias_normalized?: string;
-  difficulty_bucket?: string;
+  difficulty_bucket?: string | null;
   descritores?: string;
 
   // Curation metadata
