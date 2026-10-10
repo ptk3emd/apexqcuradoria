@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "node --import tsx --test tests/bulkActions.test.ts tests/collaboration.test.mjs && node tests/run-components.mjs"
+    "test": "node --import tsx --test tests/bulkActions.test.ts tests/correctedQuestionsSql.test.ts tests/collaboration.test.mjs && node tests/run-components.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

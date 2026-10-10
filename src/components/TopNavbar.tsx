@@ -162,7 +162,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            <span>Cockpit</span>
+            <span>Estatísticas</span>
           </button>
         </div>
 

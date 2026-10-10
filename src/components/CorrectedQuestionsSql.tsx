@@ -1,0 +1,45 @@
+import React, {useMemo, useState} from 'react';
+import {Copy, Download, Database} from 'lucide-react';
+import type {Question} from '../types/question';
+import {generateCorrectedQuestionsSql} from '../lib/correctedQuestionsSql';
+import {copyTextToClipboard} from '../lib/clipboardHelper';
+
+interface Props {
+  questions: Question[];
+  onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
+}
+export function CorrectedQuestionsSql({questions, onShowToast}: Props) {
+  const result = useMemo(() => generateCorrectedQuestionsSql(questions), [questions]);
+  const [copying, setCopying] = useState(false);
+  const available = result.count > 0 && result.errors.length === 0;
+  const copy = async () => {
+    setCopying(true);
+    try {
+      const ok = await copyTextToClipboard(result.sql);
+      onShowToast(ok ? 'SQL copiado' : 'Não foi possível copiar',
+        ok ? `${result.count} questões corrigidas • public.questions` : 'Selecione o código e copie manualmente.', ok ? 'success' : 'error');
+    } finally {setCopying(false);}
+  };
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([result.sql], {type:'text/sql;charset=utf-8'}));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'apexmed_correcoes_questions.sql'; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  return <section className="rounded-2xl bg-[#1e1d1b] border border-white/10 p-6 space-y-4" aria-label="SQL de todas as correções">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h3 className="font-bold flex items-center gap-2"><Database className="w-5 h-5 text-[#DF9696]"/> SQL de todas as questões corrigidas</h3>
+        <p className="text-sm text-[#bdbdbd] mt-2" aria-live="polite">{result.count} questões acumuladas • Todos os curadores • public.questions</p>
+      </div>
+      <div className="flex gap-2">
+        <button disabled={!available || copying} onClick={() => void copy()} className="flex items-center gap-2 rounded-lg bg-[#A43939] px-4 py-2 disabled:opacity-40"><Copy className="w-4 h-4"/>{copying ? 'Copiando…' : 'Copiar SQL de correções'}</button>
+        <button disabled={!available} onClick={download} className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 disabled:opacity-40"><Download className="w-4 h-4"/>Baixar .sql</button>
+      </div>
+    </div>
+    <p className="text-sm text-[#bdbdbd]">Cada nova correção confirmada no Google Sheets entra neste script automaticamente. Se uma questão for corrigida novamente, seu UPDATE usa a versão mais recente. Questões já modificadas continuam incluídas mesmo após mudança de status.</p>
+    <p className="text-xs text-[#bdbdbd]">Copie o script completo e execute no SQL Editor do Supabase. A execução é manual; o aplicativo apenas gera o código.</p>
+    {result.errors.length > 0 ? <div role="alert" className="text-amber-300"><p>Corrija estes dados para gerar o script completo:</p><ul className="list-disc pl-5">{result.errors.map((error,index)=><li key={index}>{error}</li>)}</ul></div> :
+      <textarea aria-label="SQL acumulado de correções" readOnly value={result.count ? result.sql : '-- Nenhuma questão corrigida até o momento.'} className="w-full min-h-72 max-h-[600px] rounded-xl bg-black/40 border border-white/10 p-4 font-mono text-xs text-[#f8fafc]" spellCheck={false}/>}
+  </section>;
+}
