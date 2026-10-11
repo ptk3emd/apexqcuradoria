@@ -203,15 +203,16 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
         )}
 
         {/* Right: Copy for AI + Assignment Button */}
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           {/* Copy for AI Button */}
           <button
             onClick={handleCopy}
-            className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-white bg-brand hover:bg-brand-hover shadow-[0_0_20px_rgba(164,57,57,0.35)] transition-all cursor-pointer"
+            className="flex w-full items-center justify-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold text-white bg-brand hover:bg-brand-hover shadow-[0_0_20px_rgba(164,57,57,0.35)] transition-all cursor-pointer sm:w-auto sm:py-2"
             title="Copiar texto formatado para enviar à IA ou Google"
           >
             <Copy className="w-4 h-4" />
-            <span>Copiar Texto p/ IA ou Google</span>
+            <span className="sm:hidden">Copiar para IA</span>
+            <span className="hidden sm:inline">Copiar Texto p/ IA ou Google</span>
           </button>
 
           {/* Responsible Assignment */}
@@ -238,7 +239,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               ) : (
                 <button
                   onClick={() => onAssignQuestion(question.id, activeCurator)}
-                  className="text-xs text-brand-muted hover:text-white underline ml-1"
+                  className="min-h-11 whitespace-nowrap text-xs text-brand-muted hover:text-white underline ml-1"
                 >
                   Assumir para mim
                 </button>
