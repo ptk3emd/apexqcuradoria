@@ -198,25 +198,25 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-between pt-2 border-t border-white/[0.08]">
+        <div className="flex flex-col-reverse gap-3 pt-3 border-t border-white/[0.08] sm:flex-row sm:items-center sm:justify-between">
           <button
             onClick={handleRelease}
-            className="text-xs text-shell-muted hover:text-rose-400 underline"
+            className="self-center min-h-11 text-xs text-shell-muted hover:text-rose-400 underline sm:self-auto sm:min-h-0"
           >
             Liberar minhas atribuições pendentes
           </button>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 sm:gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-full text-xs font-bold text-shell-muted hover:text-white"
+              className="min-h-11 px-4 py-2 rounded-full text-xs font-bold text-shell-muted hover:text-white sm:min-h-0"
             >
               Cancelar
             </button>
             <button
               onClick={handleClaim}
               disabled={unassignedPending.length === 0}
-              className="px-6 py-2 rounded-full text-xs font-bold bg-brand hover:bg-brand-hover disabled:opacity-40 text-white shadow-lg transition-all cursor-pointer"
+              className="flex-1 min-h-11 px-6 py-2 rounded-full text-xs font-bold text-center bg-brand hover:bg-brand-hover disabled:opacity-40 text-white shadow-lg transition-all cursor-pointer sm:flex-none sm:min-h-0"
             >
               Reservar {quantity} Questões
             </button>

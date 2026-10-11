@@ -32,9 +32,9 @@ export function CorrectedQuestionsSql({questions, onShowToast}: Props) {
         <h3 className="text-sm font-bold text-apex-text flex items-center gap-2"><Database className="w-4 h-4 text-brand-muted"/> SQL de todas as questões corrigidas</h3>
         <p className="text-xs text-shell-muted mt-1" aria-live="polite">{result.count} questões acumuladas • Todos os curadores • public.questions</p>
       </div>
-      <div className="flex gap-2">
-        <button disabled={!available || copying} onClick={() => void copy()} className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-white bg-brand hover:bg-brand-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand"><Copy className="w-3.5 h-3.5"/>{copying ? 'Copiando…' : 'Copiar SQL de correções'}</button>
-        <button disabled={!available} onClick={download} className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-apex-text bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] transition-all disabled:opacity-40 disabled:cursor-not-allowed"><Download className="w-3.5 h-3.5"/>Baixar .sql</button>
+      <div className="grid grid-cols-1 gap-2 sm:flex">
+        <button disabled={!available || copying} onClick={() => void copy()} className="flex w-full items-center justify-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold text-white bg-brand hover:bg-brand-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand sm:py-2"><Copy className="w-3.5 h-3.5"/>{copying ? 'Copiando…' : 'Copiar SQL de correções'}</button>
+        <button disabled={!available} onClick={download} className="flex w-full items-center justify-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold text-apex-text bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] transition-all disabled:opacity-40 disabled:cursor-not-allowed sm:py-2"><Download className="w-3.5 h-3.5"/>Baixar .sql</button>
       </div>
     </div>
     <p className="text-xs text-apex-readable leading-relaxed">Cada nova correção confirmada na base compartilhada entra neste script automaticamente. Se uma questão for corrigida novamente, seu UPDATE usa a versão mais recente. Questões já modificadas continuam incluídas mesmo após mudança de status.</p>
