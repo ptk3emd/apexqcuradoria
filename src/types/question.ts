@@ -35,6 +35,7 @@ export interface Question {
   competencias_normalized?: string;
   difficulty_bucket?: string | null;
   descritores?: string;
+  imagem?: string | null;
 
   // Curation metadata
   status: QuestionStatus;
