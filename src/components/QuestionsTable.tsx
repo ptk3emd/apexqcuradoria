@@ -237,32 +237,29 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                       }} />
                   </label>
                 </th>
-                <th
-                  onClick={() => {
+                <th scope="col" aria-sort={sortBy === 'id' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 font-bold">
+                  <button type="button" aria-label="Ordenar por ID" className="min-h-11 py-3 text-left hover:text-white" onClick={() => {
                     if (sortBy === 'id') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
                     else { setSortBy('id'); setSortOrder('asc'); }
-                  }}
-                  className="py-3 px-4 font-bold cursor-pointer hover:text-white"
-                >
-                  ID {sortBy === 'id' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  }}>
+                    ID {sortBy === 'id' && <span aria-hidden="true">{sortOrder === 'asc' ? '↑' : '↓'}</span>}
+                  </button>
                 </th>
-                <th
-                  onClick={() => {
+                <th scope="col" aria-sort={sortBy === 'status' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 font-bold">
+                  <button type="button" aria-label="Ordenar por Status" className="min-h-11 py-3 text-left hover:text-white" onClick={() => {
                     if (sortBy === 'status') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
                     else { setSortBy('status'); setSortOrder('asc'); }
-                  }}
-                  className="py-3 px-4 font-bold cursor-pointer hover:text-white"
-                >
-                  Status {sortBy === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  }}>
+                    Status {sortBy === 'status' && <span aria-hidden="true">{sortOrder === 'asc' ? '↑' : '↓'}</span>}
+                  </button>
                 </th>
-                <th
-                  onClick={() => {
+                <th scope="col" aria-sort={sortBy === 'especialidade' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 font-bold">
+                  <button type="button" aria-label="Ordenar por Especialidade / Tema" className="min-h-11 py-3 text-left hover:text-white" onClick={() => {
                     if (sortBy === 'especialidade') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
                     else { setSortBy('especialidade'); setSortOrder('asc'); }
-                  }}
-                  className="py-3 px-4 font-bold cursor-pointer hover:text-white"
-                >
-                  Especialidade / Tema {sortBy === 'especialidade' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  }}>
+                    Especialidade / Tema {sortBy === 'especialidade' && <span aria-hidden="true">{sortOrder === 'asc' ? '↑' : '↓'}</span>}
+                  </button>
                 </th>
                 <th className="py-3 px-4 font-bold">Ano / Origem</th>
                 <th className="py-3 px-4 font-bold w-[34%]">Enunciado</th>

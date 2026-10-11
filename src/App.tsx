@@ -50,6 +50,8 @@ export default function App() {
   const [syncMessage, setSyncMessage] = useState('Conectando à curadoria compartilhada…');
   const [datasetReady, setDatasetReady] = useState(false);
   const [completeDatasetReady, setCompleteDatasetReady] = useState(false);
+  const [datasetLoadAttempt, setDatasetLoadAttempt] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const actionPending = useRef(false);
   const [isActionPending, setIsActionPending] = useState(false);
 
@@ -111,7 +113,7 @@ export default function App() {
   }, []);
 
   useEffect(()=>{
-    const expired=()=>{setIsAuthenticated(false);setActiveView('table');setQuestions([]);};
+    const expired=()=>{setIsAuthenticated(false);setActiveView('table');setQuestions([]);setSelectedQuestionId(null);setIsEditingQuestion(false);};
     window.addEventListener('apex-session-expired',expired);
     return ()=>window.removeEventListener('apex-session-expired',expired);
   },[]);
@@ -124,6 +126,7 @@ export default function App() {
     const controller = new AbortController();
     async function loadDataset() {
       setIsLoadingFullDataset(true);
+      setLoadError(null);
       setCompleteDatasetReady(false);
       try {
         await loadSupabaseBase(page => {
@@ -134,7 +137,7 @@ export default function App() {
         if (isMounted) {setDatasetReady(true);setCompleteDatasetReady(true);}
       } catch (err) {
         console.warn('Carregamento inicial completo:', err);
-        if (isMounted) setSyncMessage(`Falha ao carregar questões: ${String(err)}`);
+        if (isMounted) setLoadError(err instanceof Error ? err.message : String(err));
       } finally {
         if (isMounted) { setIsLoadingFullDataset(false);  }
       }
@@ -145,7 +148,7 @@ export default function App() {
       isMounted = false;
       controller.abort();
     };
-  }, [shouldLoadDataset]);
+  }, [shouldLoadDataset, datasetLoadAttempt]);
 
   // Save audit logs to localStorage
   useEffect(() => {
@@ -401,10 +404,12 @@ export default function App() {
     return questions.filter(q => q.status !== 'pendente').length;
   }, [questions]);
 
+  // Only the login form participates in keyboard navigation before authentication.
+  if (!isAuthenticated) return <SupabaseAuthGate onAuthenticated={curator => {setActiveCurator(curator); setIsAuthenticated(true);}} />;
+
   return (
     <div className="min-h-screen bg-shell text-apex-text flex flex-col font-sans selection:bg-brand selection:text-white">
       {/* Master Password Gate Overlay */}
-      {!isAuthenticated && <SupabaseAuthGate onAuthenticated={curator => {setActiveCurator(curator); setIsAuthenticated(true);}} />}
 
       {/* Top Navbar */}
       <TopNavbar
@@ -425,6 +430,10 @@ export default function App() {
       />
 
       <div role="status" className="px-6 py-2 text-xs text-apex-readable bg-shell-2/60">{isActionPending ? 'Salvando… Aguarde a confirmação.' : isLoadingFullDataset ? `${questions.length} questões disponíveis • Carregando o restante…` : syncMessage}</div>
+      {loadError && <div role="alert" className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-4 px-4 py-4 text-apex-text">
+        <div className="min-w-0 flex-1"><p className="font-bold">Não foi possível carregar toda a base.</p><p className="mt-1 break-words text-sm text-apex-readable">{loadError}</p><p className="mt-1 text-sm text-apex-readable">As questões já carregadas continuam disponíveis. Reconecte e tente novamente.</p></div>
+        <button type="button" disabled={isLoadingFullDataset || isActionPending || isEditingQuestion} onClick={() => {setDatasetReady(false);setDatasetLoadAttempt(attempt => attempt + 1);}} className="min-h-11 rounded-full bg-brand px-5 py-3 text-sm font-bold text-white hover:bg-brand-hover disabled:opacity-40">Tentar carregar novamente</button>
+      </div>}
       {datasetReady && questions.length===0 && <p className="mx-auto max-w-3xl p-8 text-center text-apex-readable">Nenhuma questão cadastrada. Importe sua base na tabela questions do Supabase e atualize esta página.</p>}
       {/* Main Content Area */}
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 lg:px-6 py-6">
