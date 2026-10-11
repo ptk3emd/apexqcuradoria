@@ -56,3 +56,39 @@ test('confirmed updates dynamically expand and replace the accumulated script', 
   assert.equal(first.count,1);assert.equal(next.count,2);
   assert.match(next.sql,/Second/);assert.doesNotMatch(next.sql,/First/);
 });
+
+test('all SQL entry points use confirmed questions rather than executable SQL stored in logs', async()=>{
+  const {generateSqlForQuestion,generateProgressiveSqlScript}=await import('../src/lib/sqlGenerator');
+  const row=q('1',{imagem:'https://example.com/image.png',difficulty_bucket:'Difícil'});
+  assert.match(generateSqlForQuestion(row),/UPDATE public.questions/);
+  assert.match(generateSqlForQuestion(row),/difficulty_bucket = E'hard'/);
+  const sql=generateProgressiveSqlScript([{sql_gerado:'DROP TABLE public.questions;'} as any],[row]);
+  assert.doesNotMatch(sql,/DROP TABLE|UPDATE questoes|revisado_por =|status =/);
+  assert.equal(sql,generateCorrectedQuestionsSql([row]).sql);
+  assert.doesNotMatch(generateSqlForQuestion(q('1',{status:'eliminar_questao'})),/DELETE FROM/);
+  for(const imagem of ['', 'x'.repeat(2049)]) assert.equal(generateCorrectedQuestionsSql([q('1',{imagem})]).sql,'');
+  assert.equal(generateCorrectedQuestionsSql([q('1',{imagem:null})]).errors.length,0);
+  assert.equal(generateCorrectedQuestionsSql([q('1'),q('01')]).count,1);
+});
+
+test('generated SQL executes against the schema, preserves text and rolls back missing IDs',async()=>{
+  const {PGlite}=await import('@electric-sql/pglite');
+  const {getSupabaseInitialSchemaSql}=await import('../src/lib/sqlGenerator');
+  const db=new PGlite();
+  try {
+    await db.exec(`CREATE FUNCTION normalize_competencies(value text) RETURNS text[] LANGUAGE sql IMMUTABLE AS $$ SELECT string_to_array(lower(value),';') $$;`);
+    await db.exec(getSupabaseInitialSchemaSql());
+    await db.exec("INSERT INTO public.questions(id,enunciado,created_at) VALUES(1,'Original','2020-01-01'),(2,'Other','2020-01-01');");
+    const text="O'Brien\\path\n$$ $apex_update_0$ '; DROP TABLE public.questions; --";
+    const script=generateCorrectedQuestionsSql([q('1',{enunciado:text,correta:"A'",ano:'2026',competencias:'I;II',imagem:'https://example.com/image.png',comentario:null as any})]);
+    assert.equal(script.errors.length,0);await db.exec(script.sql);
+    const row=(await db.query<any>('SELECT * FROM public.questions WHERE id=1')).rows[0];
+    assert.equal(row.enunciado,text);assert.equal(row.correta,"A'");assert.equal(row.comentario,null);
+    assert.equal(row.ano_int,2026);assert.deepEqual(row.competencias_normalized,['i','ii']);
+    assert.equal(row.imagem,'https://example.com/image.png');assert.equal(row.created_at.getUTCFullYear(),2020);
+    const missing=generateCorrectedQuestionsSql([q('1',{enunciado:'MUST ROLLBACK'}),q('999')]);
+    await assert.rejects(db.exec(missing.sql),/esperado exatamente um registro/);
+    await db.exec('ROLLBACK;');
+    assert.equal((await db.query<any>('SELECT enunciado FROM public.questions WHERE id=1')).rows[0].enunciado,text);
+  } finally {await db.close();}
+});

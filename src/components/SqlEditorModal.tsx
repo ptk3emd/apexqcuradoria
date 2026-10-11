@@ -54,7 +54,7 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
   // Stats calculation
   const stats = useMemo(() => {
     const deleteMatches = (progressiveSql.match(/DELETE FROM/gi) || []).length;
-    const updateMatches = (progressiveSql.match(/UPDATE questoes/gi) || []).length;
+    const updateMatches = (progressiveSql.match(/UPDATE public\.questions/gi) || []).length;
     const lines = progressiveSql.split('\n').length;
     return {
       deletes: deleteMatches,
@@ -114,7 +114,7 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
                 Supabase SQL Editor — Geração Progressiva
               </h3>
               <p className="text-xs text-shell-muted">
-                Comandos SQL (DELETE/UPDATE) gerados progressivamente pelas auditorias dos curadores
+                UPDATEs de conteúdo em public.questions, com as correções confirmadas de todos os curadores
               </p>
             </div>
           </div>
@@ -152,7 +152,7 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
               }`}
             >
               <Database className="w-3.5 h-3.5" />
-              <span>DDL Schema Inicial</span>
+              <span>Referência do esquema</span>
             </button>
           </div>
 
@@ -166,7 +166,7 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
                   type="text"
                   value={regexPattern}
                   onChange={(e) => setRegexPattern(e.target.value)}
-                  placeholder="Filtrar SQL via Regex (ex: DELETE, correta, ID 12)..."
+                  placeholder="Filtrar SQL via Regex (ex: correta, WHERE id = 12)..."
                   className="w-full bg-shell-3 border border-white/[0.1] rounded-full pl-8 pr-10 py-1.5 text-xs text-apex-text placeholder-shell-muted outline-none focus:border-amber-400 font-mono"
                 />
                 {regexPattern && (
@@ -190,11 +190,8 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
             <span className="text-[10px] uppercase font-bold tracking-wider text-shell-muted">
               Resumo da Auditoria:
             </span>
-            <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold border border-rose-500/30">
-              {stats.deletes} DELETEs (Eliminar)
-            </span>
             <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold border border-blue-500/30">
-              {stats.updates} UPDATEs (Aprovar / Corrigir)
+              {stats.updates} UPDATEs (Correções de conteúdo)
             </span>
             <span className="px-2 py-0.5 rounded bg-white/[0.05] text-apex-readable">
               {stats.lines} linhas geradas
