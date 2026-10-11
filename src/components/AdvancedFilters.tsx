@@ -413,7 +413,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
       {/* 1. Main Status & Quick Scope Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-shell-2 p-3 rounded-2xl border border-white/[0.08] shadow-lg">
         {/* Status Chips */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-nowrap md:flex-wrap items-center gap-1.5 overflow-x-auto md:overflow-visible [&>*]:shrink-0 pb-1 md:pb-0">
           <span className="text-[11px] uppercase font-bold tracking-wider text-shell-muted mr-2 flex items-center gap-1">
             <Filter className="w-3.5 h-3.5 text-brand-muted" />
             Status:
@@ -493,13 +493,13 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
         </div>
 
         {/* Right side controls: Responsável select & Toggle Refinar Filtros button */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-2">
           {/* Responsável Select */}
           <select
             aria-label="Filtrar por responsável"
             value={filterState.responsavel}
             onChange={(e) => onChangeFilterState({ ...filterState, responsavel: e.target.value })}
-            className="bg-shell-3 border border-white/[0.1] rounded-xl px-2.5 py-1 text-xs text-apex-text outline-none focus:border-brand cursor-pointer"
+            className="col-span-2 md:col-auto w-full md:w-auto min-h-11 md:min-h-0 bg-shell-3 border border-white/[0.1] rounded-xl px-2.5 py-1 text-xs text-apex-text outline-none focus:border-brand cursor-pointer"
           >
             <option value="todos">Todos os Responsáveis</option>
             <option value="minhas">Atribuídas a mim ({activeCurator.nome})</option>
@@ -513,7 +513,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
           <button
             type="button"
             onClick={() => setIsOpenPanel(!isOpenPanel)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+            className={`col-span-2 md:col-auto flex items-center justify-center gap-1.5 px-3 py-1 min-h-11 md:min-h-0 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
               isOpenPanel || totalActiveFilterCount > 0
                 ? 'bg-brand/20 border-brand/50 text-white shadow-sm'
                 : 'bg-white/[0.04] border-white/[0.1] text-apex-readable hover:bg-white/[0.08]'

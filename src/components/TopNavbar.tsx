@@ -78,10 +78,10 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-white/[0.07] bg-shell/90 backdrop-blur-xl transition-all">
+    <header className="static md:sticky md:top-0 z-40 w-full border-b border-white/[0.07] bg-shell/90 backdrop-blur-xl transition-all">
       <div className="max-w-[1600px] mx-auto px-4 lg:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
         {/* Brand Logo & Tagline */}
-        <div className="flex items-center gap-3">
+        <div className="order-1 md:order-none flex items-center gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-brand flex items-center justify-center shadow-[0_0_16px_rgba(164,57,57,0.4)]">
               <Sparkles className="w-4 h-4 text-white" />
@@ -89,7 +89,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-lg tracking-tight text-apex-text">ApexMed</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-brand/20 text-brand-muted border border-brand/30">
+                <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-brand/20 text-brand-muted border border-brand/30">
                   Curadoria
                 </span>
               </div>
@@ -101,7 +101,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </div>
 
         {/* Quick Search Bar */}
-        <div className="flex-1 max-w-md min-w-[240px]">
+        <div className="order-3 basis-full min-w-0 md:order-none md:basis-auto md:flex-1 md:max-w-md md:min-w-[240px]">
           <div className="relative flex items-center">
             <Search className="w-4 h-4 text-shell-muted absolute left-3.5 pointer-events-none" />
             <input
@@ -127,7 +127,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </div>
 
         {/* View Switcher Tabs */}
-        <div className="flex items-center bg-shell-2 p-1 rounded-full border border-white/[0.07]">
+        <div className="order-4 flex items-center bg-shell-2 p-1 rounded-full border border-white/[0.07] md:order-none">
           <button
             onClick={() => onViewChange('table')}
             className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full transition-all ${
@@ -167,7 +167,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </div>
 
         {/* Action Controls & Modal Triggers */}
-        <div className="flex items-center gap-2">
+        <div className="order-2 ml-auto flex items-center gap-2 md:order-none md:ml-0">
           {/* Batch Reserve Button */}
           <button
             onClick={onOpenBatchAssignModal}

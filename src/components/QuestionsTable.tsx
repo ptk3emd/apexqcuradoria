@@ -172,6 +172,12 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   const pageQuestions = filteredQuestions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selectablePage = pageQuestions.filter(q => canSelectQuestion(q, activeCurator));
   const allPageSelected = selectablePage.length > 0 && selectablePage.every(q => selectedIds.has(q.id));
+  const togglePageSelection = () => {
+    const next = new Set(selectedIds);
+    if (allPageSelected) selectablePage.forEach(q => next.delete(q.id));
+    else selectablePage.forEach(q => { if (next.size < 100) next.add(q.id); });
+    setSelectedIds(next);
+  };
   useEffect(() => { setCurrentPage(page => Math.min(page, Math.max(1, Math.ceil(filteredQuestions.length / pageSize)))); }, [filteredQuestions.length, pageSize]);
 
   // Counts for status chips
@@ -212,29 +218,30 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         totalFilteredCount={filteredQuestions.length}
       />
 
-      <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-white/[0.08] bg-shell-2 px-4 py-3" aria-live="polite">
-        <span className="text-xs font-bold text-apex-text mr-1"><span className="tabular-nums">{selectedIds.size}</span> selecionadas <span className="font-normal text-shell-muted">(máximo 100)</span></span>
-        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('assign')} className="px-4 py-2 rounded-full text-xs font-bold text-white bg-brand hover:bg-brand-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand">Assumir selecionadas</button>
-        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('review')} className="px-4 py-2 rounded-full text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-amber-500/10">Marcar selecionadas para revisão</button>
-        <button disabled={busy || !selectedIds.size} onClick={() => setSelectedIds(new Set())} className="px-3 py-2 rounded-full text-xs font-bold text-shell-muted hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-shell-muted">Limpar seleção</button>
-        <span className="text-xs text-apex-readable">A seleção acompanha a paginação. Alterar filtros limpa a seleção.</span>
+      <div className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-2 md:gap-2.5 rounded-2xl border border-white/[0.08] bg-shell-2 px-4 py-3" aria-live="polite">
+        <label className="col-span-2 md:hidden flex items-center gap-2.5 min-h-11 text-xs font-bold text-apex-text cursor-pointer">
+          <input type="checkbox" aria-label="Selecionar questões disponíveis desta página" disabled={busy || !selectablePage.length} checked={allPageSelected}
+            ref={el => { if (el) el.indeterminate = !allPageSelected && selectablePage.some(q => selectedIds.has(q.id)); }}
+            onChange={togglePageSelection} />
+          Selecionar página
+        </label>
+        <span className="col-span-2 md:col-auto text-xs font-bold text-apex-text md:mr-1"><span className="tabular-nums">{selectedIds.size}</span> selecionadas <span className="font-normal text-shell-muted">(máximo 100)</span></span>
+        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('assign')} className="w-full md:w-auto px-4 py-2 rounded-full text-xs font-bold text-center text-white bg-brand hover:bg-brand-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand">Assumir selecionadas</button>
+        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('review')} className="w-full md:w-auto px-4 py-2 rounded-full text-xs font-bold text-center text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-amber-500/10">Marcar selecionadas para revisão</button>
+        <button disabled={busy || !selectedIds.size} onClick={() => setSelectedIds(new Set())} className="col-span-2 md:col-auto justify-self-center md:justify-self-auto px-3 py-2 rounded-full text-xs font-bold text-shell-muted hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-shell-muted">Limpar seleção</button>
+        <span className="hidden md:inline text-xs text-apex-readable">A seleção acompanha a paginação. Alterar filtros limpa a seleção.</span>
       </div>
       {/* Main Questions Table */}
       <div className="w-full rounded-2xl bg-shell-2 border border-white/[0.08] overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-apex-text border-collapse">
-            <thead>
+          <table className="block md:table w-full text-left text-xs text-apex-text border-collapse">
+            <thead className="hidden md:table-header-group">
               <tr className="border-b border-white/[0.08] bg-shell-3/80 text-shell-muted uppercase text-[10px] tracking-wider select-none">
                 <th className="p-0">
                   <label className="flex items-center justify-center min-w-11 min-h-11 px-3 cursor-pointer">
                     <input type="checkbox" aria-label="Selecionar questões disponíveis desta página" disabled={busy || !selectablePage.length} checked={allPageSelected}
                       ref={el => { if (el) el.indeterminate = !allPageSelected && selectablePage.some(q => selectedIds.has(q.id)); }}
-                      onChange={() => {
-                        const next = new Set(selectedIds);
-                        if (allPageSelected) selectablePage.forEach(q => next.delete(q.id));
-                        else selectablePage.forEach(q => { if (next.size < 100) next.add(q.id); });
-                        setSelectedIds(next);
-                      }} />
+                      onChange={togglePageSelection} />
                   </label>
                 </th>
                 <th scope="col" aria-sort={sortBy === 'id' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 font-bold">
@@ -268,10 +275,10 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                 <th className="py-3 px-4 font-bold text-right">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/[0.04]">
+            <tbody className="block md:table-row-group divide-y divide-white/[0.04]">
               {filteredQuestions.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-12 text-center text-shell-muted">
+                <tr className="block md:table-row">
+                  <td colSpan={9} className="block md:table-cell py-12 text-center text-shell-muted">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <AlertCircle className="w-8 h-8 text-brand/60" />
                       <p className="text-sm font-bold text-apex-text">Nenhuma questão encontrada</p>
@@ -300,16 +307,16 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                       <tr
                         key={q.id}
                         onClick={() => { if (!busy) onSelectQuestion(q); }}
-                        className="group hover:bg-white/[0.03] transition-colors cursor-pointer"
+                        className="group flex flex-wrap items-center gap-x-3 gap-y-2.5 px-4 py-3 md:table-row md:p-0 hover:bg-white/[0.03] transition-colors cursor-pointer"
                       >
-                        <td className="p-0" onClick={e => e.stopPropagation()}>
+                        <td className="order-1 p-0 md:order-none" onClick={e => e.stopPropagation()}>
                           <label className="flex items-center justify-center min-w-11 min-h-11 px-3 cursor-pointer">
                             <input type="checkbox" aria-label={`Selecionar questão ${q.id}`} checked={selectedIds.has(q.id)}
                               disabled={busy || !canSelectQuestion(q, activeCurator)} onChange={() => toggleSelection(q.id)} />
                           </label>
                         </td>
                         {/* ID with active viewer beacon */}
-                        <td className="py-3.5 px-4 font-bold text-apex-text whitespace-nowrap">
+                        <td className="order-2 font-bold text-apex-text whitespace-nowrap md:order-none md:py-3.5 md:px-4">
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-sm px-2 py-0.5 rounded bg-white/[0.05] border border-white/[0.08]">
                               #{q.id}
@@ -335,12 +342,12 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                         </td>
 
                         {/* Status */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                        <td className="order-3 ml-auto whitespace-nowrap md:order-none md:ml-0 md:py-3.5 md:px-4">
                           <StatusBadge status={q.status} size="sm" />
                         </td>
 
                         {/* Especialidade & Tema */}
-                        <td className="py-3.5 px-4">
+                        <td className="order-4 basis-full md:basis-auto md:py-3.5 md:px-4">
                           <p className="font-bold text-apex-text leading-tight">
                             {q.especialidade || q.categoria || 'Geral'}
                           </p>
@@ -350,14 +357,14 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                         </td>
 
                         {/* Ano / Origem */}
-                        <td className="py-3.5 px-4 whitespace-nowrap text-apex-readable">
+                        <td className="hidden md:table-cell whitespace-nowrap text-apex-readable md:py-3.5 md:px-4">
                           <span className="px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.07] text-[11px]">
                             {q.origem || 'ENARE'} {q.ano}
                           </span>
                         </td>
 
                         {/* Enunciado Preview */}
-                        <td className="py-3.5 px-4 text-apex-readable">
+                        <td className="order-5 basis-full text-apex-readable md:order-none md:basis-auto md:py-3.5 md:px-4">
                           <p className="line-clamp-2 leading-relaxed text-xs group-hover:text-white transition-colors">
                             {q.enunciado}
                           </p>
@@ -370,14 +377,14 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                         </td>
 
                         {/* Gabarito */}
-                        <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                        <td className="order-6 text-center whitespace-nowrap md:order-none md:py-3.5 md:px-3">
                           <span className="w-6 h-6 inline-flex items-center justify-center rounded-lg bg-brand/20 border border-brand/40 text-brand-muted font-bold">
                             {q.correta || 'A'}
                           </span>
                         </td>
 
                         {/* Responsável */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                        <td className="order-7 whitespace-nowrap md:order-none md:py-3.5 md:px-4">
                           {q.responsavel_nome ? (
                             <span
                               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
@@ -404,7 +411,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                         </td>
 
                         {/* Quick Actions */}
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <td className="order-8 ml-auto text-right whitespace-nowrap md:order-none md:ml-0 md:py-3.5 md:px-4">
                           <div className="flex items-center justify-end gap-1.5">
                             {/* Copiar Texto para IA/Google */}
                             <button
