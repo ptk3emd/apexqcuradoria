@@ -723,12 +723,13 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               <button
                 onClick={async () => {
                   if (sqlPreview) {
-                    await copyTextToClipboard(sqlPreview);
-                    onShowToast('Comando SQL copiado!', 'Pronto para executar no Supabase SQL Editor.', 'success');
+                    const copied = await copyTextToClipboard(sqlPreview);
+                    if (copied) onShowToast('Comando SQL copiado!', 'Pronto para executar no Supabase SQL Editor.', 'success');
+                    else onShowToast('Não foi possível copiar o SQL', 'Selecione o código abaixo e copie manualmente.', 'error');
                   }
                 }}
                 disabled={!sqlPreview}
-                className="text-[11px] text-brand-muted hover:text-white disabled:opacity-40"
+                className="min-h-11 min-w-11 px-3 text-sm text-brand-muted hover:text-white disabled:opacity-40"
               >
                 Copiar SQL
               </button>

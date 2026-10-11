@@ -195,3 +195,35 @@ test('save sends only supported difficulty values to Supabase and rejects unknow
    else delete (globalThis as any).sessionStorage;
  }
 });
+
+test('table sorting exposes native keyboard buttons and announces sort direction', async()=>{
+ let renderer:any;
+ await act(async()=>{renderer=create(<QuestionsTable {...common} presences={{}} comments={{}} onSelectQuestion={()=>{}} onUpdateStatus={async()=>true} onAssignQuestion={()=>{}} onSelectedQuestions={async()=>true}/>);});
+ for(const label of ['ID','Status','Especialidade / Tema']) {
+   const button=renderer.root.findByProps({'aria-label':`Ordenar por ${label}`});
+   assert.equal(button.type,'button');
+   await act(async()=>button.props.onClick());
+   assert.ok(renderer.root.findAllByType('th').some((th:any)=>['ascending','descending'].includes(th.props['aria-sort'])));
+ }
+ await act(async()=>renderer.unmount());
+});
+
+test('unauthenticated app exposes only login controls, without background audit controls', async()=>{
+ const {default:App}=await import('../src/App');
+ const originals=new Map(['window','localStorage','sessionStorage'].map(name=>[name,Object.getOwnPropertyDescriptor(globalThis,name)]));
+ Object.defineProperty(globalThis,'window',{configurable:true,value:{addEventListener(){},removeEventListener(){}}});
+ for(const name of ['localStorage','sessionStorage']) Object.defineProperty(globalThis,name,{configurable:true,value:{getItem:()=>null,setItem(){},removeItem(){}}});
+ let renderer:any;
+ try {
+   await act(async()=>{renderer=create(<App/>);});
+   assert.equal(renderer.root.findAllByType('table').length,0);
+   assert.equal(renderer.root.findAllByProps({'aria-label':'Buscar questões'}).length,0);
+   assert.equal(renderer.root.findAllByProps({'aria-label':'Senha mestra'}).length,1);
+ } finally {
+   if(renderer) await act(async()=>renderer.unmount());
+   for(const [name,descriptor] of originals) {
+     if(descriptor) Object.defineProperty(globalThis,name,descriptor);
+     else delete (globalThis as any)[name];
+   }
+ }
+});
