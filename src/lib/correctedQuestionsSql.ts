@@ -7,8 +7,16 @@ export const QUESTION_UPDATE_COLUMNS = [
   'categoria', 'tema_especifico', 'ano', 'origem', 'enunciado',
   'a', 'b', 'c', 'd', 'e', 'correta', 'comentario',
   'justificativa_a', 'justificativa_b', 'justificativa_c', 'justificativa_d', 'justificativa_e',
-  'especialidade', 'competencias', 'difficulty_bucket', 'descritores', 'imagem',
+  'especialidade', 'competencias', 'difficulty_bucket', 'descritores', 'imagem', 'referencias',
 ] as const;
+
+export const REFERENCIAS_MAX_LENGTH = 5000;
+
+// `anulada` is a boolean column: legacy rows may carry it as a string.
+function readAnulada(value: unknown): boolean | undefined {
+  if (value === undefined || value === null) return undefined;
+  return value === true || String(value).toLowerCase() === 'true';
+}
 
 export function sqlText(value: string | null): string {
   return value === null ? 'NULL' : `E'${value.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
@@ -38,11 +46,18 @@ export function generateCorrectedQuestionsSql(questions: Question[]) {
     }
     const id = BigInt(q.id);
     const sets: string[] = [];
+    const anulada = readAnulada(q.anulada);
+    // An annulled question has no official answer key (CHECK in the database).
+    if (anulada !== undefined) sets.push(`  anulada = ${anulada ? 'TRUE' : 'FALSE'}`);
     for (const column of QUESTION_UPDATE_COLUMNS) {
-      let value = q[column] as string | null | undefined;
+      let value = (column === 'correta' && anulada ? null : q[column]) as string | null | undefined;
       // Missing optional values are omitted, preserving database content.
       if (value === undefined) continue;
       if (value !== null) value = String(value);
+      if (column === 'referencias' && value !== null && value.trim() === '') value = null;
+      if (column === 'referencias' && value !== null && Array.from(value).length > REFERENCIAS_MAX_LENGTH) {
+        errors.push(`Questão ${q.id}: referências excedem ${REFERENCIAS_MAX_LENGTH} caracteres.`);
+      }
       if (column === 'difficulty_bucket') {
         try {value = normalizeDifficulty(value) ?? null;} catch {errors.push(`Questão ${q.id}: dificuldade deve ser easy, medium ou hard.`);}
       }

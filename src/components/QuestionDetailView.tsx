@@ -25,6 +25,7 @@ import { QuestionEditor } from './QuestionEditor';
 import { StatusBadge } from './StatusBadge';
 import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboardHelper';
 import { generateSqlForQuestion } from '../lib/sqlGenerator';
+import { LinkifiedText } from './LinkifiedText';
 
 interface QuestionDetailViewProps {
   question: Question;
@@ -306,9 +307,15 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                 <span className="px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08]">
                   {question.origem || 'ENARE'} {question.ano}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-emerald-400 font-bold">
-                  Gabarito: {question.correta || 'C'}
-                </span>
+                {question.anulada ? (
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
+                    Anulada · sem gabarito
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-emerald-400 font-bold">
+                    Gabarito: {question.correta || 'C'}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -419,7 +426,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                 const justification = isEditing
                   ? (editedQuestion[justKey] as string)
                   : (question[justKey] as string);
-                const isCorrect = question.correta?.toUpperCase() === letter;
+                const isCorrect = !question.anulada && question.correta?.toUpperCase() === letter;
 
                 return (
                   <div
@@ -434,9 +441,10 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                       {/* Letter Badge / Radio button */}
                       <button
                         onClick={async () => {
-                          if (question.correta !== letter) {
+                          if (question.anulada || question.correta !== letter) {
                             const updated = {
                               ...question,
+                              anulada: false,
                               correta: letter,
                               modificado: true,
                               status: 'questao_corrigida' as QuestionStatus,
@@ -524,15 +532,23 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           </div>
 
           {/* Professor Commentary / Resolution */}
-          {question.comentario && (
+          {(question.comentario || question.referencias?.trim()) && (
             <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-2">
               <span className="text-[11px] uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
                 <span className="w-2.5 h-0.5 bg-brand-muted" />
                 Comentário Oficial / Gabarito Comentado
               </span>
-              <p className="text-xs text-apex-readable leading-relaxed p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                {question.comentario}
-              </p>
+              {question.comentario && (
+                <p className="text-xs text-apex-readable leading-relaxed p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                  {question.comentario}
+                </p>
+              )}
+              {question.referencias?.trim() && (
+                <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-shell-muted mb-1">Referências</p>
+                  <LinkifiedText text={question.referencias} className="text-xs text-apex-readable leading-relaxed" />
+                </div>
+              )}
             </div>
           )}
         </div>

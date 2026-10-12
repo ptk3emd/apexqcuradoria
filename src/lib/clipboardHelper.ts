@@ -22,12 +22,18 @@ export function formatQuestionForAiPrompt(q: Question): string {
   if (q.d) parts.push(`D) ${q.d}`);
   if (q.e) parts.push(`E) ${q.e}`);
   parts.push('');
-  parts.push(`GABARITO OFICIAL: ${q.correta || 'Não informado'}`);
+  parts.push(`GABARITO OFICIAL: ${q.anulada ? 'Questão anulada (sem gabarito oficial)' : q.correta || 'Não informado'}`);
 
   if (q.comentario) {
     parts.push('');
     parts.push(`COMENTÁRIO DO PROFESSOR:`);
     parts.push(q.comentario);
+  }
+
+  if (q.referencias?.trim()) {
+    parts.push('');
+    parts.push(`REFERÊNCIAS:`);
+    parts.push(q.referencias.trim());
   }
 
   const hasJustificativas = q.justificativa_a || q.justificativa_b || q.justificativa_c || q.justificativa_d || q.justificativa_e;

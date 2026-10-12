@@ -107,12 +107,30 @@ test('question editor exposes every writable field and preserves edits across se
  await act(async()=>{renderer=create(render());});
  await act(async()=>renderer.root.findByProps({'aria-label':'Alternativa A'}).props.onChange({target:{value:'Updated alternative'}}));
  await act(async()=>renderer.root.findAllByProps({role:'tab'})[1].props.onClick());
- assert.equal(renderer.root.findAllByType('textarea').length,6);
+ assert.equal(renderer.root.findAllByType('textarea').length,7);
  await act(async()=>renderer.root.findByProps({'aria-label':'Comentário geral'}).props.onChange({target:{value:'Explanation'}}));
+ await act(async()=>renderer.root.findByProps({'aria-label':'Referências'}).props.onChange({target:{value:'Ver https://example.org/d.pdf'}}));
+ assert.equal(renderer.root.findAll((node:any)=>node.type==='a'&&node.props.href==='https://example.org/d.pdf').length,1);
  await act(async()=>renderer.root.findAllByProps({role:'tab'})[2].props.onClick());
  for(const label of ['ID da questão','Categoria','Especialidade','Tema específico','Ano','Origem','Data de criação','Dificuldade','Competências','Descritores']) assert.ok(renderer.root.findByProps({'aria-label':label}));
  await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));
- assert.equal(latest.a,'Updated alternative');assert.equal(latest.comentario,'Explanation');assert.equal(saves,1);
+ assert.equal(latest.a,'Updated alternative');assert.equal(latest.comentario,'Explanation');assert.equal(latest.referencias,'Ver https://example.org/d.pdf');assert.equal(saves,1);
+ await act(async()=>renderer.unmount());
+});
+
+test('marking a question as annulled clears and locks the answer key; unmarking requires a new one',async()=>{
+ let renderer:any;let latest:Question={...rows[0],correta:'B',sync_source_id:'1'};let saves=0;
+ const render=()=> <QuestionEditor question={latest} busy={false} onChange={q=>{latest=q;renderer.update(render());}} onSave={async()=>{saves++;}} onCancel={()=>{}}/>;
+ await act(async()=>{renderer=create(render());});
+ const box=()=>renderer.root.findByProps({type:'checkbox'});
+ await act(async()=>box().props.onChange({target:{checked:true}}));
+ assert.equal(latest.anulada,true);assert.equal(latest.correta,'');
+ assert.ok(renderer.root.findAllByProps({name:'correta'}).every((r:any)=>r.props.disabled&&!r.props.checked));
+ await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));
+ assert.equal(saves,1);
+ await act(async()=>box().props.onChange({target:{checked:false}}));
+ await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));
+ assert.equal(saves,1);assert.match(renderer.root.findByProps({role:'alert'}).children.join(''),/anulada/);
  await act(async()=>renderer.unmount());
 });
 

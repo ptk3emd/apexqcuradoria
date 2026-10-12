@@ -22,6 +22,7 @@ create function extensions.crypt(value text,salt text) returns text language sql
 create schema realtime; create function realtime.send(jsonb,text,text,boolean) returns void language sql as $$ select $$;`);
 const masterSql=(await readFile('supabase/migrations/20261010151200_master_password_sessions.sql','utf8')).replace('create extension if not exists pgcrypto with schema extensions;','');
 await db.exec(masterSql);
+await db.exec(await readFile('supabase/migrations/20261012120000_questions_anulada_referencias.sql','utf8'));
 await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
 const asUser=async user=>{
@@ -115,4 +116,20 @@ test('master login requires only password/profile, rejects forged tokens and rev
  await assert.rejects(db.query('select public.curation_session()'),/expirada/);
  await db.query("select set_config('request.headers',$1,false)",[JSON.stringify({'x-apex-session':'invented'})]);
  await assert.rejects(db.query('select public.curation_base()'),/não autorizado/);
+});
+
+test('annulled questions lose their answer key; references are saved and blank ones become NULL',async()=>{
+ await db.exec('reset role');await db.exec("insert into public.questions(id,enunciado,correta) values(30,'Anulável','C')");
+ await asUser(patrick);await call('claim',[{id:'30',version:0}]);
+ await assert.rejects(call('save',[{id:'30',version:1,patch:{anulada:'sim'}}]),/verdadeiro ou falso/);
+ const saved=await call('save',[{id:'30',version:1,patch:{anulada:true,correta:'B',referencias:'Diretriz: https://example.org/d.pdf'}}]);
+ assert.equal(saved.questions[0].anulada,true);assert.equal(saved.questions[0].correta,null);
+ let row=(await db.query('select anulada,correta,referencias from public.questions where id=30')).rows[0];
+ assert.equal(row.anulada,true);assert.equal(row.correta,null);assert.equal(row.referencias,'Diretriz: https://example.org/d.pdf');
+ const restored=await call('save',[{id:'30',version:saved.questions[0].sync_version,patch:{anulada:false,correta:'A',referencias:'  '}}]);
+ row=(await db.query('select anulada,correta,referencias from public.questions where id=30')).rows[0];
+ assert.equal(row.anulada,false);assert.equal(row.correta,'A');assert.equal(row.referencias,null);
+ assert.equal(restored.questions[0].correta,'A');
+ await db.exec('reset role');
+ await assert.rejects(db.exec("update public.questions set anulada=true where id=30"),/questions_anulada_sem_gabarito_check/);
 });
