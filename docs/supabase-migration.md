@@ -8,7 +8,7 @@ As migrations criam:
 
 - `public.questions`: campos do esquema fornecido, PK bigint identity, limites de dificuldade/descritores, índices e colunas calculadas.
 - `public.question_competencies`: vínculo de cada questão às competências normalizadas.
-- `public.curation_questions`: versão, responsável, lease de edição, comentários e estado compartilhado.
+- `public.curation_questions`: versão, responsável, comentários e estado compartilhado. A presença de quem está em cada questão fica em `curation_private.presence` (uma linha por questão e aba).
 - `public.curation_members`: três perfis de curadoria, sem contas ou e-mails associados.
 - `curation_private.events` e `requests`: histórico e idempotência, inacessíveis ao navegador.
 
@@ -30,9 +30,9 @@ O Supabase é o único backend. URL e chave pública do projeto têm valores pad
 
 ## Sincronização e interface
 
-A primeira página libera a auditoria e as demais carregam em segundo plano. A carga inicial registra o cursor antes de ler as páginas, evitando reprocessar o histórico inteiro da importação. Realtime avisa sobre mudanças; a RPC incremental recupera as versões confirmadas, inclusive após reconexão, com verificação adicional a cada 30 segundos. Reservas de edição duram 90 segundos e são renovadas a cada 25 segundos. A responsabilidade continua reservada até sua liberação explícita. Marcar um lote para revisão usa uma transação: um conflito desfaz o lote todo.
+A primeira página libera a auditoria e as demais carregam em segundo plano. A carga inicial registra o cursor antes de ler as páginas, evitando reprocessar o histórico inteiro da importação. Realtime avisa sobre mudanças; a RPC incremental recupera as versões confirmadas, inclusive após reconexão, com verificação adicional a cada 30 segundos. Desde `20261012190000_concurrent_editing` não há reserva: vários curadores e abas podem editar a mesma questão. Abrir registra presença (90 segundos, renovada a cada 25), que `curation_sync` devolve como lista, várias pessoas por questão. `curation_mutate` não recusa mais por responsável, sessão ou versão; o cliente manda só os campos alterados, então mudanças em campos diferentes se somam e no mesmo campo vale o último salvamento. Um editor aberto recebe ao vivo os campos que o curador não alterou e sinaliza os que os dois mudaram. Ações em lote continuam numa transação: um erro desfaz o lote todo.
 
-Estatísticas, SQL global e reservas sobre toda a base aguardam o carregamento completo para evitar resultados parciais. A pesquisa usa atualização diferida para manter a digitação responsiva. Sincronizações sem mudanças não reprocessam o histórico de questões alteradas.
+Estatísticas, SQL global e atribuição de lotes sobre toda a base aguardam o carregamento completo para evitar resultados parciais. A pesquisa usa atualização diferida para manter a digitação responsiva. Sincronizações sem mudanças não reprocessam o histórico de questões alteradas.
 
 O editor organiza os campos em enunciado/alternativas, resolução e classificação, com gabarito selecionável, campos de texto multilinha e barra fixa para salvar. A navegação é bloqueada durante a edição para evitar descarte acidental. Falhas de gravação preservam o rascunho.
 
@@ -40,7 +40,7 @@ O editor organiza os campos em enunciado/alternativas, resolução e classifica�
 
 `npm run lint`, `npm test`, `npm run build`.
 
-Os testes PostgreSQL locais executam as migrations no PGlite e verificam autenticação, RLS, conflito de responsáveis/abas/versões, expiração de leases, rollback do lote, idempotência, comentários, importação administrativa, gravação em `questions`, colunas geradas e alteração de IDs. Os registros de teste existem apenas no banco local em memória.
+Os testes PostgreSQL locais executam as migrations no PGlite e verificam autenticação, RLS, edição simultânea (campos diferentes se somam, o mesmo campo fica com o último salvamento, versão antiga aceita), presença de vários curadores e expiração, responsável que não bloqueia, rollback do lote, idempotência, comentários, importação administrativa, gravação em `questions`, colunas geradas e alteração de IDs. Os registros de teste existem apenas no banco local em memória.
 
 Após a migration de senha mestra, as RPCs passam a validar um token aleatório de sessão no cabeçalho `x-apex-session`. O banco armazena somente seu hash e o prazo de 12 horas. Escolher outro nome no navegador não altera o perfil do token. Qualquer pessoa que conheça a senha mestra pode escolher um dos três perfis, conforme o fluxo solicitado.
 

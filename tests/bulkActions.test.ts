@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canSelectQuestion, reviewSelection } from '../src/lib/bulkActions';
+import { reviewSelection } from '../src/lib/bulkActions';
 import type { Curator, Question } from '../src/types/question';
 const actor = {id:'patrick', nome:'Patrick'} as Curator;
 const questions = [{id:'1', sync_version:2, enunciado:'x'.repeat(40000)}, {id:'2', sync_version:4}] as Question[];
@@ -35,10 +35,4 @@ test('save failure releases editing leases and preserves the failure', async () 
     return rows;
   }, () => {}), /stale version/);
   assert.deepEqual(actions, ['claim','save','unlock']);
-});
-
-test('selection allows free questions and own reservations, excludes other users', () => {
-  assert.equal(canSelectQuestion({id:'1'} as Question, actor), true);
-  assert.equal(canSelectQuestion({id:'1',responsavel_id:'patrick'} as Question, actor), true);
-  assert.equal(canSelectQuestion({id:'1',responsavel_id:'lucas'} as Question, actor), false);
 });

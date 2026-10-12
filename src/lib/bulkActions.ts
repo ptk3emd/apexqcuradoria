@@ -2,8 +2,8 @@ import type { Curator, Question } from '../types/question';
 
 type Mutate = (questions: Question[], action: string, actor: Curator, target?: Curator | null) => Promise<Question[]>;
 
-// Claim the entire selection before saving. Send only the changed fields so
-// avoid resending unchanged question text.
+// Register presence on the selection, then save only the status so unchanged
+// question text is never resent (and never overwrites a concurrent edit).
 export async function reviewSelection(targets: Question[], actor: Curator, mutate: Mutate, confirm: (rows: Question[]) => void) {
   const claimed = await mutate(targets, 'claim', actor);
   confirm(claimed);
@@ -16,8 +16,4 @@ export async function reviewSelection(targets: Question[], actor: Curator, mutat
   } finally {
     await mutate(claimed, 'unlock', actor).catch(() => {});
   }
-}
-
-export function canSelectQuestion(q: Question, actor: Curator) {
-  return !q.responsavel_id || q.responsavel_id === actor.id;
 }

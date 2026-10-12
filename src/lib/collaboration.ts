@@ -9,6 +9,6 @@ export function fetchShared(): Promise<SharedSnapshot> {
   if (!syncInFlight) syncInFlight = fetchSupabaseShared().finally(() => {syncInFlight = null;});
   return syncInFlight;
 }
-export async function mutateShared(questions: Question[], action: string, _actor: Curator, target?: Curator | null): Promise<Question[]> {
-  return questions.length ? mutateSupabase(questions, action, target) : [];
+export async function mutateShared(questions: Question[], action: string, _actor: Curator, target?: Curator | null, fields?: readonly string[]): Promise<Question[]> {
+  return questions.length ? mutateSupabase(questions, action, target, fields) : [];
 }

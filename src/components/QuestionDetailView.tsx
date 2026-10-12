@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Copy, 
   ChevronLeft, 
@@ -22,6 +22,7 @@ import {
 import { useDialog } from '../lib/useDialog';
 import { Question, QuestionStatus, Curator, CuratorPresence, QuestionComment } from '../types/question';
 import { QuestionEditor } from './QuestionEditor';
+import { changedFields, mergeRemote, type ContentField } from '../lib/draftMerge';
 import { StatusBadge } from './StatusBadge';
 import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboardHelper';
 import { generateSqlForQuestion } from '../lib/sqlGenerator';
@@ -36,7 +37,7 @@ interface QuestionDetailViewProps {
   comments: QuestionComment[];
   onBackToList: () => void;
   onNavigateQuestion: (index: number) => void;
-  onUpdateQuestion: (updated: Question) => Promise<boolean>;
+  onUpdateQuestion: (updated: Question, fields?: readonly string[]) => Promise<boolean>;
   onUpdateStatus: (id: string, status: QuestionStatus, notas?: string) => Promise<boolean>;
   onAssignQuestion: (id: string, curator: Curator | null) => void;
   onAddComment: (questionId: string, text: string) => Promise<boolean>;
@@ -76,13 +77,40 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const revisionDialogRef = useDialog<HTMLDivElement>(() => setShowRevisionModal(false), showRevisionModal);
 
+  // Concurrent editing: `baseRef` is the server version the draft started
+  // from (advanced on every remote save), so a save sends only the fields
+  // this curator changed and a remote save fills the fields left untouched.
+  const baseRef = useRef<Question>(question);
+  const draftRef = useRef(editedQuestion);
+  draftRef.current = editedQuestion;
+  const [conflicts, setConflicts] = useState<ReadonlySet<ContentField>>(new Set());
+  const startEditing = () => {
+    baseRef.current = { ...question, sync_source_id:question.id };
+    setEditedQuestion({ ...question, sync_source_id:question.id });
+    setConflicts(new Set());
+    setIsEditing(true);
+  };
+  const stopEditing = () => {
+    setEditedQuestion({ ...question, sync_source_id:question.id });
+    setConflicts(new Set());
+    setIsEditing(false);
+  };
+
   // Sync state when selected question changes
   useEffect(() => {
     setEditedQuestion({ ...question, sync_source_id:question.id });
+    setConflicts(new Set());
     setIsEditing(false);
   }, [question.id]);
 
-  useEffect(() => { if (!isEditing) setEditedQuestion({ ...question, sync_source_id:question.id }); }, [question, isEditing]);
+  useEffect(() => {
+    if (!isEditing) { setEditedQuestion({ ...question, sync_source_id:question.id }); return; }
+    if ((question.sync_version ?? 0) <= (baseRef.current.sync_version ?? 0)) return;
+    const merged = mergeRemote(baseRef.current, draftRef.current, { ...question, sync_source_id:question.id });
+    baseRef.current = merged.base;
+    setEditedQuestion(merged.draft);
+    if (merged.conflicts.length) setConflicts(previous => new Set([...previous, ...merged.conflicts]));
+  }, [question, isEditing]);
 
   // Keyboard navigation Left/Right arrow keys
   useEffect(() => {
@@ -123,7 +151,8 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
       revisado_por: activeCurator.nome,
       revisado_em: new Date().toISOString(),
     };
-    if (!await onUpdateQuestion(updated)) return;
+    if (!await onUpdateQuestion(updated, changedFields(baseRef.current, editedQuestion))) return;
+    setConflicts(new Set());
     setIsEditing(false);
     onShowToast('Questão Atualizada!', 'Modificações salvas e marcadas como "Questão Corrigida".', 'success');
   };
@@ -143,15 +172,17 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
     onShowToast('Status: Revisar Questão', 'A questão foi enviada para fila de revisão com suas observações.', 'info');
   };
 
-  // Other curators looking at this question
-  const activeViewers = Object.values(presences).filter(
+  // Other curators on this question (one entry per curator, even with several tabs)
+  const activeViewers = [...new Map(Object.values(presences).filter(
     p => p.questao_atual_id === question.id && p.curador_id !== activeCurator.id
-  );
+  ).map(p => [p.curador_id, p])).values()];
+  const viewerNames = activeViewers.map(v => v.curador_nome).join(', ');
 
   const sqlPreview = generateSqlForQuestion(question, activeCurator.nome);
   const isAssignedToMe = question.responsavel_id === activeCurator.id;
 
-  if (isEditing) return <QuestionEditor question={editedQuestion} busy={busy} onChange={setEditedQuestion} onSave={handleSaveChanges} onCancel={() => {setEditedQuestion({...question, sync_source_id:question.id}); setIsEditing(false);}}/>;
+  if (isEditing) return <QuestionEditor question={editedQuestion} busy={busy} onChange={setEditedQuestion} onSave={handleSaveChanges} onCancel={stopEditing} conflicts={conflicts}
+    othersEditing={activeViewers.length ? `${viewerNames} também ${activeViewers.length === 1 ? 'está' : 'estão'} nesta questão. O que for salvo aparece aqui ao vivo nos campos que você não alterou.` : undefined}/>;
 
   return (
     <fieldset disabled={busy} aria-busy={busy} className="w-full min-w-0 space-y-5 animate-in fade-in duration-200">
@@ -198,7 +229,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold animate-pulse">
             <span className="w-2 h-2 rounded-full bg-amber-400" />
             <span>
-              {activeViewers.map(v => v.curador_nome).join(', ')} {activeViewers.length === 1 ? 'está' : 'estão'} visualizando esta questão agora
+              {viewerNames} {activeViewers.length === 1 ? 'está' : 'estão'} nesta questão agora
             </span>
           </div>
         )}
@@ -258,19 +289,19 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
         </div>
       </div>
 
-      {/* Active Curator Collision Banner (prevents another curator from doing the same question) */}
+      {/* Shared-editing notice: several curators may edit at once */}
       {activeViewers.length > 0 && (
-        <div className="p-4 rounded-2xl bg-amber-950/40 border-2 border-amber-500/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+        <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-500/40 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0 border border-amber-500/40">
-              <AlertTriangle className="w-5 h-5 text-amber-400" />
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0 border border-amber-500/30">
+              <Info className="w-5 h-5 text-amber-300" />
             </div>
             <div>
               <p className="text-sm font-bold text-amber-200">
-                Atenção: Questão em uso por outro curador!
+                Edição compartilhada
               </p>
-              <p className="text-xs text-amber-300/80 mt-0.5">
-                <b className="text-white">{activeViewers.map(v => v.curador_nome).join(', ')}</b> está {activeViewers[0].status_atividade === 'editando' ? 'editando o texto desta questão neste instante' : 'analisando e auditando esta questão agora'}. Evite modificar simultaneamente para não sobrepor o trabalho.
+              <p className="text-xs text-amber-200/80 mt-0.5">
+                <b className="text-white">{viewerNames}</b> também {activeViewers.length === 1 ? 'está' : 'estão'} nesta questão. Todos podem editar ao mesmo tempo: o que cada um salva aparece ao vivo, e salvar grava só os campos que você alterou.
               </p>
             </div>
           </div>
@@ -366,7 +397,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                   Enunciado Clínico
                 </span>
                 <button
-                  onClick={() => setIsEditing(!isEditing)}
+                  onClick={() => (isEditing ? stopEditing() : startEditing())}
                   className="flex items-center gap-1 text-xs font-bold text-apex-readable hover:text-white px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1]"
                 >
                   <Edit3 className="w-3.5 h-3.5 text-brand-muted" />
@@ -451,7 +482,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                               revisado_por: activeCurator.nome,
                               revisado_em: new Date().toISOString(),
                             };
-                            if (!await onUpdateQuestion(updated)) return;
+                            if (!await onUpdateQuestion(updated, ['anulada', 'correta'])) return;
                             onShowToast(
                               `Gabarito alterado para (${letter})`,
                               'Atualização registrada e SQL correspondente gerado.',

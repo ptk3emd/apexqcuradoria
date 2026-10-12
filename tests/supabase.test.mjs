@@ -12,7 +12,9 @@ await db.exec(await readFile('supabase/migrations/20261010144126_curation_collab
 await db.exec(await readFile('supabase/migrations/20261010145252_questions_source.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261010145534_curation_initial_cursor.sql','utf8'));
 const patrick='00000000-0000-0000-0000-000000000001',lucas='00000000-0000-0000-0000-000000000002';
-const session='10000000-0000-0000-0000-000000000001';
+// One browser tab per curator: presence is keyed by (question, tab session).
+const sessions={[patrick]:'10000000-0000-0000-0000-000000000001',[lucas]:'10000000-0000-0000-0000-000000000002'};
+let session=sessions[patrick];
 let seq=0;
 await db.query('insert into auth.users values($1),($2)',[patrick,lucas]);
 await db.query("insert into public.curation_members values($1,'patrick','Patrick',true),($2,'lucas','Lucas',true)",[patrick,lucas]);
@@ -23,9 +25,11 @@ create schema realtime; create function realtime.send(jsonb,text,text,boolean) r
 const masterSql=(await readFile('supabase/migrations/20261010151200_master_password_sessions.sql','utf8')).replace('create extension if not exists pgcrypto with schema extensions;','');
 await db.exec(masterSql);
 await db.exec(await readFile('supabase/migrations/20261012120000_questions_anulada_referencias.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261012190000_concurrent_editing.sql','utf8'));
 await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
 const asUser=async user=>{
+ session=sessions[user]||'10000000-0000-0000-0000-000000000009';
  await db.exec('reset role');
  await db.query("insert into curation_private.sessions(token_hash,user_id,expires_at) select encode(sha256(convert_to($1,'UTF8')),'hex'),user_id,now()+interval '1 hour' from public.curation_members where user_id=$2 on conflict(token_hash) do update set expires_at=excluded.expires_at",['test-'+user,user]);
  await db.query("select set_config('request.headers',$1,false)",[JSON.stringify({'x-apex-session':'test-'+user})]);
@@ -33,31 +37,58 @@ const asUser=async user=>{
 };
 const call=async(action,items,request)=> (await db.query('select public.curation_mutate($1,$2,$3,$4::jsonb) as result',[action,session,request||`20000000-0000-0000-0000-${String(++seq).padStart(12,'0')}`,JSON.stringify(items)])).rows[0].result;
 
-test('RPC ownership, stale versions, content persistence, comments and idempotency',async()=>{
+const sync=async()=>(await db.query('select public.curation_sync(0) as result')).rows[0].result;
+const presenceOn=async id=>(await sync()).leases.filter(l=>l.question_id===id).map(l=>l.actor).sort();
+
+test('opening a question only registers presence; two curators edit it at once and saves merge by field',async()=>{
  await asUser(patrick);
- let claimed=await call('claim',[{id:'1',version:0}]);assert.equal(claimed.questions[0].sync_version,1);
+ const claimed=await call('claim',[{id:'1',version:0}]);
+ assert.equal(claimed.questions[0].responsavel_id,null);assert.equal(claimed.questions[0].sync_version,0);
  await asUser(lucas);
- await assert.rejects(call('claim',[{id:'1',version:1}]),/reservada/);
+ await call('claim',[{id:'1',version:0}]);
+ assert.deepEqual(await presenceOn('1'),['lucas','patrick']);
  await asUser(patrick);
- await assert.rejects(call('save',[{id:'1',version:0,patch:{enunciado:'lost'}}]),/atualizada/);
  const request='30000000-0000-0000-0000-000000000001';
- const saved=await call('save',[{id:'1',version:1,patch:{enunciado:'Edited',status:'questao_corrigida',responsavel_id:'lucas'}}],request);
- assert.equal(saved.questions[0].enunciado,'Edited');assert.equal(saved.questions[0].responsavel_id,'patrick');
- const repeated=await call('save',[{id:'1',version:1,patch:{enunciado:'Edited'}}],request);
+ const saved=await call('save',[{id:'1',version:0,patch:{enunciado:'Edited',status:'questao_corrigida'}}],request);
+ assert.equal(saved.questions[0].enunciado,'Edited');
+ const repeated=await call('save',[{id:'1',version:0,patch:{enunciado:'Edited'}}],request);
  assert.deepEqual(repeated,saved);
- const commented=await call('comment',[{id:'1',version:3,comment:'Discussão'}]);
+ // Lucas saves from the version he opened: no refusal, and his field merges with Patrick's.
+ await asUser(lucas);
+ await call('save',[{id:'1',version:0,patch:{comentario:'Comentário do Lucas'}}]);
+ let row=(await db.query('select enunciado,comentario from public.questions where id=1')).rows[0];
+ assert.equal(row.enunciado,'Edited');assert.equal(row.comentario,'Comentário do Lucas');
+ // Same field: the last save wins.
+ await call('save',[{id:'1',version:0,patch:{enunciado:'Versão do Lucas'}}]);
+ await asUser(patrick);
+ await call('save',[{id:'1',version:0,patch:{enunciado:'Versão do Patrick'}}]);
+ row=(await db.query('select enunciado,comentario from public.questions where id=1')).rows[0];
+ assert.equal(row.enunciado,'Versão do Patrick');assert.equal(row.comentario,'Comentário do Lucas');
+ const commented=await call('comment',[{id:'1',version:0,comment:'Discussão'}]);
  assert.equal(commented.questions[0].shared_comments[0].curador_nome,'Patrick');
  assert.equal(commented.questions[0].shared_comments[0].texto,'Discussão');
- const snapshot=(await db.query('select public.curation_sync(0) as result')).rows[0].result;
- assert.equal(snapshot.questions.find(q=>q.id==='1').enunciado,'Edited');assert.ok(snapshot.cursor>0);
+ const snapshot=await sync();
+ assert.equal(snapshot.questions.find(q=>q.id==='1').enunciado,'Versão do Patrick');assert.ok(snapshot.cursor>0);
+ // Leaving removes only the caller's presence; an expired one disappears from the list.
+ await call('unlock',[{id:'1'}]);
+ assert.deepEqual(await presenceOn('1'),['lucas']);
+ await db.exec('reset role');await db.exec("update curation_private.presence set until=now()-interval '1 second'");
+ await asUser(lucas);
+ assert.deepEqual(await presenceOn('1'),[]);
+ await call('heartbeat',[{id:'1'}]);
+ assert.deepEqual(await presenceOn('1'),['lucas']);
 });
 
-test('batch conflict rolls back all rows and direct writes are denied',async()=>{
+test('the responsible curator never blocks others, and a real error still rolls back the whole batch',async()=>{
  await asUser(lucas);
- await assert.rejects(call('assign',[{id:'2',version:0,target:'lucas'},{id:'1',version:4,target:'lucas'}]),/reservada/);
- const rows=(await db.query('select version,responsible_id from public.curation_questions where question_id=2')).rows;
- assert.equal(Number(rows[0].version),0);assert.equal(rows[0].responsible_id,null);
+ await call('assign',[{id:'1',version:0,target:'lucas'}]);
+ await asUser(patrick);
+ await call('save',[{id:'1',version:0,patch:{comentario:'Patrick edita mesmo com o Lucas responsável'}}]);
+ assert.equal((await db.query('select comentario from public.questions where id=1')).rows[0].comentario,'Patrick edita mesmo com o Lucas responsável');
+ await assert.rejects(call('assign',[{id:'1',version:0,target:'patrick'},{id:'2',version:0,target:'ninguem'}]),/Responsável inválido/);
+ assert.equal((await db.query('select responsible_id from public.curation_questions where question_id=1')).rows[0].responsible_id,'lucas');
  await assert.rejects(db.exec("update public.curation_questions set responsible_id='lucas'"),/permission denied/);
+ await assert.rejects(db.exec('select * from curation_private.presence'),/permission denied/);
 });
 
 test('nonmembers and anonymous callers cannot read or mutate drafts',async()=>{
@@ -71,20 +102,16 @@ test('nonmembers and anonymous callers cannot read or mutate drafts',async()=>{
 
 test.after(async()=>{await db.close();});
 
-test('batch review/status are atomic; expired leases and another tab cannot save',async()=>{
+test('batch review/status work on questions held by others; another tab saves without opening the question',async()=>{
  await db.exec('reset role');
  await db.exec(`insert into public.questions(id) values(3),(4); update public.curation_questions set responsible_id='patrick' where question_id=4;`);
  await asUser(lucas);
- await assert.rejects(call('review',[{id:'3',version:0},{id:'4',version:0}]),/reservada/);
- assert.equal(Number((await db.query('select version from public.curation_questions where question_id=3')).rows[0].version),0);
- const reviewed=await call('review',[{id:'3',version:0}]);assert.equal(reviewed.questions[0].status,'revisar_questao');
- const status=await call('status',[{id:'3',version:1,patch:{status:'aprovadas',enunciado:'MUST NOT APPLY'}}]);
+ const reviewed=await call('review',[{id:'3',version:0},{id:'4',version:0}]);
+ assert.deepEqual(reviewed.questions.map(q=>q.status),['revisar_questao','revisar_questao']);
+ const status=await call('status',[{id:'3',version:0,patch:{status:'aprovadas',enunciado:'MUST NOT APPLY'}}]);
  assert.equal(status.questions[0].status,'aprovadas');assert.equal(status.questions[0].enunciado,null);
- await call('claim',[{id:'3',version:2}]);
- await assert.rejects(db.query('select public.curation_mutate($1,$2,$3,$4::jsonb)', ['save',crypto.randomUUID(),crypto.randomUUID(),JSON.stringify([{id:'3',version:3,patch:{enunciado:'Other tab'}}])]),/outra sessão/);
- await db.exec('reset role');await db.exec("update public.curation_questions set lease_until=now()-interval '1 second' where question_id=3");
- await asUser(lucas);await assert.rejects(call('save',[{id:'3',version:3,patch:{enunciado:'Expired'}}]),/reservar antes/);
- await assert.rejects(call('heartbeat',[{id:'3'}]),/expirada/);
+ await db.query('select public.curation_mutate($1,$2,$3,$4::jsonb)',['save',crypto.randomUUID(),crypto.randomUUID(),JSON.stringify([{id:'3',version:0,patch:{enunciado:'Other tab'}}])]);
+ assert.equal((await db.query('select enunciado from public.questions where id=3')).rows[0].enunciado,'Other tab');
 });
 
 test('source imports, all writable columns and ID changes synchronize without writing generated columns',async()=>{

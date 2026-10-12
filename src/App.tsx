@@ -242,7 +242,7 @@ export default function App() {
     updated.forEach(q => {if(q.previous_id) setSelectedQuestionId(old => old === q.previous_id ? q.id : old);});
   }, []);
 
-  const runShared = async (targets: Question[], action: string, target?: Curator | null) => {
+  const runShared = async (targets: Question[], action: string, target?: Curator | null, fields?: readonly string[]) => {
     if (!isAuthenticated || !datasetReady) {
       showToast('Aguarde a conexão', 'Entre na sessão e aguarde o carregamento das questões.', 'info');
       return null;
@@ -254,7 +254,7 @@ export default function App() {
     actionPending.current = true;
     setIsActionPending(true);
     try {
-      const updated = await mutateShared(targets, action, activeCurator, target);
+      const updated = await mutateShared(targets, action, activeCurator, target, fields);
       applyConfirmed(updated);
       return updated;
     } catch (error: any) {
@@ -264,30 +264,36 @@ export default function App() {
     } finally { actionPending.current = false; setIsActionPending(false); }
   };
 
+  // Opening never reserves: several curators may edit the same question.
   const openQuestion = async (question: Question) => {
-    const updated = await runShared([question], 'claim');
-    if (!updated) return;
+    if (!isAuthenticated || !datasetReady) {
+      showToast('Aguarde a conexão', 'Entre na sessão e aguarde o carregamento das questões.', 'info');
+      return;
+    }
     setSelectedQuestionId(question.id);
     setActiveView('detail');
   };
 
-  // Leases protect against two tabs using the same curator profile as well.
+  // Presence only: tells the others who is on the question (renewed every
+  // 25 s, kept for 90 s). A failure never blocks editing or saving.
   useEffect(() => {
     if (!isAuthenticated || activeView !== 'detail' || !selectedQuestionId) return;
     const q = { id: selectedQuestionId } as Question;
-    const timer = setInterval(() => {
-      void mutateShared([q], 'heartbeat', activeCurator).catch((error: any) => {
-        setSyncMessage(`Reserva interrompida: ${error.message}. Reabra a questão antes de salvar.`);
+    const announce = (action: 'claim' | 'heartbeat') => {
+      void mutateShared([q], action, activeCurator).catch((error: any) => {
+        console.warn('[curadoria] presença não registrada', error?.message);
       });
-    }, 25000);
+    };
+    announce('claim');
+    const timer = setInterval(() => announce('heartbeat'), 25000);
     return () => {
       clearInterval(timer);
       void mutateShared([q], 'unlock', activeCurator).catch(() => {});
     };
   }, [isAuthenticated, activeView, selectedQuestionId, activeCurator]);
 
-  const handleUpdateQuestion = async (updated: Question): Promise<boolean> => {
-    const result = await runShared([updated], 'save');
+  const handleUpdateQuestion = async (updated: Question, fields?: readonly string[]): Promise<boolean> => {
+    const result = await runShared([updated], 'save', undefined, fields);
     if (!result) return false;
     const confirmed = result[0];
     setAuditLogs(logs => [{ id: crypto.randomUUID(), questao_id: confirmed.id,
@@ -309,7 +315,7 @@ export default function App() {
     if (!q) return;
     if (await runShared([q], 'assign', curator)) {
       setActiveView('table');
-      showToast('Reserva atualizada', curator ? `Responsável: ${curator.nome}` : 'Questão liberada', 'success');
+      showToast('Responsável atualizado', curator ? `Responsável: ${curator.nome}` : 'Questão sem responsável', 'success');
     }
   };
 

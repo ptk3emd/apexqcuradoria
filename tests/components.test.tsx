@@ -262,3 +262,48 @@ test('unauthenticated app exposes only login controls, without background audit 
    }
  }
 });
+
+import {QuestionDetailView} from '../src/components/QuestionDetailView';
+import {presencesFromLeases} from '../src/lib/supabaseCuration';
+
+test('presence lists every curator on a question and still reads the single-lease format',()=>{
+ const until=Date.now()+60000;
+ const list=presencesFromLeases([{question_id:'1',actor:'patrick',name:'Patrick',session:'s1',until},{question_id:'1',actor:'lucas',name:'Lucas',session:'s2',until}]);
+ assert.deepEqual(Object.values(list).map(p=>[p.questao_atual_id,p.curador_id]).sort(),[['1','lucas'],['1','patrick']]);
+ const legacy=presencesFromLeases({'7':{actor:'thierry',name:'Thierry',session:'s3',until}});
+ assert.deepEqual(Object.values(legacy).map(p=>[p.questao_atual_id,p.curador_id]),[['7','thierry']]);
+ assert.deepEqual(presencesFromLeases(undefined),{});
+});
+
+test('editing with someone else on the question: remote saves arrive live and only changed fields are saved',async()=>{
+ // QuestionDetailView binds arrow-key navigation on window.
+ const g=globalThis as any;const hadWindow='window' in g;
+ if(!hadWindow) g.window={addEventListener(){},removeEventListener(){}};
+ const base={id:'1',sync_source_id:'1',sync_version:1,status:'pendente',enunciado:'Original',comentario:'C0',a:'A0',correta:'A'} as Question;
+ const lucas=DEFAULT_CURATORS.find(c=>c.id==='lucas')!;
+ const presences={'s2:1':{curador_id:'lucas',curador_nome:lucas.nome,curador_cor:'#3b82f6',questao_atual_id:'1',status_atividade:'visualizando',ultima_atividade:new Date().toISOString()}} as any;
+ const saves:{q:Question;fields?:readonly string[]}[]=[];
+ const view=(question:Question)=> <QuestionDetailView question={question} busy={false} allQuestions={[question]} activeCurator={actor} presences={presences} comments={[]}
+  onBackToList={()=>{}} onNavigateQuestion={()=>{}} onUpdateQuestion={async(q,fields)=>{saves.push({q,fields});return true;}} onUpdateStatus={async()=>true}
+  onAssignQuestion={()=>{}} onAddComment={async()=>true} onShowToast={()=>{}}/>;
+ let renderer:any;
+ await act(async()=>{renderer=create(view(base));});
+ const text=(node:any):string=>typeof node==='string'?node:(node.children||[]).map(text).join('');
+ assert.match(text(renderer.toJSON()),/Edição compartilhada/);
+ const edit=renderer.root.findAll((n:any)=>n.type==='button'&&/Editar questão/.test(text(n)))[0];
+ await act(async()=>edit.props.onClick());
+ await act(async()=>renderer.root.findByProps({'aria-label':'Enunciado'}).props.onChange({target:{value:'Meu enunciado'}}));
+ // Another curator saves the enunciado and the comentário.
+ await act(async()=>renderer.update(view({...base,sync_version:2,enunciado:'Enunciado remoto',comentario:'Comentário remoto'})));
+ assert.equal(renderer.root.findByProps({'aria-label':'Enunciado'}).props.value,'Meu enunciado');
+ assert.match(text(renderer.toJSON()),/Outra pessoa também alterou este campo/);
+ assert.match(text(renderer.toJSON()),/também está nesta questão/);
+ await act(async()=>renderer.root.findAllByProps({role:'tab'})[1].props.onClick());
+ assert.equal(renderer.root.findByProps({'aria-label':'Comentário geral'}).props.value,'Comentário remoto');
+ await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));
+ assert.equal(saves.length,1);
+ assert.deepEqual(saves[0].fields,['enunciado']);
+ assert.equal(saves[0].q.enunciado,'Meu enunciado');
+ await act(async()=>renderer.unmount());
+ if(!hadWindow) delete g.window;
+});

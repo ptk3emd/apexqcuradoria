@@ -84,19 +84,40 @@ export async function fetchSupabaseShared() {
     }
     cursor=result.cursor;
   } while(result.more);
+  return {rows:[...changes.values()],presences:presencesFromLeases(result.leases)};
+}
+type Lease = {question_id?:string; actor:string; name:string; session:string; until:number};
+// Several curators (and tabs) may be on the same question. The server sends a
+// list; before migration 20261012190000 it sent one lease per question, keyed
+// by question id, which is still read so either order of deploy works.
+export function presencesFromLeases(leases:unknown):Record<string,CuratorPresence> {
+  const list:[string,Lease][]=Array.isArray(leases)
+    ? (leases as Lease[]).map(lease=>[String(lease.question_id),lease])
+    : Object.entries((leases ?? {}) as Record<string,Lease>);
   const presences:Record<string,CuratorPresence>={};
-  for(const [id,lease] of Object.entries(result.leases) as [string,any][]) {
-    presences[lease.session]={curador_id:lease.actor,curador_nome:lease.name,
+  for(const [id,lease] of list) {
+    presences[`${lease.session}:${id}`]={curador_id:lease.actor,curador_nome:lease.name,
       curador_cor:DEFAULT_CURATORS.find(c=>c.id===lease.actor)?.avatarCor || '#888',
       questao_atual_id:id,status_atividade:'visualizando',ultima_atividade:new Date(lease.until-90000).toISOString()};
   }
-  return {rows:[...changes.values()],presences};
+  return presences;
 }
-export async function mutateSupabase(questions:Question[],action:string,target?:Curator|null):Promise<Question[]> {
+// Builds the save/status patch. With `fields`, only those content fields go
+// (plus the curation metadata), so a save never overwrites what another
+// curator changed in a field this one did not touch.
+function patchFor(q:Question, fields?:readonly string[]):Record<string,unknown> {
+  const full:Record<string,unknown>={...q,created_at:q.created_at === '' ? null : q.created_at,difficulty_bucket:normalizeDifficulty(q.difficulty_bucket)};
+  if(!fields) return full;
+  const patch:Record<string,unknown>={status:q.status};
+  if(q.notas_revisao!==undefined) patch.notas_revisao=q.notas_revisao;
+  for(const field of fields) if(field in full) patch[field]=full[field];
+  return patch;
+}
+export async function mutateSupabase(questions:Question[],action:string,target?:Curator|null,fields?:readonly string[]):Promise<Question[]> {
   const result=await rpc('curation_mutate',{
     p_action:action,p_session:tabSession,p_request:crypto.randomUUID(),
     p_items:questions.map(q=>({id:q.sync_source_id || q.id,version:q.sync_version??0,target:target?.id||null,
-      patch:['save','status'].includes(action)?{...q,created_at:q.created_at === '' ? null : q.created_at,difficulty_bucket:normalizeDifficulty(q.difficulty_bucket)}:undefined,
+      patch:['save','status'].includes(action)?patchFor(q,action==='save'?fields:undefined):undefined,
       comment:action==='comment'?q.shared_comments?.at(-1)?.texto:undefined})),
   });
   return result.questions;
