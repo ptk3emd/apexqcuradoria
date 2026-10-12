@@ -4,6 +4,7 @@ import type {Question} from '../types/question';
 import {normalizeDifficulty} from '../lib/difficulty';
 import {REFERENCIAS_MAX_LENGTH} from '../lib/correctedQuestionsSql';
 import {LinkifiedText} from './LinkifiedText';
+import {AiVerificationControl} from './AiVerificationControl';
 
 const fieldClass='mt-2 w-full rounded-xl border border-white/15 bg-shell-2 px-4 py-3 text-base leading-7 text-white outline-none focus:border-brand-muted focus:ring-2 focus:ring-brand-muted/20';
 export function QuestionEditor({question,busy,onChange,onSave,onCancel}:{question:Question;busy:boolean;onChange:(q:Question)=>void;onSave:()=>Promise<void>;onCancel:()=>void}) {
@@ -48,6 +49,7 @@ export function QuestionEditor({question,busy,onChange,onSave,onCancel}:{questio
    {section==='resolucao'&&<section id="editor-resolucao" role="tabpanel" className="space-y-6">{text('comentario','Comentário geral',6)}
     <div>{text('referencias','Referências',4)}<p className="mt-1 flex justify-between gap-3 text-xs text-apex-readable"><span>Aparecem junto ao comentário geral. Endereços http(s) viram links.</span><span>{[...question.referencias??''].length}/{REFERENCIAS_MAX_LENGTH}</span></p>
      {question.referencias?.trim()&&<div className="mt-3 rounded-xl bg-white/5 p-4 text-sm text-apex-readable"><p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-muted">Prévia</p><LinkifiedText text={question.referencias}/></div>}</div>
+    <AiVerificationControl comentario={question.comentario} onChange={c=>onChange({...question,comentario:c})}/>
     {['a','b','c','d','e'].map(key=>text(`justificativa_${key}` as keyof Question,`Justificativa da alternativa ${key.toUpperCase()}`,4))}</section>}
    {section==='classificacao'&&<section id="editor-classificacao" role="tabpanel" className="space-y-6">
     <div className="grid gap-5 sm:grid-cols-2">{[['id','ID da questão'],['categoria','Categoria'],['especialidade','Especialidade'],['tema_especifico','Tema específico'],['ano','Ano'],['origem','Origem']].map(([key,label])=><label key={key} className="text-sm font-bold text-apex-readable">{label}<input aria-label={label} value={String(question[key as keyof Question]??'')} onChange={e=>set(key as keyof Question,e.target.value)} className={fieldClass}/></label>)}

@@ -135,6 +135,23 @@ test('marking a question as annulled clears and locks the answer key; unmarking 
 });
 
 
+test('AI verification buttons write one managed sentence to the general comment on the Resolução tab',async()=>{
+ let renderer:any;let latest:Question={...rows[0],comentario:'Comentário original.',sync_source_id:'1'};
+ const render=()=> <QuestionEditor question={latest} busy={false} onChange={q=>{latest=q;renderer.update(render());}} onSave={async()=>{}} onCancel={()=>{}}/>;
+ await act(async()=>{renderer=create(render());});
+ await act(async()=>renderer.root.findAllByProps({role:'tab'})[1].props.onClick());
+ const toggle=(label:string)=>act(async()=>renderer.root.findByProps({'aria-label':label,role:'checkbox'}).props.onClick());
+ await toggle('ChatGPT');
+ await toggle('Claude');
+ assert.equal(latest.comentario,'Comentário original.\n\nQuestão verificada por IA: ChatGPT e Claude.');
+ assert.equal(renderer.root.findByProps({'aria-label':'Claude',role:'checkbox'}).props['aria-checked'],true);
+ assert.equal(renderer.root.findByProps({'aria-label':'Gemini',role:'checkbox'}).props['aria-checked'],false);
+ await toggle('ChatGPT');
+ await toggle('Claude');
+ assert.equal(latest.comentario,'Comentário original.');
+ await act(async()=>renderer.unmount());
+});
+
 test('Supabase first page is delivered before remaining pages and idle sync does not replay changes', async () => {
   const {loadSupabaseBase, fetchSupabaseShared}=await import('../src/lib/supabaseCuration');
   const originalFetch=globalThis.fetch;
