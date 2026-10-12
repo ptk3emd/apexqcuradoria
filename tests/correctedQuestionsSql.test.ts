@@ -92,3 +92,25 @@ test('generated SQL executes against the schema, preserves text and rolls back m
     assert.equal((await db.query<any>('SELECT enunciado FROM public.questions WHERE id=1')).rows[0].enunciado,text);
   } finally {await db.close();}
 });
+
+test('annulled questions export without an answer key; references are exported and validated',async()=>{
+  const {PGlite}=await import('@electric-sql/pglite');
+  const {getSupabaseInitialSchemaSql}=await import('../src/lib/sqlGenerator');
+  const annulled=generateCorrectedQuestionsSql([q('1',{anulada:true,correta:'B',referencias:'Diretriz: https://example.org/d.pdf'})]);
+  assert.equal(annulled.errors.length,0);
+  assert.match(annulled.sql,/anulada = TRUE/);assert.match(annulled.sql,/correta = NULL/);
+  assert.match(generateCorrectedQuestionsSql([q('1',{anulada:'false' as any,correta:'C'})]).sql,/anulada = FALSE[\s\S]*correta = E'C'/);
+  assert.doesNotMatch(generateCorrectedQuestionsSql([q('1')]).sql,/anulada/);
+  assert.match(generateCorrectedQuestionsSql([q('1',{referencias:'   '})]).sql,/referencias = NULL/);
+  assert.equal(generateCorrectedQuestionsSql([q('1',{referencias:'x'.repeat(5001)})]).sql,'');
+  const db=new PGlite();
+  try {
+    await db.exec(`CREATE FUNCTION normalize_competencies(value text) RETURNS text[] LANGUAGE sql IMMUTABLE AS $$ SELECT string_to_array(lower(value),';') $$;`);
+    await db.exec(getSupabaseInitialSchemaSql());
+    await db.exec("INSERT INTO public.questions(id,enunciado,correta) VALUES(1,'Original','A');");
+    await db.exec(annulled.sql);
+    const row=(await db.query<any>('SELECT anulada,correta,referencias FROM public.questions WHERE id=1')).rows[0];
+    assert.equal(row.anulada,true);assert.equal(row.correta,null);assert.equal(row.referencias,'Diretriz: https://example.org/d.pdf');
+    await assert.rejects(db.exec("UPDATE public.questions SET correta='A' WHERE id=1"),/questions_anulada_sem_gabarito_check/);
+  } finally {await db.close();}
+});

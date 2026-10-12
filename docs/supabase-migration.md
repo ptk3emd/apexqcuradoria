@@ -47,3 +47,9 @@ Após a migration de senha mestra, as RPCs passam a validar um token aleatório 
 As funções de dados têm EXECUTE para anon, mas recusam sessões ausentes, falsas, expiradas ou revogadas. RLS bloqueia SELECT sem sessão válida; UPDATE/INSERT/DELETE diretos continuam proibidos. O login limita tentativas inválidas e verifica a senha com bcrypt. As tabelas privadas não são acessíveis pelo navegador. O Realtime publica apenas um aviso genérico de atualização, sem IDs, conteúdo, comentários ou credenciais; os dados continuam sendo lidos por RPC protegida. Referência: https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable
 
 Validação no projeto: os três perfis acessam os dados com a senha correta; senha inválida e sessão ausente são recusadas; logout invalida o token. Nenhuma conta Auth foi criada. As questões importadas pelo usuário permanecem intactas. Ativação do frontend depende de integrar o PR e fazer novo deploy.
+
+## Questão anulada e referências (`20261012120000_questions_anulada_referencias`)
+
+`public.questions` ganha `anulada` (boolean, padrão `false`) e `referencias` (texto, 1–5000 caracteres), as mesmas colunas do banco do Apex Medicina. Questão anulada não tem gabarito oficial: um CHECK exige `correta` NULL enquanto `anulada` for verdadeiro, e `curation_mutate` apaga o gabarito ao salvar uma questão marcada como anulada. Escolher uma alternativa no painel da questão desfaz a anulação. Referências em branco viram NULL. O editor mostra "Questão anulada pela banca" acima das alternativas e o campo "Referências" na aba Resolução, com prévia dos links. O SQL exportado inclui `anulada` (com `correta = NULL` quando anulada) e `referencias`.
+
+`curation_mutate` é recriada com as duas colunas na lista de campos editáveis (`anulada` precisa ser booleano JSON). Antes da migration, o site continua funcionando: o servidor ignora campos que não estão na lista.

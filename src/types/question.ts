@@ -36,6 +36,10 @@ export interface Question {
   difficulty_bucket?: string | null;
   descritores?: string;
   imagem?: string | null;
+  // Annulled by the exam board: no official answer key (`correta` is NULL).
+  anulada?: boolean;
+  // Free-text references; http(s) addresses render as links.
+  referencias?: string | null;
 
   // Curation metadata
   status: QuestionStatus;

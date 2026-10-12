@@ -2,6 +2,8 @@ import React,{useState} from 'react';
 import {Save,ArrowLeft,CheckCircle2} from 'lucide-react';
 import type {Question} from '../types/question';
 import {normalizeDifficulty} from '../lib/difficulty';
+import {REFERENCIAS_MAX_LENGTH} from '../lib/correctedQuestionsSql';
+import {LinkifiedText} from './LinkifiedText';
 
 const fieldClass='mt-2 w-full rounded-xl border border-white/15 bg-shell-2 px-4 py-3 text-base leading-7 text-white outline-none focus:border-brand-muted focus:ring-2 focus:ring-brand-muted/20';
 export function QuestionEditor({question,busy,onChange,onSave,onCancel}:{question:Question;busy:boolean;onChange:(q:Question)=>void;onSave:()=>Promise<void>;onCancel:()=>void}) {
@@ -15,7 +17,8 @@ export function QuestionEditor({question,busy,onChange,onSave,onCancel}:{questio
   e.preventDefault(); if(busy)return;
   if(!/^[0-9]+$/.test(question.id) || BigInt(question.id)>9223372036854775807n) {setSection('classificacao');setError('Informe um ID numérico válido.');return;}
   if(!question.enunciado?.trim()) {setSection('questao');setError('Preencha o enunciado.');return;}
-  if(!/^[A-E]$/i.test(question.correta??'')) {setSection('questao');setError('Selecione a alternativa correta.');return;}
+  if(!question.anulada && !/^[A-E]$/i.test(question.correta??'')) {setSection('questao');setError('Selecione a alternativa correta ou marque a questão como anulada.');return;}
+  if([...question.referencias??''].length>REFERENCIAS_MAX_LENGTH){setSection('resolucao');setError(`As referências devem ter até ${REFERENCIAS_MAX_LENGTH} caracteres.`);return;}
   if([...question.descritores??''].length>500){setSection('classificacao');setError('Os descritores devem ter até 500 caracteres.');return;}
   try {normalizeDifficulty(question.difficulty_bucket);} catch (error) {setSection('classificacao');setError((error as Error).message);return;}
   setError('');await onSave();
@@ -32,13 +35,20 @@ export function QuestionEditor({question,busy,onChange,onSave,onCancel}:{questio
    {error&&<p role="alert" className="rounded-xl bg-rose-500/10 p-4 text-rose-200">{error}</p>}
    {section==='questao'&&<section id="editor-questao" role="tabpanel" className="space-y-6">
     {text('enunciado','Enunciado',7)}
-    <div><h2 className="text-xl font-bold">Alternativas</h2><p className="mt-1 text-sm text-apex-readable">Marque o gabarito e edite cada alternativa abaixo.</p></div>
-    {['a','b','c','d','e'].map(key=>{const selected=question.correta?.toUpperCase()===key.toUpperCase();return <div key={key} className={`rounded-2xl border p-4 sm:p-5 ${selected?'border-emerald-500/50 bg-emerald-500/5':'border-white/10 bg-white/[0.02]'}`}>
-     <label className="flex items-center gap-3 text-sm font-bold"><input type="radio" name="correta" value={key.toUpperCase()} checked={selected} onChange={()=>set('correta',key.toUpperCase())} className="h-5 w-5 accent-emerald-500"/>{key.toUpperCase()} {selected&&<span className="flex items-center gap-1 text-emerald-300"><CheckCircle2 size={16}/>Gabarito</span>}</label>
+    <div><h2 className="text-xl font-bold">Alternativas</h2><p className="mt-1 text-sm text-apex-readable">{question.anulada?'Questão anulada: não há gabarito oficial.':'Marque o gabarito e edite cada alternativa abaixo.'}</p></div>
+    <label className={`flex items-start gap-3 rounded-2xl border p-4 text-sm ${question.anulada?'border-amber-400/50 bg-amber-500/10':'border-white/10 bg-white/[0.02]'}`}>
+     <input type="checkbox" checked={!!question.anulada} onChange={e=>onChange({...question,anulada:e.target.checked,correta:e.target.checked?'':question.correta})} className="mt-0.5 h-5 w-5 accent-amber-500"/>
+     <span><span className="block font-bold text-white">Questão anulada pela banca</span><span className="block text-apex-readable">Sem gabarito oficial. Ao salvar, o gabarito é apagado; desmarque e escolha uma alternativa para restaurar.</span></span>
+    </label>
+    {['a','b','c','d','e'].map(key=>{const selected=!question.anulada&&question.correta?.toUpperCase()===key.toUpperCase();return <div key={key} className={`rounded-2xl border p-4 sm:p-5 ${selected?'border-emerald-500/50 bg-emerald-500/5':'border-white/10 bg-white/[0.02]'}`}>
+     <label className="flex items-center gap-3 text-sm font-bold"><input type="radio" name="correta" value={key.toUpperCase()} checked={selected} disabled={!!question.anulada} onChange={()=>set('correta',key.toUpperCase())} className="h-5 w-5 accent-emerald-500 disabled:opacity-40"/>{key.toUpperCase()} {selected&&<span className="flex items-center gap-1 text-emerald-300"><CheckCircle2 size={16}/>Gabarito</span>}</label>
      <textarea aria-label={`Alternativa ${key.toUpperCase()}`} rows={3} value={String(question[key as keyof Question]??'')} onChange={e=>set(key as keyof Question,e.target.value)} className={fieldClass}/>
     </div>;})}
    </section>}
-   {section==='resolucao'&&<section id="editor-resolucao" role="tabpanel" className="space-y-6">{text('comentario','Comentário geral',6)}{['a','b','c','d','e'].map(key=>text(`justificativa_${key}` as keyof Question,`Justificativa da alternativa ${key.toUpperCase()}`,4))}</section>}
+   {section==='resolucao'&&<section id="editor-resolucao" role="tabpanel" className="space-y-6">{text('comentario','Comentário geral',6)}
+    <div>{text('referencias','Referências',4)}<p className="mt-1 flex justify-between gap-3 text-xs text-apex-readable"><span>Aparecem junto ao comentário geral. Endereços http(s) viram links.</span><span>{[...question.referencias??''].length}/{REFERENCIAS_MAX_LENGTH}</span></p>
+     {question.referencias?.trim()&&<div className="mt-3 rounded-xl bg-white/5 p-4 text-sm text-apex-readable"><p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-muted">Prévia</p><LinkifiedText text={question.referencias}/></div>}</div>
+    {['a','b','c','d','e'].map(key=>text(`justificativa_${key}` as keyof Question,`Justificativa da alternativa ${key.toUpperCase()}`,4))}</section>}
    {section==='classificacao'&&<section id="editor-classificacao" role="tabpanel" className="space-y-6">
     <div className="grid gap-5 sm:grid-cols-2">{[['id','ID da questão'],['categoria','Categoria'],['especialidade','Especialidade'],['tema_especifico','Tema específico'],['ano','Ano'],['origem','Origem']].map(([key,label])=><label key={key} className="text-sm font-bold text-apex-readable">{label}<input aria-label={label} value={String(question[key as keyof Question]??'')} onChange={e=>set(key as keyof Question,e.target.value)} className={fieldClass}/></label>)}
      <label className="text-sm font-bold text-apex-readable">Dificuldade<select aria-label="Dificuldade" value={difficultyValue} onChange={e=>onChange({...question,difficulty_bucket:normalizeDifficulty(e.target.value)})} className={fieldClass}><option value="">Não definida</option><option value="easy">easy — Fácil</option><option value="medium">medium — Média</option><option value="hard">hard — Difícil</option>{difficultyValue && !['easy','medium','hard'].includes(difficultyValue) && <option value={difficultyValue} disabled>Valor inválido — selecione a dificuldade</option>}</select></label>
