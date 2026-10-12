@@ -12,7 +12,6 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Question, QuestionStatus, Curator, CuratorPresence, QuestionComment } from '../types/question';
-import { canSelectQuestion } from '../lib/bulkActions';
 import { StatusBadge } from './StatusBadge';
 import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboardHelper';
 import { AdvancedFilters, AdvancedFilterState, GRANDES_AREAS_MAP } from './AdvancedFilters';
@@ -68,12 +67,12 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   useEffect(() => { setSelectedIds(new Set()); }, [filterState, activeCurator.id]);
   useEffect(() => {
-    const eligible = new Set(questions.filter(q => canSelectQuestion(q, activeCurator)).map(q => q.id));
+    const eligible = new Set(questions.map(q => q.id));
     setSelectedIds(previous => {
       const next = new Set([...previous].filter(id => eligible.has(id)));
       return next.size === previous.size ? previous : next;
     });
-  }, [questions, activeCurator.id]);
+  }, [questions]);
   const toggleSelection = (id: string) => {
     if (!selectedIds.has(id) && selectedIds.size >= 100) {
       onShowToast('Limite de seleção', 'Selecione até 100 questões por operação.', 'info');
@@ -170,7 +169,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   }, [questions, filterState, sortBy, sortOrder, activeCurator.id]);
 
   const pageQuestions = filteredQuestions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const selectablePage = pageQuestions.filter(q => canSelectQuestion(q, activeCurator));
+  const selectablePage = pageQuestions;
   const allPageSelected = selectablePage.length > 0 && selectablePage.every(q => selectedIds.has(q.id));
   const togglePageSelection = () => {
     const next = new Set(selectedIds);
@@ -312,7 +311,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                         <td className="order-1 p-0 md:order-none" onClick={e => e.stopPropagation()}>
                           <label className="flex items-center justify-center min-w-11 min-h-11 px-3 cursor-pointer">
                             <input type="checkbox" aria-label={`Selecionar questão ${q.id}`} checked={selectedIds.has(q.id)}
-                              disabled={busy || !canSelectQuestion(q, activeCurator)} onChange={() => toggleSelection(q.id)} />
+                              disabled={busy} onChange={() => toggleSelection(q.id)} />
                           </label>
                         </td>
                         {/* ID with active viewer beacon */}
@@ -425,7 +424,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                             {/* Quick Status Select */}
                             <select
                               aria-label={`Status da questão ${q.id}`}
-                              disabled={busy || !canSelectQuestion(q, activeCurator)}
+                              disabled={busy}
                               value={q.status}
                               onClick={(e) => e.stopPropagation()}
                               onChange={async (e) => {

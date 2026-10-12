@@ -172,7 +172,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           <button
             onClick={onOpenBatchAssignModal}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-apex-text bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] transition-all"
-            title="Reservar lote de questões para evitar sobreposição"
+            title="Atribuir um lote de questões a você (não impede que outros curadores editem)"
           >
             <Layers className="w-3.5 h-3.5 text-brand-muted" />
             <span className="hidden md:inline">Reservar Lote</span>
