@@ -266,6 +266,26 @@ test('unauthenticated app exposes only login controls, without background audit 
 import {QuestionDetailView} from '../src/components/QuestionDetailView';
 import {presencesFromLeases} from '../src/lib/supabaseCuration';
 
+test('AI verification accepts a typed AI, refuses a name that would break the sentence, and lists typed names as removable',async()=>{
+ let renderer:any;let latest:Question={...rows[0],comentario:'Comentário original.',sync_source_id:'1'};
+ const render=()=> <QuestionEditor question={latest} busy={false} onChange={q=>{latest=q;renderer.update(render());}} onSave={async()=>{}} onCancel={()=>{}}/>;
+ await act(async()=>{renderer=create(render());});
+ await act(async()=>renderer.root.findAllByProps({role:'tab'})[1].props.onClick());
+ const field=()=>renderer.root.findByProps({'aria-label':'Outra IA'});
+ const addButton=()=>renderer.root.findAll((n:any)=>n.type==='button'&&n.props.children==='Adicionar IA')[0];
+ await act(async()=>field().props.onChange({target:{value:'Ana, Bia'}}));
+ await act(async()=>addButton().props.onClick());
+ assert.equal(latest.comentario,'Comentário original.');
+ assert.match(JSON.stringify(renderer.toJSON()),/vírgula/);
+ await act(async()=>field().props.onChange({target:{value:'Perplexity'}}));
+ await act(async()=>addButton().props.onClick());
+ assert.equal(latest.comentario,'Comentário original.\n\nQuestão verificada por IA: Perplexity.');
+ assert.equal(renderer.root.findByProps({'aria-label':'Perplexity',role:'checkbox'}).props['aria-checked'],true);
+ await act(async()=>renderer.root.findByProps({'aria-label':'Perplexity',role:'checkbox'}).props.onClick());
+ assert.equal(latest.comentario,'Comentário original.');
+ await act(async()=>renderer.unmount());
+});
+
 test('presence lists every curator on a question and still reads the single-lease format',()=>{
  const until=Date.now()+60000;
  const list=presencesFromLeases([{question_id:'1',actor:'patrick',name:'Patrick',session:'s1',until},{question_id:'1',actor:'lucas',name:'Lucas',session:'s2',until}]);
