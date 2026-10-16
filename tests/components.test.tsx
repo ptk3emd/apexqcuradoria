@@ -380,3 +380,40 @@ test('cancelling an edit with unsaved changes asks before discarding them',async
  await act(async()=>renderer.unmount());
  if(!hadWindow) delete g.window;
 });
+
+test('filters show status and responsável as removable chips and remove them back to "todas"/"todos"',async()=>{
+ const {AdvancedFilters} = await import('../src/components/AdvancedFilters');
+ const state={status:'aprovadas',responsavel:'lucas',categorias:[],origens:[],anos:[],especialidades:[],competencias:[],temas_especificos:[],searchQueries:[]} as any;
+ const changes:any[]=[];
+ const text=(node:any):string=>typeof node==='string'?node:(node?.children||[]).map(text).join('');
+ let renderer:any;
+ await act(async()=>{renderer=create(<AdvancedFilters questions={rows} activeCurator={actor} filterState={state} onChangeFilterState={s=>changes.push(s)} totalFilteredCount={3}/>);});
+ assert.match(text(renderer.toJSON()),/Status: Aprovada/);
+ assert.match(text(renderer.toJSON()),/Responsável: Lucas/);
+ await act(async()=>renderer.root.findByProps({'aria-label':'Remover filtro Status: Aprovada'}).props.onClick());
+ assert.equal(changes.at(-1).status,'todas');
+ assert.equal(changes.at(-1).responsavel,'lucas');
+ await act(async()=>renderer.root.findByProps({'aria-label':'Remover filtro Responsável: Lucas'}).props.onClick());
+ assert.equal(changes.at(-1).responsavel,'todos');
+ await act(async()=>renderer.unmount());
+});
+
+test('detail view has a decision bar for phones that approves and asks before eliminating',async()=>{
+ const g=globalThis as any;const hadWindow='window' in g;
+ if(!hadWindow) g.window={addEventListener(){},removeEventListener(){}};
+ const base={id:'7',sync_source_id:'7',sync_version:1,status:'pendente',enunciado:'Enunciado',comentario:'',a:'A0',b:'B0',correta:'A'} as Question;
+ const statuses:string[]=[];
+ const text=(node:any):string=>typeof node==='string'?node:(node?.children||[]).map(text).join('');
+ let renderer:any;
+ await act(async()=>{renderer=create(<QuestionDetailView question={base} busy={false} allQuestions={[base]} activeCurator={actor} presences={{}} comments={[]}
+  onBackToList={()=>{}} onNavigateQuestion={()=>{}} onUpdateQuestion={async()=>true} onUpdateStatus={async(_id,status)=>{statuses.push(status);return true;}}
+  onAssignQuestion={()=>{}} onAddComment={async()=>true} onShowToast={()=>{}}/>);});
+ const bar=renderer.root.findByProps({role:'group','aria-label':'Decisão sobre a questão'});
+ await act(async()=>bar.findAll((n:any)=>n.type==='button'&&text(n).includes('Aprovar'))[0].props.onClick());
+ assert.deepEqual(statuses,['aprovadas']);
+ await act(async()=>bar.findAll((n:any)=>n.type==='button'&&text(n).includes('Eliminar'))[0].props.onClick());
+ assert.equal(statuses.length,1);
+ assert.match(JSON.stringify(renderer.toJSON()),/Eliminar a questão #7/);
+ await act(async()=>renderer.unmount());
+ if(!hadWindow) delete g.window;
+});

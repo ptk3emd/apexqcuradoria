@@ -254,7 +254,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
 
 
   return (
-    <fieldset disabled={busy} aria-busy={busy} className="w-full min-w-0 space-y-5 animate-in fade-in duration-200">
+    <fieldset disabled={busy} aria-busy={busy} className="w-full min-w-0 space-y-5 pb-28 animate-in fade-in duration-200 lg:pb-0">
       {/* Top Navigation & Status Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-shell-2 p-4 rounded-2xl border border-white/[0.08] shadow-lg">
         {/* Left: Back button & Counter */}
@@ -881,6 +881,27 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           </div>
         </div>
       )}
+      {/* Below the desktop breakpoint the decision actions stay in reach while the question is read. */}
+      <div role="group" aria-label="Decisão sobre a questão" className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.1] bg-shell-2/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 backdrop-blur lg:hidden">
+        <div className="mx-auto grid max-w-xl grid-cols-4 gap-2">
+          <button type="button" onClick={async () => { if (!await onUpdateStatus(question.id, 'aprovadas')) return; onShowToast('Questão Aprovada!', 'Validada e pronta para publicação.', 'success'); }}
+            className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl border text-xs font-bold ${question.status === 'aprovadas' ? 'border-emerald-500 bg-emerald-600/30 text-white' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />Aprovar
+          </button>
+          <button type="button" onClick={() => setShowRevisionModal(true)}
+            className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl border text-xs font-bold ${question.status === 'revisar_questao' ? 'border-amber-400 bg-amber-500/25 text-white' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />Revisar
+          </button>
+          <button type="button" onClick={() => setConfirmingElimination(true)}
+            className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl border text-xs font-bold ${question.status === 'eliminar_questao' ? 'border-rose-500 bg-rose-600 text-white' : 'border-rose-600/30 bg-rose-950/30 text-rose-200'}`}>
+            <Trash2 className="h-4 w-4" aria-hidden="true" />Eliminar
+          </button>
+          <button type="button" onClick={() => onAssignQuestion(question.id, isAssignedToMe ? null : activeCurator)}
+            className="flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl border border-white/15 bg-white/[0.05] text-xs font-bold text-apex-text">
+            <UserCheck className="h-4 w-4 text-brand-muted" aria-hidden="true" />{isAssignedToMe ? 'Liberar' : 'Assumir'}
+          </button>
+        </div>
+      </div>
       {confirmations}
     </fieldset>
   );

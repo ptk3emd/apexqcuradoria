@@ -75,7 +75,7 @@ export function QuestionEditor({question,busy,onChange,onSave,onCancel,conflicts
     {text('competencias','Competências',3)}{text('descritores','Descritores',4)}<p className="text-right text-xs text-apex-readable">{[...question.descritores??''].length}/500 caracteres</p>
    </section>}
    <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/15 bg-shell-2/95 px-4 py-4 backdrop-blur">
-    <div className="mx-auto flex max-w-5xl items-center justify-between gap-4"><span role="status" className="text-sm text-apex-readable">{busy?'Salvando alterações…':'As alterações serão salvas ao confirmar.'}</span><button type="submit" disabled={busy} className="flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-bold text-white disabled:opacity-50"><Save size={18}/>{busy?'Salvando…':'Salvar alterações'}</button></div>
+    <div className="mx-auto flex max-w-5xl items-center justify-between gap-4"><span role="status" className="text-sm text-apex-readable">{busy?'Salvando alterações…':'Salvar alterações grava no banco para os três curadores.'}</span><button type="submit" disabled={busy} className="flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-bold text-white disabled:opacity-50"><Save size={18}/>{busy?'Salvando…':'Salvar alterações'}</button></div>
    </footer>
   </fieldset>
  </form>;

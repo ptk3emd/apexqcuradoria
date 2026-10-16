@@ -32,6 +32,8 @@ interface QuestionsTableProps {
   onClearSearch?: () => void;
 }
 
+const STATUS_WORKFLOW = ['pendente', 'revisar_questao', 'questao_corrigida', 'aprovadas', 'eliminar_questao'];
+
 const INITIAL_FILTER_STATE: AdvancedFilterState = {
   status: 'todas',
   responsavel: 'todos',
@@ -165,7 +167,9 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         } else if (sortBy === 'especialidade') {
           comp = (a.especialidade || '').localeCompare(b.especialidade || '');
         } else if (sortBy === 'status') {
-          comp = a.status.localeCompare(b.status);
+          // Workflow order, not alphabetical: what is still to do comes first.
+          const rank = (status: string) => STATUS_WORKFLOW.indexOf(status);
+          comp = rank(a.status) - rank(b.status);
         }
         return sortOrder === 'asc' ? comp : -comp;
       });
@@ -309,8 +313,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                     return (
                       <tr
                         key={q.id}
-                        onClick={() => { if (!busy) onSelectQuestion(q); }}
-                        className="group flex flex-wrap items-center gap-x-3 gap-y-2.5 px-4 py-3 md:table-row md:p-0 hover:bg-white/[0.03] transition-colors cursor-pointer"
+                        className="group flex flex-wrap items-center gap-x-3 gap-y-2.5 px-4 py-3 md:table-row md:p-0 hover:bg-white/[0.03] transition-colors"
                       >
                         <td className="order-1 p-0 md:order-none" onClick={e => e.stopPropagation()}>
                           <label className="flex items-center justify-center min-w-11 min-h-11 px-3 cursor-pointer">
@@ -368,9 +371,16 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
 
                         {/* Enunciado Preview */}
                         <td className="order-5 basis-full text-apex-readable md:order-none md:basis-auto md:py-3.5 md:px-4">
-                          <p className="line-clamp-2 leading-relaxed text-xs group-hover:text-white transition-colors">
+                          {/* The statement is the open control: keyboard and screen-reader users reach it, not the whole row. */}
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => onSelectQuestion(q)}
+                            aria-label={`Abrir questão ${q.id}: ${(q.enunciado || '').slice(0, 80)}`}
+                            className="block w-full text-left line-clamp-2 leading-relaxed text-xs group-hover:text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-muted rounded disabled:cursor-not-allowed"
+                          >
                             {q.enunciado}
-                          </p>
+                          </button>
                           {qComments.length > 0 && (
                             <div className="flex items-center gap-1 text-xs text-brand-muted mt-1 font-bold">
                               <MessageSquare className="w-3 h-3" />
@@ -456,11 +466,12 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                             <button
                               disabled={busy}
                               onClick={(e) => { e.stopPropagation(); onSelectQuestion(q); }}
-                              className="p-1.5 rounded-lg bg-brand/20 hover:bg-brand/40 text-brand-muted hover:text-white transition-all"
+                              className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-brand/20 px-2.5 py-1.5 text-brand-muted transition-all hover:bg-brand/40 hover:text-white md:min-h-0 md:p-1.5"
                               title="Abrir em tela cheia"
                               aria-label={`Abrir questão ${q.id} em tela cheia`}
                             >
-                              <ChevronRight className="w-3.5 h-3.5" />
+                              <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+                              <span className="text-xs font-bold md:hidden">Abrir</span>
                             </button>
                           </div>
                         </td>

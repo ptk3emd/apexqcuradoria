@@ -187,6 +187,22 @@ export const FilterSection = React.memo<FilterSectionProps>(({
   );
 });
 
+const STATUS_CHIP_LABELS: Record<string, string> = {
+  pendente: 'Pendente',
+  aprovadas: 'Aprovada',
+  eliminar_questao: 'Eliminar Questão',
+  revisar_questao: 'Revisar Questão',
+  questao_corrigida: 'Questão Corrigida',
+};
+
+const RESPONSAVEL_CHIP_LABELS: Record<string, string> = {
+  minhas: 'Atribuídas a mim',
+  sem_responsavel: 'Não atribuídas',
+  patrick: 'Patrick',
+  lucas: 'Lucas',
+  thierry: 'Thierry',
+};
+
 export interface AdvancedFilterState {
   status: string;
   responsavel: string;
@@ -376,16 +392,23 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
     });
     // Especialidades
     filterState.especialidades.forEach(v => {
-      list.push({ key: 'especialidades', value: v, label: `Esp: ${v}` });
+      list.push({ key: 'especialidades', value: v, label: `Especialidade: ${v}` });
     });
     // Competências
     filterState.competencias.forEach(v => {
-      list.push({ key: 'competencias', value: v, label: `Comp: ${v}` });
+      list.push({ key: 'competencias', value: v, label: `Competência: ${v}` });
     });
     // Temas
     filterState.temas_especificos.forEach(v => {
-      list.push({ key: 'temas_especificos', value: v, label: `Tema: ${v}` });
+      list.push({ key: 'temas_especificos', value: v, label: `Tema específico: ${v}` });
     });
+    // Status and responsável are single choices, but they narrow the list just as much
+    if (filterState.status !== 'todas') {
+      list.push({ key: 'status', value: filterState.status, label: `Status: ${STATUS_CHIP_LABELS[filterState.status] ?? filterState.status}` });
+    }
+    if (filterState.responsavel !== 'todos') {
+      list.push({ key: 'responsavel', value: filterState.responsavel, label: `Responsável: ${RESPONSAVEL_CHIP_LABELS[filterState.responsavel] ?? filterState.responsavel}` });
+    }
     // Search queries
     filterState.searchQueries.forEach(v => {
       list.push({ key: 'searchQueries', value: v, label: `Busca: "${v}"` });
@@ -394,9 +417,8 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
     return list;
   }, [filterState]);
 
-  const totalActiveFilterCount = appliedChips.length + 
-    (filterState.status !== 'todas' ? 1 : 0) + 
-    (filterState.responsavel !== 'todos' ? 1 : 0);
+  // Status and responsável are already among the chips.
+  const totalActiveFilterCount = appliedChips.length;
 
   // Status counts
   const statusCounts = useMemo(() => ({
@@ -551,9 +573,14 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                 <span>{chip.label}</span>
                 <button
                   type="button"
+                  aria-label={`Remover filtro ${chip.label}`}
                   onClick={() => {
                     if (chip.key === 'searchQueries') {
                       handleRemoveKeyword(chip.value);
+                    } else if (chip.key === 'status') {
+                      onChangeFilterState({ ...filterState, status: 'todas' });
+                    } else if (chip.key === 'responsavel') {
+                      onChangeFilterState({ ...filterState, responsavel: 'todos' });
                     } else {
                       toggleArrayFilter(chip.key, chip.value);
                     }
@@ -609,7 +636,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                 disabled={!keywordInput.trim()}
                 className="px-3 py-1.5 rounded-full text-xs font-bold bg-brand hover:bg-brand-hover disabled:opacity-40 text-white transition-all cursor-pointer shrink-0"
               >
-                + Tag
+                Adicionar palavra-chave
               </button>
             </form>
           </div>

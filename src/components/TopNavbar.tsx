@@ -78,7 +78,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   }, []);
 
   return (
-    <header className="static md:sticky md:top-0 z-40 w-full border-b border-white/[0.07] bg-shell/90 backdrop-blur-xl transition-all">
+    <header className="sticky top-0 z-40 w-full border-b border-white/[0.07] bg-shell/90 backdrop-blur-xl transition-all">
       <div className="max-w-[1600px] mx-auto px-4 lg:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
         {/* Brand Logo & Tagline */}
         <div className="order-1 md:order-none flex items-center gap-3">
@@ -150,7 +150,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             }`}
           >
             <CheckSquare className="w-3.5 h-3.5" />
-            <span>1 a 1</span>
+            <span>Revisar</span>
           </button>
 
           <button
@@ -173,9 +173,10 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             onClick={onOpenBatchAssignModal}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-apex-text bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] transition-all"
             title="Atribuir um lote de questões a você (não impede que outros curadores editem)"
+            aria-label="Atribuir lote de questões"
           >
             <Layers className="w-3.5 h-3.5 text-brand-muted" />
-            <span className="hidden md:inline">Reservar Lote</span>
+            <span>Atribuir lote</span>
           </button>
 
           {/* Progressive SQL Editor */}
@@ -270,7 +271,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                     className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold text-rose-300 bg-rose-950/40 hover:bg-rose-900/50 border border-rose-500/30 transition-all cursor-pointer"
                   >
                     <Lock className="w-3.5 h-3.5" />
-                    <span>Bloquear / Trocar de Usuário</span>
+                    <span>Bloquear sessão</span>
                   </button>
                 </div>
               </div>
