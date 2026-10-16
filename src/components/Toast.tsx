@@ -21,6 +21,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismis
       {toasts.map(t => (
         <div
           key={t.id}
+          role={t.type === 'error' ? 'alert' : 'status'}
           className="pointer-events-auto flex items-start gap-3 p-4 rounded-xl border shadow-2xl backdrop-blur-md transition-all duration-300 animate-in fade-in slide-in-from-bottom-3"
           style={{
             backgroundColor: 'rgba(30, 29, 27, 0.96)',
@@ -38,12 +39,14 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismis
 
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-apex-text leading-tight">{t.title}</p>
-            {t.message && <p className="text-xs text-apex-readable mt-1 leading-relaxed">{t.message}</p>}
+            {t.message && <p className="text-sm text-apex-readable mt-1 leading-relaxed">{t.message}</p>}
           </div>
 
           <button
+            type="button"
             onClick={() => onDismiss(t.id)}
-            className="text-shell-muted hover:text-apex-text p-1 rounded transition-colors"
+            aria-label={`Fechar aviso: ${t.title}`}
+            className="min-h-11 min-w-11 -m-2 inline-flex items-center justify-center rounded text-apex-readable hover:text-apex-text transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-muted"
           >
             <X className="w-4 h-4" />
           </button>

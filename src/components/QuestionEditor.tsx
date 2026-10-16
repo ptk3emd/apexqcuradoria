@@ -34,8 +34,17 @@ export function QuestionEditor({question,busy,onChange,onSave,onCancel,conflicts
     <div><p className="text-xs uppercase tracking-widest text-brand-muted">Curadoria • Questão #{question.id}</p><h1 className="mt-2 text-3xl font-bold">Editar questão</h1><p className="mt-2 text-sm text-apex-readable">Revise o conteúdo e salve para sincronizar com os outros curadores.</p></div>
     <button type="button" onClick={onCancel} className="flex items-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm"><ArrowLeft size={16}/> Cancelar edição</button>
    </header>
-   <div role="tablist" aria-label="Seções da edição" className="flex gap-2 overflow-x-auto border-b border-white/10 pb-3">
-    {[['questao','Enunciado e alternativas'],['resolucao','Resolução'],['classificacao','Classificação']].map(([key,label])=><button key={key} type="button" role="tab" aria-selected={section===key} aria-controls={`editor-${key}`} onClick={()=>setSection(key)} className={`whitespace-nowrap rounded-xl px-4 py-3 text-sm font-normal ${section===key?'bg-brand text-white':'bg-white/5 text-apex-readable hover:bg-white/10'}`}>{label}</button>)}
+   <div role="tablist" aria-label="Seções da edição" className="flex gap-2 overflow-x-auto border-b border-white/10 pb-3"
+    onKeyDown={e=>{
+     const order=['questao','resolucao','classificacao'];
+     const step=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;
+     if(!step) return;
+     e.preventDefault();
+     const next=order[(order.indexOf(section)+step+order.length)%order.length];
+     setSection(next);
+     document.getElementById(`editor-tab-${next}`)?.focus();
+    }}>
+    {[['questao','Enunciado e alternativas'],['resolucao','Resolução'],['classificacao','Classificação']].map(([key,label])=><button key={key} id={`editor-tab-${key}`} type="button" role="tab" aria-selected={section===key} tabIndex={section===key?0:-1} aria-controls={`editor-${key}`} onClick={()=>setSection(key)} className={`min-h-11 whitespace-nowrap rounded-xl px-4 py-3 text-sm font-normal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-muted ${section===key?'bg-brand text-white':'bg-white/5 text-apex-readable hover:bg-white/10'}`}>{label}</button>)}
    </div>
    {othersEditing&&<p role="status" className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100"><Users size={18} className="mt-0.5 shrink-0" aria-hidden="true"/><span>{othersEditing}</span></p>}
    {error&&<p role="alert" className="rounded-xl bg-rose-500/10 p-4 text-rose-200">{error}</p>}

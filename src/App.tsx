@@ -12,6 +12,7 @@ import {
 } from './types/question';
 import { fetchShared, mergeShared, mutateShared } from './lib/collaboration';
 import { generateSqlForQuestion } from './lib/sqlGenerator';
+import { describeError } from './lib/errorMessage';
 import { TopNavbar } from './components/TopNavbar';
 import { QuestionsTable } from './components/QuestionsTable';
 import { QuestionDetailView } from './components/QuestionDetailView';
@@ -101,9 +102,13 @@ export default function App() {
     (title: string, message?: string, type: 'success' | 'error' | 'info' = 'info') => {
       const id = `${Date.now()}_${Math.random()}`;
       setToasts(prev => [...prev, { id, title, message, type }]);
-      setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-      }, 4000);
+      // Errors stay until the curator closes them: a save that failed must not
+      // disappear while they are still reading.
+      if (type !== 'error') {
+        setTimeout(() => {
+          setToasts(prev => prev.filter(t => t.id !== id));
+        }, 4000);
+      }
     },
     []
   );
@@ -258,7 +263,7 @@ export default function App() {
       applyConfirmed(updated);
       return updated;
     } catch (error: any) {
-      showToast('Ação não salva', error.message, 'error');
+      showToast('Ação não salva', describeError(error), 'error');
       try { const rows = await fetchShared(); setQuestions(prev => mergeShared(prev, rows.rows)); } catch {}
       return null;
     } finally { actionPending.current = false; setIsActionPending(false); }
@@ -353,7 +358,7 @@ export default function App() {
         `${targets.length} questões • ${activeCurator.nome}`, 'success');
       return true;
     } catch (error: any) {
-      showToast('Operação não concluída', error.message, 'error');
+      showToast('Operação não concluída', describeError(error), 'error');
       try { const shared = await fetchShared(); setQuestions(prev => mergeShared(prev, shared.rows)); } catch {}
       return false;
     } finally { actionPending.current = false; setIsActionPending(false); }

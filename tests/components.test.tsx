@@ -327,3 +327,56 @@ test('editing with someone else on the question: remote saves arrive live and on
  await act(async()=>renderer.unmount());
  if(!hadWindow) delete g.window;
 });
+
+test('detail view never shows a fake answer key and asks before changing the gabarito, eliminating or discarding an edit',async()=>{
+ const g=globalThis as any;const hadWindow='window' in g;
+ if(!hadWindow) g.window={addEventListener(){},removeEventListener(){}};
+ const base={id:'5',sync_source_id:'5',sync_version:1,status:'pendente',enunciado:'Enunciado',comentario:'',a:'A0',b:'B0',correta:''} as Question;
+ const updates:{q:Question;fields?:readonly string[]}[]=[];const statuses:string[]=[];
+ const view=(question:Question)=> <QuestionDetailView question={question} busy={false} allQuestions={[question]} activeCurator={actor} presences={{}} comments={[]}
+  onBackToList={()=>{}} onNavigateQuestion={()=>{}} onUpdateQuestion={async(q,fields)=>{updates.push({q,fields});return true;}} onUpdateStatus={async(_id,status)=>{statuses.push(status);return true;}}
+  onAssignQuestion={()=>{}} onAddComment={async()=>true} onShowToast={()=>{}}/>;
+ const text=(node:any):string=>typeof node==='string'?node:(node?.children||[]).map(text).join('');
+ const dialogs=(r:any)=>r.root.findAll((n:any)=>n.props&&n.props.role==='alertdialog');
+ let renderer:any;
+ await act(async()=>{renderer=create(view(base));});
+ assert.match(text(renderer.toJSON()),/Sem gabarito oficial/);
+ assert.equal(dialogs(renderer).length,0);
+ // Choosing a letter opens a confirmation; nothing is saved until it is confirmed.
+ await act(async()=>renderer.root.findByProps({'aria-label':'Definir C como gabarito oficial'}).props.onClick());
+ assert.equal(dialogs(renderer).length,1);
+ assert.equal(updates.length,0);
+ await act(async()=>renderer.root.findByProps({'aria-label':'Definir C como gabarito oficial'}).props.onClick());
+ await act(async()=>dialogs(renderer)[0].findAll((n:any)=>n.type==='button'&&n.props.onClick&&/Confirmar gabarito/.test(text(n)))[0].props.onClick());
+ assert.equal(updates.length,1);assert.equal(updates[0].q.correta,'C');assert.deepEqual(updates[0].fields,['anulada','correta']);
+ // Eliminating asks first too.
+ await act(async()=>renderer.root.findAll((n:any)=>n.type==='button'&&/Eliminar questão/.test(text(n)))[0].props.onClick());
+ assert.equal(statuses.length,0);
+ await act(async()=>dialogs(renderer)[0].findAll((n:any)=>n.type==='button'&&/Eliminar questão/.test(text(n)))[0].props.onClick());
+ assert.deepEqual(statuses,['eliminar_questao']);
+ await act(async()=>renderer.unmount());
+ if(!hadWindow) delete g.window;
+});
+
+test('cancelling an edit with unsaved changes asks before discarding them',async()=>{
+ const g=globalThis as any;const hadWindow='window' in g;
+ if(!hadWindow) g.window={addEventListener(){},removeEventListener(){}};
+ const base={id:'6',sync_source_id:'6',sync_version:1,status:'pendente',enunciado:'Original',comentario:'',a:'A0',b:'B0',correta:'A'} as Question;
+ const text=(node:any):string=>typeof node==='string'?node:(node?.children||[]).map(text).join('');
+ const dialogs=(r:any)=>r.root.findAll((n:any)=>n.props&&n.props.role==='alertdialog');
+ let renderer:any;
+ await act(async()=>{renderer=create(<QuestionDetailView question={base} busy={false} allQuestions={[base]} activeCurator={actor} presences={{}} comments={[]}
+  onBackToList={()=>{}} onNavigateQuestion={()=>{}} onUpdateQuestion={async()=>true} onUpdateStatus={async()=>true}
+  onAssignQuestion={()=>{}} onAddComment={async()=>true} onShowToast={()=>{}}/>);});
+ await act(async()=>renderer.root.findAll((n:any)=>n.type==='button'&&/Editar questão/.test(text(n)))[0].props.onClick());
+ // Without changes, cancelling closes straight away.
+ await act(async()=>renderer.root.findByProps({'aria-label':'Alternativa A'}).props.onChange({target:{value:'Mudei'}}));
+ await act(async()=>renderer.root.findAll((n:any)=>n.type==='button'&&/Cancelar edição/.test(text(n)))[0].props.onClick());
+ assert.equal(dialogs(renderer).length,1);
+ assert.match(text(dialogs(renderer)[0]),/Descartar as alterações/);
+ await act(async()=>dialogs(renderer)[0].findAll((n:any)=>n.type==='button'&&/Voltar/.test(text(n)))[0].props.onClick());
+ assert.equal(dialogs(renderer).length,0);
+ assert.equal(renderer.root.findByProps({'aria-label':'Alternativa A'}).props.value,'Mudei');
+ await act(async()=>renderer.unmount());
+ if(!hadWindow) delete g.window;
+});
