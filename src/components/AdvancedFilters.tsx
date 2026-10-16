@@ -91,22 +91,22 @@ export const FilterSection = React.memo<FilterSectionProps>(({
         className="flex min-h-[48px] w-full items-center justify-between gap-2 px-4 py-3 transition-colors hover:bg-white/[0.03] text-left cursor-pointer"
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <Icon className={`w-4 h-4 shrink-0 ${selectedItems.length > 0 ? 'text-brand-muted' : 'text-shell-muted'}`} />
+          <Icon className={`w-4 h-4 shrink-0 ${selectedItems.length > 0 ? 'text-brand-muted' : 'text-apex-readable'}`} />
           <span className="font-bold text-xs text-apex-text shrink-0">{title}</span>
           {selectedItems.length > 0 && (
-            <span className="text-[10px] bg-brand text-white px-2 py-0.5 rounded-full font-bold shrink-0 shadow-sm">
+            <span className="text-xs bg-brand text-white px-2 py-0.5 rounded-full font-bold shrink-0 shadow-sm">
               {selectedItems.length}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2 min-w-0">
           {!isOpen && (
-            <span className="text-[11px] text-shell-muted truncate max-w-[140px]">
+            <span className="text-xs text-apex-readable truncate max-w-[140px]">
               {selectionSummary}
             </span>
           )}
           <ChevronDown
-            className={`w-4 h-4 text-shell-muted shrink-0 transition-transform duration-200 ${
+            className={`w-4 h-4 text-apex-readable shrink-0 transition-transform duration-200 ${
               isOpen ? 'rotate-180 text-white' : ''
             }`}
           />
@@ -117,21 +117,21 @@ export const FilterSection = React.memo<FilterSectionProps>(({
         <div className="space-y-2 px-3 pb-3 pt-1 animate-in fade-in duration-150">
           {enableSearch && (
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-shell-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search className="w-3.5 h-3.5 text-apex-readable absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 aria-label={`Buscar ${title.toLowerCase()}`}
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder={`Buscar ${title.toLowerCase()}...`}
-                className="w-full bg-shell-2 border border-white/[0.1] rounded-xl pl-8 pr-10 py-1.5 text-xs text-apex-text placeholder-shell-muted outline-none focus:border-brand"
+                className="w-full bg-shell-2 border border-white/[0.1] rounded-xl pl-8 pr-10 py-1.5 text-xs text-apex-text placeholder:text-apex-readable outline-none focus:border-brand focus-visible:ring-2 focus-visible:ring-brand-muted/60"
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
                   aria-label="Limpar busca"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-7 h-7 rounded-full text-xs text-shell-muted hover:text-white"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-7 h-7 rounded-full text-xs text-apex-readable hover:text-white"
                 >
                   <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
@@ -141,7 +141,7 @@ export const FilterSection = React.memo<FilterSectionProps>(({
 
           <div className="max-h-56 overflow-y-auto space-y-0.5 pr-1">
             {visibleItems.length === 0 ? (
-              <p className="text-xs text-shell-muted text-center py-3">Nenhuma opção encontrada.</p>
+              <p className="text-xs text-apex-readable text-center py-3">Nenhuma opção encontrada.</p>
             ) : (
               visibleItems.map((opt) => {
                 const isSelected = selectedSet.has(opt.value);
@@ -172,7 +172,7 @@ export const FilterSection = React.memo<FilterSectionProps>(({
                     </span>
                     <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <span className="truncate text-xs">{opt.label}</span>
-                      <span className="shrink-0 text-[11px] tabular-nums text-shell-muted">
+                      <span className="shrink-0 text-xs tabular-nums text-apex-readable">
                         {opt.count.toLocaleString('pt-BR')}
                       </span>
                     </span>
@@ -186,6 +186,22 @@ export const FilterSection = React.memo<FilterSectionProps>(({
     </div>
   );
 });
+
+const STATUS_CHIP_LABELS: Record<string, string> = {
+  pendente: 'Pendente',
+  aprovadas: 'Aprovada',
+  eliminar_questao: 'Eliminar Questão',
+  revisar_questao: 'Revisar Questão',
+  questao_corrigida: 'Questão Corrigida',
+};
+
+const RESPONSAVEL_CHIP_LABELS: Record<string, string> = {
+  minhas: 'Atribuídas a mim',
+  sem_responsavel: 'Não atribuídas',
+  patrick: 'Patrick',
+  lucas: 'Lucas',
+  thierry: 'Thierry',
+};
 
 export interface AdvancedFilterState {
   status: string;
@@ -376,16 +392,23 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
     });
     // Especialidades
     filterState.especialidades.forEach(v => {
-      list.push({ key: 'especialidades', value: v, label: `Esp: ${v}` });
+      list.push({ key: 'especialidades', value: v, label: `Especialidade: ${v}` });
     });
     // Competências
     filterState.competencias.forEach(v => {
-      list.push({ key: 'competencias', value: v, label: `Comp: ${v}` });
+      list.push({ key: 'competencias', value: v, label: `Competência: ${v}` });
     });
     // Temas
     filterState.temas_especificos.forEach(v => {
-      list.push({ key: 'temas_especificos', value: v, label: `Tema: ${v}` });
+      list.push({ key: 'temas_especificos', value: v, label: `Tema específico: ${v}` });
     });
+    // Status and responsável are single choices, but they narrow the list just as much
+    if (filterState.status !== 'todas') {
+      list.push({ key: 'status', value: filterState.status, label: `Status: ${STATUS_CHIP_LABELS[filterState.status] ?? filterState.status}` });
+    }
+    if (filterState.responsavel !== 'todos') {
+      list.push({ key: 'responsavel', value: filterState.responsavel, label: `Responsável: ${RESPONSAVEL_CHIP_LABELS[filterState.responsavel] ?? filterState.responsavel}` });
+    }
     // Search queries
     filterState.searchQueries.forEach(v => {
       list.push({ key: 'searchQueries', value: v, label: `Busca: "${v}"` });
@@ -394,9 +417,8 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
     return list;
   }, [filterState]);
 
-  const totalActiveFilterCount = appliedChips.length + 
-    (filterState.status !== 'todas' ? 1 : 0) + 
-    (filterState.responsavel !== 'todos' ? 1 : 0);
+  // Status and responsável are already among the chips.
+  const totalActiveFilterCount = appliedChips.length;
 
   // Status counts
   const statusCounts = useMemo(() => ({
@@ -414,7 +436,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3 bg-shell-2 p-3 rounded-2xl border border-white/[0.08] shadow-lg">
         {/* Status Chips */}
         <div className="flex flex-nowrap md:flex-wrap items-center gap-1.5 overflow-x-auto md:overflow-visible [&>*]:shrink-0 pb-1 md:pb-0">
-          <span className="text-[11px] uppercase font-bold tracking-wider text-shell-muted mr-2 flex items-center gap-1">
+          <span className="text-xs uppercase font-bold tracking-wider text-apex-readable mr-2 flex items-center gap-1">
             <Filter className="w-3.5 h-3.5 text-brand-muted" />
             Status:
           </span>
@@ -437,7 +459,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filterState.status === 'pendente'
                 ? 'bg-white/10 text-white border border-white/20'
-                : 'text-shell-muted hover:text-white'
+                : 'text-apex-readable hover:text-white'
             }`}
           >
             Pendentes ({statusCounts.pendente})
@@ -449,7 +471,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filterState.status === 'aprovadas'
                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                : 'text-shell-muted hover:text-emerald-400'
+                : 'text-apex-readable hover:text-emerald-400'
             }`}
           >
             Aprovadas ({statusCounts.aprovadas})
@@ -461,7 +483,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filterState.status === 'eliminar_questao'
                 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                : 'text-shell-muted hover:text-rose-400'
+                : 'text-apex-readable hover:text-rose-400'
             }`}
           >
             Eliminar ({statusCounts.eliminar_questao})
@@ -473,7 +495,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filterState.status === 'revisar_questao'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                : 'text-shell-muted hover:text-amber-400'
+                : 'text-apex-readable hover:text-amber-400'
             }`}
           >
             Revisar ({statusCounts.revisar_questao})
@@ -485,7 +507,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filterState.status === 'questao_corrigida'
                 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                : 'text-shell-muted hover:text-blue-400'
+                : 'text-apex-readable hover:text-blue-400'
             }`}
           >
             Corrigidas ({statusCounts.questao_corrigida})
@@ -522,7 +544,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             <Filter className="w-3.5 h-3.5 text-brand-muted" />
             <span>Refinar Filtros</span>
             {totalActiveFilterCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-brand text-white text-[10px] flex items-center justify-center font-bold">
+              <span className="w-4 h-4 rounded-full bg-brand text-white text-xs flex items-center justify-center font-bold">
                 {totalActiveFilterCount}
               </span>
             )}
@@ -538,7 +560,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
       {/* 2. Active Filter Chips Row (if any active filter) */}
       {appliedChips.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 bg-shell-2/70 p-2.5 rounded-xl border border-white/[0.07] animate-in fade-in">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-shell-muted mr-1 flex items-center gap-1">
+          <span className="text-xs uppercase font-bold tracking-wider text-apex-readable mr-1 flex items-center gap-1">
             Filtros ativos:
           </span>
 
@@ -551,14 +573,19 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                 <span>{chip.label}</span>
                 <button
                   type="button"
+                  aria-label={`Remover filtro ${chip.label}`}
                   onClick={() => {
                     if (chip.key === 'searchQueries') {
                       handleRemoveKeyword(chip.value);
+                    } else if (chip.key === 'status') {
+                      onChangeFilterState({ ...filterState, status: 'todas' });
+                    } else if (chip.key === 'responsavel') {
+                      onChangeFilterState({ ...filterState, responsavel: 'todos' });
                     } else {
                       toggleArrayFilter(chip.key, chip.value);
                     }
                   }}
-                  className="w-4 h-4 rounded-full flex items-center justify-center text-shell-muted hover:text-white hover:bg-white/[0.1] transition-colors"
+                  className="w-4 h-4 rounded-full flex items-center justify-center text-apex-readable hover:text-white hover:bg-white/[0.1] transition-colors"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -569,7 +596,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
           <button
             type="button"
             onClick={handleClearAll}
-            className="flex items-center gap-1 text-[11px] font-bold text-brand-muted hover:text-rose-400 px-2 py-1 rounded-lg hover:bg-rose-500/10 transition-colors ml-auto"
+            className="flex items-center gap-1 text-xs font-bold text-brand-muted hover:text-rose-400 px-2 py-1 rounded-lg hover:bg-rose-500/10 transition-colors ml-auto"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Limpar filtros</span>
@@ -594,14 +621,14 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             {/* Keyword tag input */}
             <form onSubmit={handleAddKeyword} className="flex items-center gap-2 max-w-sm w-full">
               <div className="relative flex-1">
-                <Tag className="w-3.5 h-3.5 text-shell-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Tag className="w-3.5 h-3.5 text-apex-readable absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   aria-label="Buscar palavra-chave"
                   type="text"
                   value={keywordInput}
                   onChange={(e) => setKeywordInput(e.target.value)}
                   placeholder="Buscar palavra-chave (ex: AVC, choque)..."
-                  className="w-full bg-shell-3 border border-white/[0.1] rounded-full pl-8 pr-3 py-1.5 text-xs text-apex-text placeholder-shell-muted outline-none focus:border-brand"
+                  className="w-full bg-shell-3 border border-white/[0.1] rounded-full pl-8 pr-3 py-1.5 text-xs text-apex-text placeholder:text-apex-readable outline-none focus:border-brand focus-visible:ring-2 focus-visible:ring-brand-muted/60"
                 />
               </div>
               <button
@@ -609,7 +636,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                 disabled={!keywordInput.trim()}
                 className="px-3 py-1.5 rounded-full text-xs font-bold bg-brand hover:bg-brand-hover disabled:opacity-40 text-white transition-all cursor-pointer shrink-0"
               >
-                + Tag
+                Adicionar palavra-chave
               </button>
             </form>
           </div>

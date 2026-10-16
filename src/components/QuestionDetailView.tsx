@@ -23,6 +23,7 @@ import { useDialog } from '../lib/useDialog';
 import { Question, QuestionStatus, Curator, CuratorPresence, QuestionComment } from '../types/question';
 import { QuestionEditor } from './QuestionEditor';
 import { changedFields, mergeRemote, type ContentField } from '../lib/draftMerge';
+import { ConfirmDialog } from './ConfirmDialog';
 import { StatusBadge } from './StatusBadge';
 import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboardHelper';
 import { generateSqlForQuestion } from '../lib/sqlGenerator';
@@ -95,6 +96,16 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
     setConflicts(new Set());
     setIsEditing(false);
   };
+  // Cancelling with unsaved changes asks first; with none it closes at once.
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const requestDiscard = () => {
+    if (changedFields(baseRef.current, editedQuestion).length > 0) setConfirmingDiscard(true);
+    else stopEditing();
+  };
+  // Official answer key and elimination change the question for everyone, so
+  // each asks first (the letter or the action is stored until confirmed).
+  const [pendingGabarito, setPendingGabarito] = useState<string | null>(null);
+  const [confirmingElimination, setConfirmingElimination] = useState(false);
 
   // Sync state when selected question changes
   useEffect(() => {
@@ -157,6 +168,20 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
     onShowToast('Questão Atualizada!', 'Modificações salvas e marcadas como "Questão Corrigida".', 'success');
   };
 
+  const applyGabarito = async (letter: string) => {
+    const updated = {
+      ...question,
+      anulada: false,
+      correta: letter,
+      modificado: true,
+      status: 'questao_corrigida' as QuestionStatus,
+      revisado_por: activeCurator.nome,
+      revisado_em: new Date().toISOString(),
+    };
+    if (!await onUpdateQuestion(updated, ['anulada', 'correta'])) return;
+    onShowToast(`Gabarito alterado para (${letter})`, 'Atualização registrada e SQL correspondente gerado.', 'success');
+  };
+
   const handleSendComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!commentInput.trim()) return;
@@ -181,11 +206,55 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
   const sqlPreview = generateSqlForQuestion(question, activeCurator.nome);
   const isAssignedToMe = question.responsavel_id === activeCurator.id;
 
-  if (isEditing) return <QuestionEditor question={editedQuestion} busy={busy} onChange={setEditedQuestion} onSave={handleSaveChanges} onCancel={stopEditing} conflicts={conflicts}
-    othersEditing={activeViewers.length ? `${viewerNames} também ${activeViewers.length === 1 ? 'está' : 'estão'} nesta questão. O que for salvo aparece aqui ao vivo nos campos que você não alterou.` : undefined}/>;
+  const confirmations = (
+    <>
+      <ConfirmDialog
+        open={pendingGabarito !== null}
+        title={`Trocar o gabarito para ${pendingGabarito ?? ''}?`}
+        message={`A questão passa a ter o gabarito ${pendingGabarito ?? ''} como alternativa oficial e entra no SQL de correções. A questão deixa de ser anulada, se estiver.`}
+        confirmLabel={`Confirmar gabarito ${pendingGabarito ?? ''}`}
+        onCancel={() => setPendingGabarito(null)}
+        onConfirm={async () => {
+          const letter = pendingGabarito;
+          setPendingGabarito(null);
+          if (letter) await applyGabarito(letter);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmingElimination}
+        title={`Eliminar a questão #${question.id}?`}
+        message="A questão será marcada para eliminação e entra no SQL de correções. Você pode mudar o status de volta depois."
+        confirmLabel="Eliminar questão"
+        tone="danger"
+        onCancel={() => setConfirmingElimination(false)}
+        onConfirm={async () => {
+          setConfirmingElimination(false);
+          if (await onUpdateStatus(question.id, 'eliminar_questao')) onShowToast('Questão marcada para eliminação', `Questão #${question.id} salva no Supabase.`, 'info');
+        }}
+      />
+      <ConfirmDialog
+        open={confirmingDiscard}
+        title="Descartar as alterações?"
+        message="O que você mudou nesta edição ainda não foi salvo e será perdido."
+        confirmLabel="Descartar alterações"
+        tone="danger"
+        onCancel={() => setConfirmingDiscard(false)}
+        onConfirm={() => { setConfirmingDiscard(false); stopEditing(); }}
+      />
+    </>
+  );
+
+  if (isEditing) return (
+    <>
+      <QuestionEditor question={editedQuestion} busy={busy} onChange={setEditedQuestion} onSave={handleSaveChanges} onCancel={requestDiscard} conflicts={conflicts}
+        othersEditing={activeViewers.length ? `${viewerNames} também ${activeViewers.length === 1 ? 'está' : 'estão'} nesta questão. O que for salvo aparece aqui ao vivo nos campos que você não alterou.` : undefined}/>
+      {confirmations}
+    </>
+  );
+
 
   return (
-    <fieldset disabled={busy} aria-busy={busy} className="w-full min-w-0 space-y-5 animate-in fade-in duration-200">
+    <fieldset disabled={busy} aria-busy={busy} className="w-full min-w-0 space-y-5 pb-28 animate-in fade-in duration-200 lg:pb-0">
       {/* Top Navigation & Status Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-shell-2 p-4 rounded-2xl border border-white/[0.08] shadow-lg">
         {/* Left: Back button & Counter */}
@@ -204,6 +273,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               disabled={isEditing || currentIndex <= 0}
               onClick={() => onNavigateQuestion(currentIndex - 1)}
               className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] disabled:opacity-30 disabled:pointer-events-none text-white transition-all"
+              aria-label="Questão anterior"
               title="Questão anterior (Seta para a esquerda)"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -217,6 +287,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               disabled={isEditing || currentIndex >= total - 1}
               onClick={() => onNavigateQuestion(currentIndex + 1)}
               className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] disabled:opacity-30 disabled:pointer-events-none text-white transition-all"
+              aria-label="Próxima questão"
               title="Próxima questão (Seta para a direita)"
             >
               <ChevronRight className="w-4 h-4" />
@@ -264,7 +335,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               {isAssignedToMe ? (
                 <button
                   onClick={() => onAssignQuestion(question.id, null)}
-                  className="text-xs text-shell-muted hover:text-apex-text underline ml-1"
+                  className="text-xs text-apex-readable hover:text-apex-text underline ml-1"
                 >
                   Liberar
                 </button>
@@ -328,7 +399,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                 </span>
                 <StatusBadge status={question.status} size="md" />
                 {question.modificado && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                  <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
                     Editada
                   </span>
                 )}
@@ -344,7 +415,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                   </span>
                 ) : (
                   <span className="px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-emerald-400 font-bold">
-                    Gabarito: {question.correta || 'C'}
+                    {question.correta ? `Gabarito: ${question.correta}` : 'Sem gabarito oficial'}
                   </span>
                 )}
               </div>
@@ -353,7 +424,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             {/* Specialty and Specific Theme */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="bg-shell-3 p-3 rounded-xl border border-white/[0.06]">
-                <p className="text-[10px] uppercase font-bold tracking-wider text-brand-muted mb-1">
+                <p className="text-xs uppercase font-bold tracking-wider text-brand-muted mb-1">
                   Especialidade Médica
                 </p>
                 {isEditing ? (
@@ -370,7 +441,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               </div>
 
               <div className="bg-shell-3 p-3 rounded-xl border border-white/[0.06]">
-                <p className="text-[10px] uppercase font-bold tracking-wider text-brand-muted mb-1">
+                <p className="text-xs uppercase font-bold tracking-wider text-brand-muted mb-1">
                   Tema Específico
                 </p>
                 {isEditing ? (
@@ -392,12 +463,12 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             {/* Enunciado Box */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
+                <span className="text-xs uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
                   <span className="w-2.5 h-0.5 bg-brand-muted" />
                   Enunciado Clínico
                 </span>
                 <button
-                  onClick={() => (isEditing ? stopEditing() : startEditing())}
+                  onClick={() => (isEditing ? requestDiscard() : startEditing())}
                   className="flex items-center gap-1 text-xs font-bold text-apex-readable hover:text-white px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1]"
                 >
                   <Edit3 className="w-3.5 h-3.5 text-brand-muted" />
@@ -412,12 +483,12 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                     rows={6}
                     value={editedQuestion.enunciado}
                     onChange={(e) => setEditedQuestion({ ...editedQuestion, enunciado: e.target.value })}
-                    className="w-full bg-shell-3 border border-white/[0.15] rounded-xl p-3 text-sm text-apex-text leading-relaxed outline-none focus:border-brand"
+                    className="w-full bg-shell-3 border border-white/[0.15] rounded-xl p-3 text-sm text-apex-text leading-relaxed outline-none focus:border-brand focus-visible:ring-2 focus-visible:ring-brand-muted/60"
                   />
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => setIsEditing(false)}
-                      className="px-3 py-1.5 rounded-full text-xs font-bold text-shell-muted hover:text-white"
+                      className="px-3 py-1.5 rounded-full text-xs font-bold text-apex-readable hover:text-white"
                     >
                       Cancelar
                     </button>
@@ -440,11 +511,11 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           {/* Alternatives A, B, C, D, E Cards */}
           <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-4">
             <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
-              <span className="text-[11px] uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
+              <span className="text-xs uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
                 <span className="w-2.5 h-0.5 bg-brand-muted" />
                 Alternativas & Justificativas Clínicas
               </span>
-              <span className="text-[11px] text-shell-muted">
+              <span className="text-xs text-apex-readable">
                 Selecione para alterar o gabarito oficial se necessário
               </span>
             </div>
@@ -471,25 +542,8 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                     <div className="flex items-start gap-3">
                       {/* Letter Badge / Radio button */}
                       <button
-                        onClick={async () => {
-                          if (question.anulada || question.correta !== letter) {
-                            const updated = {
-                              ...question,
-                              anulada: false,
-                              correta: letter,
-                              modificado: true,
-                              status: 'questao_corrigida' as QuestionStatus,
-                              revisado_por: activeCurator.nome,
-                              revisado_em: new Date().toISOString(),
-                            };
-                            if (!await onUpdateQuestion(updated, ['anulada', 'correta'])) return;
-                            onShowToast(
-                              `Gabarito alterado para (${letter})`,
-                              'Atualização registrada e SQL correspondente gerado.',
-                              'success'
-                            );
-                          }
-                        }}
+                        onClick={() => { if (question.anulada || question.correta !== letter) setPendingGabarito(letter); }}
+                        aria-label={`Definir ${letter} como gabarito oficial`}
                         className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 transition-all ${
                           isCorrect
                             ? 'bg-emerald-500 text-white shadow-sm'
@@ -524,7 +578,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                         {/* Justification snippet */}
                         {(justification || isEditing) && (
                           <div className="pt-1.5 border-t border-white/[0.04]">
-                            <p className="text-[10px] uppercase font-bold tracking-wider text-shell-muted">
+                            <p className="text-xs uppercase font-bold tracking-wider text-apex-readable">
                               Justificativa:
                             </p>
                             {isEditing ? (
@@ -539,10 +593,10 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                                   })
                                 }
                                 placeholder={`Justificativa para alternativa ${letter}...`}
-                                className="w-full bg-shell-3 border border-white/[0.15] rounded px-2 py-0.5 text-[11px] text-apex-readable mt-1"
+                                className="w-full bg-shell-3 border border-white/[0.15] rounded px-2 py-0.5 text-xs text-apex-readable mt-1"
                               />
                             ) : (
-                              <p className="text-[11px] text-apex-readable leading-normal italic">
+                              <p className="text-xs text-apex-readable leading-normal italic">
                                 {justification || 'Sem justificativa cadastrada.'}
                               </p>
                             )}
@@ -551,7 +605,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                       </div>
 
                       {isCorrect && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">
+                        <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">
                           Correta
                         </span>
                       )}
@@ -565,7 +619,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           {/* Professor Commentary / Resolution */}
           {(question.comentario || question.referencias?.trim()) && (
             <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-2">
-              <span className="text-[11px] uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
+              <span className="text-xs uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
                 <span className="w-2.5 h-0.5 bg-brand-muted" />
                 Comentário Oficial / Gabarito Comentado
               </span>
@@ -576,7 +630,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               )}
               {question.referencias?.trim() && (
                 <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-shell-muted mb-1">Referências</p>
+                  <p className="text-xs uppercase font-bold tracking-wider text-apex-readable mb-1">Referências</p>
                   <LinkifiedText text={question.referencias} className="text-xs text-apex-readable leading-relaxed" />
                 </div>
               )}
@@ -589,10 +643,10 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           {/* Curation Decision Actions Box */}
           <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-4 shadow-xl">
             <div className="border-b border-white/[0.06] pb-2">
-              <p className="text-[10px] uppercase font-bold tracking-wider text-brand-muted">
+              <p className="text-xs uppercase font-bold tracking-wider text-brand-muted">
                 Decisão de Auditoria Médica
               </p>
-              <p className="text-xs text-shell-muted">
+              <p className="text-xs text-apex-readable">
                 Tudo o que você fizer gera SQL e sincroniza em tempo real
               </p>
             </div>
@@ -614,15 +668,12 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                   <span>Aprovar Questão</span>
                 </div>
-                {question.status === 'aprovadas' && <span className="text-[10px]">Ativa</span>}
+                {question.status === 'aprovadas' && <span className="text-xs">Ativa</span>}
               </button>
 
               {/* Eliminar Questão */}
               <button
-                onClick={async () => {
-                  if (!await onUpdateStatus(question.id, 'eliminar_questao')) return;
-                  onShowToast('Questão marcada para Eliminação', 'Comando DELETE SQL gerado automaticamente.', 'error');
-                }}
+                onClick={() => setConfirmingElimination(true)}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-xs transition-all border ${
                   question.status === 'eliminar_questao'
                     ? 'bg-rose-600 text-white border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.35)]'
@@ -631,9 +682,9 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <Trash2 className="w-4 h-4 text-rose-400" />
-                  <span>Eliminar Questão (DELETE SQL)</span>
+                  <span>Eliminar questão</span>
                 </div>
-                {question.status === 'eliminar_questao' && <span className="text-[10px]">Ativa</span>}
+                {question.status === 'eliminar_questao' && <span className="text-xs">Ativa</span>}
               </button>
 
               {/* Revisar Questão */}
@@ -649,7 +700,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                   <AlertTriangle className="w-4 h-4 text-amber-400" />
                   <span>Revisar Questão</span>
                 </div>
-                {question.status === 'revisar_questao' && <span className="text-[10px]">Ativa</span>}
+                {question.status === 'revisar_questao' && <span className="text-xs">Ativa</span>}
               </button>
 
               {/* Questão Corrigida */}
@@ -668,12 +719,12 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                   <PenTool className="w-4 h-4 text-blue-400" />
                   <span>Questão Corrigida (UPDATE SQL)</span>
                 </div>
-                {question.status === 'questao_corrigida' && <span className="text-[10px]">Ativa</span>}
+                {question.status === 'questao_corrigida' && <span className="text-xs">Ativa</span>}
               </button>
             </div>
 
             {/* Audit Status Info */}
-            <div className="pt-2 border-t border-white/[0.06] text-[11px] text-shell-muted space-y-1">
+            <div className="pt-2 border-t border-white/[0.06] text-xs text-apex-readable space-y-1">
               {question.revisado_por && (
                 <p>
                   Última ação por: <b className="text-white">{question.revisado_por}</b>
@@ -695,11 +746,11 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           {/* Area Comum de Comentários (Common discussion between 3 users) */}
           <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-3 shadow-xl">
             <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
+              <span className="text-xs uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
                 <MessageSquare className="w-3.5 h-3.5" />
                 Área de Debate / Comentários
               </span>
-              <span className="text-[11px] text-shell-muted">
+              <span className="text-xs text-apex-readable">
                 {comments.length} nota{comments.length === 1 ? '' : 's'}
               </span>
             </div>
@@ -707,9 +758,9 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             {/* Comment Thread List */}
             <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
               {comments.length === 0 ? (
-                <div className="py-6 text-center text-shell-muted text-xs">
+                <div className="py-6 text-center text-apex-readable text-xs">
                   <p>Nenhum debate nesta questão.</p>
-                  <p className="text-[11px] text-shell-subtle mt-1">
+                  <p className="text-xs text-apex-readable mt-1">
                     Escreva abaixo para sugerir correções ou debater o gabarito.
                   </p>
                 </div>
@@ -727,7 +778,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                         />
                         <span className="text-xs font-bold text-apex-text">{c.curador_nome}</span>
                       </div>
-                      <span className="text-[10px] text-shell-muted">
+                      <span className="text-xs text-apex-readable">
                         {new Date(c.criado_em).toLocaleTimeString('pt-BR', {
                           hour: '2-digit',
                           minute: '2-digit',
@@ -748,13 +799,14 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
                 placeholder={`Comentar como ${activeCurator.nome.split(' ')[0]}...`}
-                className="flex-1 bg-shell-3 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-apex-text placeholder-shell-muted outline-none focus:border-brand"
+                className="flex-1 bg-shell-3 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-apex-text placeholder:text-apex-readable outline-none focus:border-brand focus-visible:ring-2 focus-visible:ring-brand-muted/60"
               />
               <button
                 type="submit"
                 disabled={!commentInput.trim()}
                 className="p-2 rounded-xl bg-brand hover:bg-brand-hover disabled:opacity-40 text-white transition-all cursor-pointer"
                 title="Publicar comentário"
+                aria-label="Publicar comentário"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -764,7 +816,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           {/* Real-time Generated SQL Statement Preview */}
           <div className="bg-shell-2 p-4 rounded-2xl border border-white/[0.08] space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 flex items-center gap-1.5">
+              <span className="text-xs uppercase font-bold tracking-wider text-amber-400 flex items-center gap-1.5">
                 <Code2 className="w-3.5 h-3.5" />
                 SQL Gerado p/ Supabase
               </span>
@@ -783,7 +835,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               </button>
             </div>
 
-            <pre className="p-2.5 rounded-xl bg-shell-2 border border-white/[0.05] text-[10px] font-mono text-apex-readable overflow-x-auto max-h-[140px] leading-relaxed">
+            <pre className="p-2.5 rounded-xl bg-shell-2 border border-white/[0.05] text-xs font-mono text-apex-readable overflow-x-auto max-h-[140px] leading-relaxed">
               {sqlPreview || '-- Nenhuma alteração pendente de SQL para esta questão (Status: Pendente)'}
             </pre>
           </div>
@@ -809,13 +861,13 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               value={revisionNotesInput}
               onChange={(e) => setRevisionNotesInput(e.target.value)}
               placeholder="Ex: O gabarito oficial dizia alternativa C, porém a diretriz mais recente de 2024 aponta para conduta expectante..."
-              className="w-full bg-shell-3 border border-white/[0.12] rounded-xl p-3 text-xs text-apex-text placeholder-shell-muted outline-none focus:border-amber-500"
+              className="w-full bg-shell-3 border border-white/[0.12] rounded-xl p-3 text-xs text-apex-text placeholder:text-apex-readable outline-none focus:border-amber-500"
             />
 
             <div className="flex justify-end gap-2.5 pt-2">
               <button
                 onClick={() => setShowRevisionModal(false)}
-                className="px-4 py-2 rounded-full text-xs font-bold text-shell-muted hover:text-white"
+                className="px-4 py-2 rounded-full text-xs font-bold text-apex-readable hover:text-white"
               >
                 Cancelar
               </button>
@@ -829,6 +881,28 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
           </div>
         </div>
       )}
+      {/* Below the desktop breakpoint the decision actions stay in reach while the question is read. */}
+      <div role="group" aria-label="Decisão sobre a questão" className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.1] bg-shell-2/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 backdrop-blur lg:hidden">
+        <div className="mx-auto grid max-w-xl grid-cols-4 gap-2">
+          <button type="button" onClick={async () => { if (!await onUpdateStatus(question.id, 'aprovadas')) return; onShowToast('Questão Aprovada!', 'Validada e pronta para publicação.', 'success'); }}
+            className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl border text-xs font-bold ${question.status === 'aprovadas' ? 'border-emerald-500 bg-emerald-600/30 text-white' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />Aprovar
+          </button>
+          <button type="button" onClick={() => setShowRevisionModal(true)}
+            className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl border text-xs font-bold ${question.status === 'revisar_questao' ? 'border-amber-400 bg-amber-500/25 text-white' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />Revisar
+          </button>
+          <button type="button" onClick={() => setConfirmingElimination(true)}
+            className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl border text-xs font-bold ${question.status === 'eliminar_questao' ? 'border-rose-500 bg-rose-600 text-white' : 'border-rose-600/30 bg-rose-950/30 text-rose-200'}`}>
+            <Trash2 className="h-4 w-4" aria-hidden="true" />Eliminar
+          </button>
+          <button type="button" onClick={() => onAssignQuestion(question.id, isAssignedToMe ? null : activeCurator)}
+            className="flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl border border-white/15 bg-white/[0.05] text-xs font-bold text-apex-text">
+            <UserCheck className="h-4 w-4 text-brand-muted" aria-hidden="true" />{isAssignedToMe ? 'Liberar' : 'Assumir'}
+          </button>
+        </div>
+      </div>
+      {confirmations}
     </fieldset>
   );
 };

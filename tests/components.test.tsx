@@ -327,3 +327,93 @@ test('editing with someone else on the question: remote saves arrive live and on
  await act(async()=>renderer.unmount());
  if(!hadWindow) delete g.window;
 });
+
+test('detail view never shows a fake answer key and asks before changing the gabarito, eliminating or discarding an edit',async()=>{
+ const g=globalThis as any;const hadWindow='window' in g;
+ if(!hadWindow) g.window={addEventListener(){},removeEventListener(){}};
+ const base={id:'5',sync_source_id:'5',sync_version:1,status:'pendente',enunciado:'Enunciado',comentario:'',a:'A0',b:'B0',correta:''} as Question;
+ const updates:{q:Question;fields?:readonly string[]}[]=[];const statuses:string[]=[];
+ const view=(question:Question)=> <QuestionDetailView question={question} busy={false} allQuestions={[question]} activeCurator={actor} presences={{}} comments={[]}
+  onBackToList={()=>{}} onNavigateQuestion={()=>{}} onUpdateQuestion={async(q,fields)=>{updates.push({q,fields});return true;}} onUpdateStatus={async(_id,status)=>{statuses.push(status);return true;}}
+  onAssignQuestion={()=>{}} onAddComment={async()=>true} onShowToast={()=>{}}/>;
+ const text=(node:any):string=>typeof node==='string'?node:(node?.children||[]).map(text).join('');
+ const dialogs=(r:any)=>r.root.findAll((n:any)=>n.props&&n.props.role==='alertdialog');
+ let renderer:any;
+ await act(async()=>{renderer=create(view(base));});
+ assert.match(text(renderer.toJSON()),/Sem gabarito oficial/);
+ assert.equal(dialogs(renderer).length,0);
+ // Choosing a letter opens a confirmation; nothing is saved until it is confirmed.
+ await act(async()=>renderer.root.findByProps({'aria-label':'Definir C como gabarito oficial'}).props.onClick());
+ assert.equal(dialogs(renderer).length,1);
+ assert.equal(updates.length,0);
+ await act(async()=>renderer.root.findByProps({'aria-label':'Definir C como gabarito oficial'}).props.onClick());
+ await act(async()=>dialogs(renderer)[0].findAll((n:any)=>n.type==='button'&&n.props.onClick&&/Confirmar gabarito/.test(text(n)))[0].props.onClick());
+ assert.equal(updates.length,1);assert.equal(updates[0].q.correta,'C');assert.deepEqual(updates[0].fields,['anulada','correta']);
+ // Eliminating asks first too.
+ await act(async()=>renderer.root.findAll((n:any)=>n.type==='button'&&/Eliminar questão/.test(text(n)))[0].props.onClick());
+ assert.equal(statuses.length,0);
+ await act(async()=>dialogs(renderer)[0].findAll((n:any)=>n.type==='button'&&/Eliminar questão/.test(text(n)))[0].props.onClick());
+ assert.deepEqual(statuses,['eliminar_questao']);
+ await act(async()=>renderer.unmount());
+ if(!hadWindow) delete g.window;
+});
+
+test('cancelling an edit with unsaved changes asks before discarding them',async()=>{
+ const g=globalThis as any;const hadWindow='window' in g;
+ if(!hadWindow) g.window={addEventListener(){},removeEventListener(){}};
+ const base={id:'6',sync_source_id:'6',sync_version:1,status:'pendente',enunciado:'Original',comentario:'',a:'A0',b:'B0',correta:'A'} as Question;
+ const text=(node:any):string=>typeof node==='string'?node:(node?.children||[]).map(text).join('');
+ const dialogs=(r:any)=>r.root.findAll((n:any)=>n.props&&n.props.role==='alertdialog');
+ let renderer:any;
+ await act(async()=>{renderer=create(<QuestionDetailView question={base} busy={false} allQuestions={[base]} activeCurator={actor} presences={{}} comments={[]}
+  onBackToList={()=>{}} onNavigateQuestion={()=>{}} onUpdateQuestion={async()=>true} onUpdateStatus={async()=>true}
+  onAssignQuestion={()=>{}} onAddComment={async()=>true} onShowToast={()=>{}}/>);});
+ await act(async()=>renderer.root.findAll((n:any)=>n.type==='button'&&/Editar questão/.test(text(n)))[0].props.onClick());
+ // Without changes, cancelling closes straight away.
+ await act(async()=>renderer.root.findByProps({'aria-label':'Alternativa A'}).props.onChange({target:{value:'Mudei'}}));
+ await act(async()=>renderer.root.findAll((n:any)=>n.type==='button'&&/Cancelar edição/.test(text(n)))[0].props.onClick());
+ assert.equal(dialogs(renderer).length,1);
+ assert.match(text(dialogs(renderer)[0]),/Descartar as alterações/);
+ await act(async()=>dialogs(renderer)[0].findAll((n:any)=>n.type==='button'&&/Voltar/.test(text(n)))[0].props.onClick());
+ assert.equal(dialogs(renderer).length,0);
+ assert.equal(renderer.root.findByProps({'aria-label':'Alternativa A'}).props.value,'Mudei');
+ await act(async()=>renderer.unmount());
+ if(!hadWindow) delete g.window;
+});
+
+test('filters show status and responsável as removable chips and remove them back to "todas"/"todos"',async()=>{
+ const {AdvancedFilters} = await import('../src/components/AdvancedFilters');
+ const state={status:'aprovadas',responsavel:'lucas',categorias:[],origens:[],anos:[],especialidades:[],competencias:[],temas_especificos:[],searchQueries:[]} as any;
+ const changes:any[]=[];
+ const text=(node:any):string=>typeof node==='string'?node:(node?.children||[]).map(text).join('');
+ let renderer:any;
+ await act(async()=>{renderer=create(<AdvancedFilters questions={rows} activeCurator={actor} filterState={state} onChangeFilterState={s=>changes.push(s)} totalFilteredCount={3}/>);});
+ assert.match(text(renderer.toJSON()),/Status: Aprovada/);
+ assert.match(text(renderer.toJSON()),/Responsável: Lucas/);
+ await act(async()=>renderer.root.findByProps({'aria-label':'Remover filtro Status: Aprovada'}).props.onClick());
+ assert.equal(changes.at(-1).status,'todas');
+ assert.equal(changes.at(-1).responsavel,'lucas');
+ await act(async()=>renderer.root.findByProps({'aria-label':'Remover filtro Responsável: Lucas'}).props.onClick());
+ assert.equal(changes.at(-1).responsavel,'todos');
+ await act(async()=>renderer.unmount());
+});
+
+test('detail view has a decision bar for phones that approves and asks before eliminating',async()=>{
+ const g=globalThis as any;const hadWindow='window' in g;
+ if(!hadWindow) g.window={addEventListener(){},removeEventListener(){}};
+ const base={id:'7',sync_source_id:'7',sync_version:1,status:'pendente',enunciado:'Enunciado',comentario:'',a:'A0',b:'B0',correta:'A'} as Question;
+ const statuses:string[]=[];
+ const text=(node:any):string=>typeof node==='string'?node:(node?.children||[]).map(text).join('');
+ let renderer:any;
+ await act(async()=>{renderer=create(<QuestionDetailView question={base} busy={false} allQuestions={[base]} activeCurator={actor} presences={{}} comments={[]}
+  onBackToList={()=>{}} onNavigateQuestion={()=>{}} onUpdateQuestion={async()=>true} onUpdateStatus={async(_id,status)=>{statuses.push(status);return true;}}
+  onAssignQuestion={()=>{}} onAddComment={async()=>true} onShowToast={()=>{}}/>);});
+ const bar=renderer.root.findByProps({role:'group','aria-label':'Decisão sobre a questão'});
+ await act(async()=>bar.findAll((n:any)=>n.type==='button'&&text(n).includes('Aprovar'))[0].props.onClick());
+ assert.deepEqual(statuses,['aprovadas']);
+ await act(async()=>bar.findAll((n:any)=>n.type==='button'&&text(n).includes('Eliminar'))[0].props.onClick());
+ assert.equal(statuses.length,1);
+ assert.match(JSON.stringify(renderer.toJSON()),/Eliminar a questão #7/);
+ await act(async()=>renderer.unmount());
+ if(!hadWindow) delete g.window;
+});
