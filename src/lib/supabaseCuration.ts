@@ -18,10 +18,14 @@ export async function loginSupabase(curatorId:string,password:string):Promise<Cu
   sessionStorage.setItem(SESSION_KEY,result.token);
   return curator;
 }
-export function curationClient() {
-  if (client) return client;
+function projectConfig() {
   const url=import.meta.env.VITE_SUPABASE_URL || 'https://jcbinmjiimqomjdyfdia.supabase.co';
   const key=import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_2dVE51sq6_Sb7-Hj9R1MdA_1qclrXTY";
+  return {url,key};
+}
+export function curationClient() {
+  if (client) return client;
+  const {url,key}=projectConfig();
   if (!url || !key) throw new Error('Configure a URL e a chave pública do Supabase antes de ativar a migração.');
   client=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},global:{fetch:async(input,init)=>{
     const headers=new Headers(init?.headers);
@@ -30,6 +34,34 @@ export function curationClient() {
     return fetch(input,{...init,headers});
   }}});
   return client;
+}
+/**
+ * Sends one WebP figure to the `upload-question-image` Edge Function, which
+ * checks the curator's session and writes it to the Apex project's bucket.
+ * Returns the public address to store in `questions.imagem`.
+ */
+export async function uploadQuestionImage(questionId:string,webp:Blob,signal?:AbortSignal):Promise<string> {
+  const token=sessionStorage.getItem(SESSION_KEY);
+  if(!token) throw new Error('Sessão expirada. Entre novamente com a senha mestra.');
+  if(!/^[1-9][0-9]*$/.test(questionId)) throw new Error('Salve o novo ID da questão antes de enviar a imagem.');
+  const {url,key}=projectConfig();
+  let response:Response;
+  try {
+    response=await fetch(`${url}/functions/v1/upload-question-image`,{
+      method:'POST',signal,body:webp,
+      headers:{'Content-Type':'image/webp',apikey:key,'x-apex-session':token,'x-question-id':questionId},
+    });
+  } catch(error) {
+    if((error as Error).name==='AbortError') throw error;
+    throw new Error('Não foi possível enviar a imagem. Verifique a conexão e tente de novo.');
+  }
+  const body=await response.json().catch(()=>({})) as {url?:string;error?:string};
+  if(response.status===401) {
+    sessionStorage.removeItem(SESSION_KEY);
+    if(typeof window !== 'undefined') window.dispatchEvent(new Event('apex-session-expired'));
+  }
+  if(!response.ok||!body.url) throw new Error(body.error||'Não foi possível enviar a imagem agora. Tente novamente.');
+  return body.url;
 }
 export async function currentSupabaseCurator():Promise<Curator> {
   const result=await rpc('curation_session',{});

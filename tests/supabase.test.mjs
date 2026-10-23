@@ -26,6 +26,7 @@ const masterSql=(await readFile('supabase/migrations/20261010151200_master_passw
 await db.exec(masterSql);
 await db.exec(await readFile('supabase/migrations/20261012120000_questions_anulada_referencias.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261012190000_concurrent_editing.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261023120000_question_image_mutate.sql','utf8'));
 await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
 const asUser=async user=>{
@@ -98,6 +99,55 @@ test('nonmembers and anonymous callers cannot read or mutate drafts',async()=>{
  await db.exec('set role anon');
  await assert.rejects(db.query('select public.curation_sync(0)'),/não autorizado/);
  assert.equal((await db.query('select * from public.questions')).rows.length,0);
+});
+
+const FILE=id=>`https://beedxpjaufgujusyuziq.supabase.co/storage/v1/object/public/question-images/${id}/3f2a9c1e-6c1b-4a0e-9a53-7d2b8f5e1a10.webp`;
+test('a figure needs a Apex-bucket address and its caption; removing it drops the caption; other saves leave it alone',async()=>{
+ await db.exec('reset role');await db.exec("insert into public.questions(id,enunciado,correta) values(40,'Com figura','A')");
+ await asUser(patrick);await call('claim',[{id:'40',version:0}]);
+ let saved=await call('save',[{id:'40',version:1,patch:{imagem:FILE(40),imagem_legenda:'  ECG com supradesnivelamento de ST  '}}]);
+ assert.equal(saved.questions[0].imagem,FILE(40));assert.equal(saved.questions[0].imagem_legenda,'ECG com supradesnivelamento de ST');
+ let row=(await db.query('select imagem,imagem_legenda from public.questions where id=40')).rows[0];
+ assert.equal(row.imagem,FILE(40));assert.equal(row.imagem_legenda,'ECG com supradesnivelamento de ST');
+ // A caption cannot be blanked while the figure stays; nothing changes.
+ await assert.rejects(call('save',[{id:'40',version:saved.questions[0].sync_version,patch:{imagem_legenda:'   '}}]),/Descreva a imagem/);
+ await assert.rejects(call('save',[{id:'40',version:saved.questions[0].sync_version,patch:{imagem_legenda:'a'.repeat(501)}}]),/até 500 caracteres/);
+ // Only files of the Apex bucket: no third-party address, no other bucket, no other format.
+ for(const bad of ['https://exemplo.com/a.webp','https://beedxpjaufgujusyuziq.supabase.co/storage/v1/object/public/professor-question-images/a/b.webp',FILE(40).replace('.webp','.svg')])
+  await assert.rejects(call('save',[{id:'40',version:saved.questions[0].sync_version,patch:{imagem:bad,imagem_legenda:'x'}}]),/enviada pelo botão de imagem/);
+ // Saving another field never touches the figure.
+ saved=await call('save',[{id:'40',version:saved.questions[0].sync_version,patch:{comentario:'Outro campo'}}]);
+ row=(await db.query('select imagem,imagem_legenda,comentario from public.questions where id=40')).rows[0];
+ assert.equal(row.imagem,FILE(40));assert.equal(row.imagem_legenda,'ECG com supradesnivelamento de ST');assert.equal(row.comentario,'Outro campo');
+ // Removing the figure drops its caption too.
+ saved=await call('save',[{id:'40',version:saved.questions[0].sync_version,patch:{imagem:''}}]);
+ row=(await db.query('select imagem,imagem_legenda from public.questions where id=40')).rows[0];
+ assert.equal(row.imagem,null);assert.equal(row.imagem_legenda,null);
+ assert.equal(saved.questions[0].imagem,null);assert.equal(saved.questions[0].imagem_legenda,null);
+ // The database holds the same rules for anything written outside the curation.
+ await db.exec('reset role');
+ await assert.rejects(db.exec(`update public.questions set imagem='${FILE(40)}' where id=40`),/questions_imagem_requires_legenda_check/);
+ await assert.rejects(db.exec("update public.questions set imagem='https://exemplo.com/a.webp', imagem_legenda='x' where id=40"),/questions_imagem_storage_check/);
+});
+
+test('the upload gate needs a live session, names the curator and allows 30 uploads in 10 minutes',async()=>{
+ await db.exec('reset role');await db.exec("insert into public.questions(id,enunciado,correta) values(41,'Para envio','A')");
+ await asUser(patrick);
+ for(let i=0;i<30;i+=1){
+  const {rows}=await db.query('select public.curation_register_image_upload(41) as result');
+  assert.equal(rows[0].result.curator_id,'patrick');
+ }
+ await assert.rejects(db.query('select public.curation_register_image_upload(41)'),/Muitos envios de imagem/);
+ // The limit is per curator, and an unknown question is refused.
+ await asUser(lucas);
+ assert.equal((await db.query('select public.curation_register_image_upload(41) as result')).rows[0].result.curator_id,'lucas');
+ await assert.rejects(db.query('select public.curation_register_image_upload(999999)'),/Questão não encontrada/);
+ // No session, no gate; and the log is closed to the browser.
+ await asUser('00000000-0000-0000-0000-000000000009');
+ await assert.rejects(db.query('select public.curation_register_image_upload(41)'),/Sessão expirada/);
+ await assert.rejects(db.query('select * from curation_private.image_uploads'),/permission denied/);
+ await db.exec('set role anon');
+ await assert.rejects(db.query('select * from curation_private.image_uploads'),/permission denied/);
 });
 
 test.after(async()=>{await db.close();});

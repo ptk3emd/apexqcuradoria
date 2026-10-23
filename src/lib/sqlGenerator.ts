@@ -38,11 +38,13 @@ CREATE TABLE IF NOT EXISTS public.questions (
    CASE WHEN ano ~ '^[0-9]{4}$' THEN ano::smallint ELSE NULL END
  ) STORED,
  competencias_normalized text[] GENERATED ALWAYS AS (normalize_competencies(competencias)) STORED,
- difficulty_bucket text, descritores text, imagem text,
+ difficulty_bucket text, descritores text, imagem text, imagem_legenda text,
  anulada boolean NOT NULL DEFAULT false, referencias text,
  CONSTRAINT questions_descritores_max_length CHECK (descritores IS NULL OR char_length(descritores) <= 500),
  CONSTRAINT questions_difficulty_bucket_check CHECK (difficulty_bucket = ANY (ARRAY['easy'::text,'medium'::text,'hard'::text])),
  CONSTRAINT questions_imagem_length_check CHECK (imagem IS NULL OR char_length(imagem) BETWEEN 1 AND 2048),
+ CONSTRAINT questions_imagem_legenda_length_check CHECK (imagem_legenda IS NULL OR char_length(btrim(imagem_legenda)) BETWEEN 1 AND 500),
+ CONSTRAINT questions_imagem_requires_legenda_check CHECK (imagem IS NULL OR imagem_legenda IS NOT NULL),
  CONSTRAINT questions_anulada_sem_gabarito_check CHECK (NOT anulada OR correta IS NULL),
  CONSTRAINT questions_referencias_length_check CHECK (referencias IS NULL OR char_length(referencias) BETWEEN 1 AND 5000)
 );
