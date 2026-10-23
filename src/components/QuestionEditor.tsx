@@ -5,6 +5,8 @@ import {normalizeDifficulty} from '../lib/difficulty';
 import {REFERENCIAS_MAX_LENGTH} from '../lib/correctedQuestionsSql';
 import {LinkifiedText} from './LinkifiedText';
 import {AiVerificationControl} from './AiVerificationControl';
+import {QuestionImageField} from './QuestionImageField';
+import {imageProblem} from '../lib/questionImage';
 
 const fieldClass='mt-2 w-full rounded-xl border border-white/15 bg-shell-2 px-4 py-3 text-base leading-7 text-white outline-none focus:border-brand-muted focus:ring-2 focus:ring-brand-muted/20';
 // `conflicts`: fields another curator saved while this draft also changed them
@@ -23,6 +25,8 @@ export function QuestionEditor({question,busy,onChange,onSave,onCancel,conflicts
   if(!/^[0-9]+$/.test(question.id) || BigInt(question.id)>9223372036854775807n) {setSection('classificacao');setError('Informe um ID numérico válido.');return;}
   if(!question.enunciado?.trim()) {setSection('questao');setError('Preencha o enunciado.');return;}
   if(!question.anulada && !/^[A-E]$/i.test(question.correta??'')) {setSection('questao');setError('Selecione a alternativa correta ou marque a questão como anulada.');return;}
+  const figureProblem=imageProblem(question.imagem,question.imagem_legenda);
+  if(figureProblem){setSection('questao');setError(figureProblem);return;}
   if([...question.referencias??''].length>REFERENCIAS_MAX_LENGTH){setSection('resolucao');setError(`As referências devem ter até ${REFERENCIAS_MAX_LENGTH} caracteres.`);return;}
   if([...question.descritores??''].length>500){setSection('classificacao');setError('Os descritores devem ter até 500 caracteres.');return;}
   try {normalizeDifficulty(question.difficulty_bucket);} catch (error) {setSection('classificacao');setError((error as Error).message);return;}
@@ -50,6 +54,7 @@ export function QuestionEditor({question,busy,onChange,onSave,onCancel,conflicts
    {error&&<p role="alert" className="rounded-xl bg-rose-500/10 p-4 text-rose-200">{error}</p>}
    {section==='questao'&&<section id="editor-questao" role="tabpanel" className="space-y-6">
     {text('enunciado','Enunciado',7)}
+    <QuestionImageField question={question} conflicts={conflicts} onChange={patch=>onChange({...question,...patch})}/>
     <div><h2 className="text-xl font-bold">Alternativas</h2><p className="mt-1 text-sm text-apex-readable">{question.anulada?'Questão anulada: não há gabarito oficial.':'Marque o gabarito e edite cada alternativa abaixo.'}</p></div>
     <label className={`flex items-start gap-3 rounded-2xl border p-4 text-sm ${question.anulada?'border-amber-400/50 bg-amber-500/10':'border-white/10 bg-white/[0.02]'}`}>
      <input type="checkbox" checked={!!question.anulada} onChange={e=>onChange({...question,anulada:e.target.checked,correta:e.target.checked?'':question.correta})} className="mt-0.5 h-5 w-5 accent-amber-500"/>

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {generateCorrectedQuestionsSql, sqlText} from '../src/lib/correctedQuestionsSql';
 import type {Question} from '../src/types/question';
+const FIG='https://beedxpjaufgujusyuziq.supabase.co/storage/v1/object/public/question-images/1/3f2a9c1e-6c1b-4a0e-9a53-7d2b8f5e1a10.webp';
 const q = (id:string, data:Partial<Question>={}) => ({id, status:'questao_corrigida', enunciado:'Original', ...data} as Question);
 
 test('global script includes all authors, consolidates latest versions and retains changed content after approval', () => {
@@ -59,15 +60,20 @@ test('confirmed updates dynamically expand and replace the accumulated script', 
 
 test('all SQL entry points use confirmed questions rather than executable SQL stored in logs', async()=>{
   const {generateSqlForQuestion,generateProgressiveSqlScript}=await import('../src/lib/sqlGenerator');
-  const row=q('1',{imagem:'https://example.com/image.png',difficulty_bucket:'Difícil'});
+  const row=q('1',{imagem:FIG,imagem_legenda:'ECG com supradesnivelamento de ST',difficulty_bucket:'Difícil'});
   assert.match(generateSqlForQuestion(row),/UPDATE public.questions/);
   assert.match(generateSqlForQuestion(row),/difficulty_bucket = E'hard'/);
   const sql=generateProgressiveSqlScript([{sql_gerado:'DROP TABLE public.questions;'} as any],[row]);
   assert.doesNotMatch(sql,/DROP TABLE|UPDATE questoes|revisado_por =|status =/);
   assert.equal(sql,generateCorrectedQuestionsSql([row]).sql);
   assert.doesNotMatch(generateSqlForQuestion(q('1',{status:'eliminar_questao'})),/DELETE FROM/);
-  for(const imagem of ['', 'x'.repeat(2049)]) assert.equal(generateCorrectedQuestionsSql([q('1',{imagem})]).sql,'');
+  // A figure must be a file of the Apex bucket and carry its description; blank means no figure.
+  for(const imagem of ['x'.repeat(2049), 'https://example.com/image.png']) assert.equal(generateCorrectedQuestionsSql([q('1',{imagem,imagem_legenda:'Descrição'})]).sql,'');
+  assert.match(generateCorrectedQuestionsSql([q('1',{imagem:FIG})]).errors.join(' '),/Descreva a imagem/);
+  assert.match(generateCorrectedQuestionsSql([q('1',{imagem:FIG,imagem_legenda:'a'.repeat(501)})]).errors.join(' '),/até 500 caracteres/);
   assert.equal(generateCorrectedQuestionsSql([q('1',{imagem:null})]).errors.length,0);
+  assert.equal(generateCorrectedQuestionsSql([q('1',{imagem:''})]).errors.length,0);
+  assert.match(generateCorrectedQuestionsSql([q('1',{imagem:null,imagem_legenda:'Sobrou'})]).sql,/imagem_legenda = NULL/);
   assert.equal(generateCorrectedQuestionsSql([q('1'),q('01')]).count,1);
 });
 
@@ -80,12 +86,12 @@ test('generated SQL executes against the schema, preserves text and rolls back m
     await db.exec(getSupabaseInitialSchemaSql());
     await db.exec("INSERT INTO public.questions(id,enunciado,created_at) VALUES(1,'Original','2020-01-01'),(2,'Other','2020-01-01');");
     const text="O'Brien\\path\n$$ $apex_update_0$ '; DROP TABLE public.questions; --";
-    const script=generateCorrectedQuestionsSql([q('1',{enunciado:text,correta:"A'",ano:'2026',competencias:'I;II',imagem:'https://example.com/image.png',comentario:null as any})]);
+    const script=generateCorrectedQuestionsSql([q('1',{enunciado:text,correta:"A'",ano:'2026',competencias:'I;II',imagem:FIG,imagem_legenda:'  ECG de teste  ',comentario:null as any})]);
     assert.equal(script.errors.length,0);await db.exec(script.sql);
     const row=(await db.query<any>('SELECT * FROM public.questions WHERE id=1')).rows[0];
     assert.equal(row.enunciado,text);assert.equal(row.correta,"A'");assert.equal(row.comentario,null);
     assert.equal(row.ano_int,2026);assert.deepEqual(row.competencias_normalized,['i','ii']);
-    assert.equal(row.imagem,'https://example.com/image.png');assert.equal(row.created_at.getUTCFullYear(),2020);
+    assert.equal(row.imagem,FIG);assert.equal(row.imagem_legenda,'ECG de teste');assert.equal(row.created_at.getUTCFullYear(),2020);
     const missing=generateCorrectedQuestionsSql([q('1',{enunciado:'MUST ROLLBACK'}),q('999')]);
     await assert.rejects(db.exec(missing.sql),/esperado exatamente um registro/);
     await db.exec('ROLLBACK;');

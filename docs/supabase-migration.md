@@ -28,6 +28,25 @@ O SQL de Estatísticas continua acumulando as correções de todos os curadores,
 
 O Supabase é o único backend. URL e chave pública do projeto têm valores padrão no código; variáveis de ambiente permitem substituir esses valores. Não colocar service_role, senha de banco ou outros segredos em variáveis `VITE_*`.
 
+## Imagens das questões
+
+Cada questão pode ter uma figura. O arquivo fica no projeto Apex (`beedxpjaufgujusyuziq`), bucket público `question-images`, e a questão guarda o endereço em `questions.imagem` e a descrição em `questions.imagem_legenda` (obrigatória: é o texto alternativo e a legenda que o aluno vê).
+
+O navegador não escreve no bucket. O editor converte a imagem para WebP (até 2000 px) e a envia para a Edge Function `upload-question-image` deste projeto, que confere a sessão do curador, limita a 30 envios por curador em 10 minutos (`curation_register_image_upload`) e grava com a chave de serviço do projeto Apex, guardada só como secret da função. O banco recusa qualquer `imagem` que não seja um `.webp` desse bucket e qualquer imagem sem descrição, e o `curation_mutate` aplica a mesma regra.
+
+Ordem de ativação:
+
+1. No projeto **Apex** (`beedxpjaufgujusyuziq`): aplicar a migration `20261023120000_question_images.sql` do repositório apexmedicina (coluna, regras e bucket).
+2. Neste projeto (`jcbinmjiimqomjdyfdia`): executar `supabase/migrations/20261023120000_question_image_mutate.sql` no editor SQL.
+3. Guardar o segredo e publicar a função (a função confere o curador por conta própria, por isso sem a checagem de JWT da plataforma):
+
+```bash
+supabase secrets set APEX_SERVICE_ROLE_KEY=<service_role do projeto Apex> --project-ref jcbinmjiimqomjdyfdia
+supabase functions deploy upload-question-image --no-verify-jwt --project-ref jcbinmjiimqomjdyfdia
+```
+
+Nunca colocar essa chave em variáveis `VITE_*` nem no Git. Um arquivo enviado e depois descartado (o curador cancela a edição antes de salvar) continua no bucket; os nomes são aleatórios e o arquivo só aparece para quem tiver o endereço. O SQL de correções (`imagem`, `imagem_legenda`) leva o endereço e a descrição para o banco Apex, que já tem o arquivo.
+
 ## Sincronização e interface
 
 A primeira página libera a auditoria e as demais carregam em segundo plano. A carga inicial registra o cursor antes de ler as páginas, evitando reprocessar o histórico inteiro da importação. Realtime avisa sobre mudanças; a RPC incremental recupera as versões confirmadas, inclusive após reconexão, com verificação adicional a cada 30 segundos. Desde `20261012190000_concurrent_editing` não há reserva: vários curadores e abas podem editar a mesma questão. Abrir registra presença (90 segundos, renovada a cada 25), que `curation_sync` devolve como lista, várias pessoas por questão. `curation_mutate` não recusa mais por responsável, sessão ou versão; o cliente manda só os campos alterados, então mudanças em campos diferentes se somam e no mesmo campo vale o último salvamento. Um editor aberto recebe ao vivo os campos que o curador não alterou e sinaliza os que os dois mudaram. Ações em lote continuam numa transação: um erro desfaz o lote todo.

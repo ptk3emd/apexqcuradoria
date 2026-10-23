@@ -135,6 +135,57 @@ test('marking a question as annulled clears and locks the answer key; unmarking 
 });
 
 
+import {QuestionImageField} from '../src/components/QuestionImageField';
+const FIGURE='https://beedxpjaufgujusyuziq.supabase.co/storage/v1/object/public/question-images/1/3f2a9c1e-6c1b-4a0e-9a53-7d2b8f5e1a10.webp';
+const textOf=(node:any):string=>typeof node==='string'?node:(node.children??[]).map(textOf).join('');
+test('image field: add when empty; with a figure it shows the caption box and removing asks first',async()=>{
+ let renderer:any;const patches:Partial<Question>[]=[];
+ let current:Question={...rows[0],sync_source_id:'1'};
+ const render=()=> <QuestionImageField question={current} onChange={p=>{patches.push(p);}}/>;
+ await act(async()=>{renderer=create(render());});
+ assert.match(textOf(renderer.root),/Adicionar imagem/);
+ assert.equal(renderer.root.findAllByType('textarea').length,0,'no caption box without a figure');
+ assert.equal(renderer.root.findAllByType('img').length,0);
+
+ current={...current,imagem:FIGURE,imagem_legenda:'ECG com supradesnivelamento de ST'};
+ await act(async()=>{renderer.update(render());});
+ assert.match(textOf(renderer.root),/Trocar imagem/);
+ assert.equal(renderer.root.findByType('img').props.alt,'ECG com supradesnivelamento de ST');
+ assert.equal(renderer.root.findByType('textarea').props.value,'ECG com supradesnivelamento de ST');
+ await act(async()=>renderer.root.findByType('textarea').props.onChange({target:{value:'Nova descrição'}}));
+ assert.deepEqual(patches.at(-1),{imagem_legenda:'Nova descrição'});
+
+ // Removing needs a confirmation: nothing changes until it is given.
+ const before=patches.length;
+ const removeButtons=()=>renderer.root.findAll((n:any)=>n.type==='button'&&/Remover imagem/.test(textOf(n)));
+ assert.equal(removeButtons().length,1);
+ await act(async()=>removeButtons()[0].props.onClick());
+ assert.equal(patches.length,before,'removal waited for the confirmation');
+ const dialog=renderer.root.findByProps({role:'alertdialog'});
+ await act(async()=>dialog.findAll((n:any)=>n.type==='button'&&textOf(n)==='Voltar')[0].props.onClick());
+ assert.equal(patches.length,before,'going back removes nothing');
+ await act(async()=>removeButtons()[0].props.onClick());
+ await act(async()=>renderer.root.findByProps({role:'alertdialog'}).findAll((n:any)=>n.type==='button'&&/Remover imagem/.test(textOf(n)))[0].props.onClick());
+ assert.deepEqual(patches.at(-1),{imagem:null,imagem_legenda:null});
+ await act(async()=>renderer.unmount());
+});
+
+test('saving is refused for a figure without its description or outside the Apex bucket',async()=>{
+ let renderer:any;let latest:Question={...rows[0],sync_source_id:'1',imagem:FIGURE};let saves=0;
+ const render=()=> <QuestionEditor question={latest} busy={false} onChange={q=>{latest=q;renderer.update(render());}} onSave={async()=>{saves++;}} onCancel={()=>{}}/>;
+ await act(async()=>{renderer=create(render());});
+ const submit=()=>act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));
+ await submit();
+ assert.equal(saves,0);assert.match(renderer.root.findByProps({role:'alert'}).children.join(''),/Descreva a imagem/);
+ await act(async()=>renderer.root.findByProps({'aria-invalid':true}).props.onChange({target:{value:'   '}}));
+ await submit();assert.equal(saves,0);
+ latest={...latest,imagem:'https://exemplo.com/a.webp',imagem_legenda:'Descrição'};await act(async()=>renderer.update(render()));
+ await submit();assert.equal(saves,0);assert.match(renderer.root.findAllByProps({role:'alert'}).map((n:any)=>n.children.join('')).join(' '),/botão de imagem/);
+ latest={...latest,imagem:FIGURE};await act(async()=>renderer.update(render()));
+ await submit();assert.equal(saves,1);
+ await act(async()=>renderer.unmount());
+});
+
 test('AI verification buttons write one managed sentence to the general comment on the Resolução tab',async()=>{
  let renderer:any;let latest:Question={...rows[0],comentario:'Comentário original.',sync_source_id:'1'};
  const render=()=> <QuestionEditor question={latest} busy={false} onChange={q=>{latest=q;renderer.update(render());}} onSave={async()=>{}} onCancel={()=>{}}/>;

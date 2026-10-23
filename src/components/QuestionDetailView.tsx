@@ -505,6 +505,21 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                   {question.enunciado}
                 </div>
               )}
+              {question.imagem?.trim() && (
+                <figure className="mt-3 flex flex-col items-center gap-2 rounded-xl bg-white/[0.03] border border-white/[0.06] p-3">
+                  <img
+                    src={question.imagem}
+                    alt={question.imagem_legenda?.trim() || 'Imagem da questão, sem descrição'}
+                    loading="lazy"
+                    className="max-h-80 w-auto max-w-full rounded-md object-contain"
+                  />
+                  {question.imagem_legenda?.trim() ? (
+                    <figcaption className="max-w-prose text-center text-xs leading-relaxed text-apex-readable">{question.imagem_legenda.trim()}</figcaption>
+                  ) : (
+                    <figcaption className="text-xs text-amber-300">Imagem sem descrição: edite a questão para descrevê-la.</figcaption>
+                  )}
+                </figure>
+              )}
             </div>
           </div>
 
