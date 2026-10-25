@@ -8,7 +8,7 @@ import {AiVerificationControl} from './AiVerificationControl';
 import {QuestionImageField} from './QuestionImageField';
 import {imageProblem} from '../lib/questionImage';
 
-const fieldClass='mt-2 w-full rounded-xl border border-white/15 bg-shell-2 px-4 py-3 text-base leading-7 text-white outline-none focus:border-brand-muted focus:ring-2 focus:ring-brand-muted/20';
+const fieldClass='mt-2 w-full rounded-xl border border-white/15 bg-shell-2 px-4 py-3 text-base font-normal leading-7 text-white outline-none focus:border-brand-muted focus:ring-2 focus:ring-brand-muted/20';
 // `conflicts`: fields another curator saved while this draft also changed them
 // (the draft keeps its text and wins on save). `othersEditing`: who else is on
 // the question; editing is never blocked.
