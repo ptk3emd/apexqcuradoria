@@ -526,7 +526,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
 
           {/* Alternatives A, B, C, D, E Cards */}
           <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-4">
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+            <div className="flex flex-col gap-1 border-b border-white/[0.06] pb-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <span className="text-xs uppercase font-bold tracking-wider text-brand-muted flex items-center gap-1.5">
                 <span className="w-2.5 h-0.5 bg-brand-muted" />
                 Alternativas & Justificativas Clínicas
@@ -682,7 +682,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Aprovar Questão</span>
+                  <span>Aprovar questão</span>
                 </div>
                 {question.status === 'aprovadas' && <span className="text-xs">Ativa</span>}
               </button>
@@ -714,7 +714,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-400" />
-                  <span>Revisar Questão</span>
+                  <span>Revisar questão</span>
                 </div>
                 {question.status === 'revisar_questao' && <span className="text-xs">Ativa</span>}
               </button>
