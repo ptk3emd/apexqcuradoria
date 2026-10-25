@@ -22,6 +22,7 @@ import { SqlEditorModal } from './components/SqlEditorModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { SupabaseAuthGate } from './components/SupabaseAuthGate';
 import { loadSupabaseBase, subscribeSupabaseChanges, signOutSupabase } from './lib/supabaseCuration';
+import { viewTransition, nameQuestionRow } from './lib/viewTransition';
 const STORAGE_KEY_LOGS = 'apexmed_audit_logs_v1';
 const STORAGE_KEY_COMMENTS = 'apexmed_comments_v1';
 
@@ -275,8 +276,10 @@ export default function App() {
       showToast('Aguarde a conexão', 'Entre na sessão e aguarde o carregamento das questões.', 'info');
       return;
     }
-    setSelectedQuestionId(question.id);
-    setActiveView('detail');
+    viewTransition(() => {
+      setSelectedQuestionId(question.id);
+      setActiveView('detail');
+    });
   };
 
   // Presence only: tells the others who is on the question (renewed every
@@ -475,7 +478,7 @@ export default function App() {
             activeCurator={activeCurator}
             presences={presences}
             comments={currentQuestion.shared_comments || commentsMap[currentQuestion.id] || []}
-            onBackToList={() => setActiveView('table')}
+            onBackToList={() => viewTransition(() => setActiveView('table'), { after: () => nameQuestionRow(selectedQuestionId) })}
             onNavigateQuestion={(idx) => {
               const target = searchedQuestions[idx];
               if (target) void openQuestion(target);
