@@ -243,3 +243,14 @@ input[type='radio'] {
     radial-gradient(ellipse 40% 40% at 15% 80%, rgba(164,57,57,.06) 0%, transparent 60%),
     var(--shell);
 }
+
+/* View transitions: rows glide to their new place, a row expands into its question. */
+::view-transition-group(*) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+}

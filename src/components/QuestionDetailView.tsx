@@ -28,6 +28,7 @@ import { StatusBadge } from './StatusBadge';
 import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboardHelper';
 import { generateSqlForQuestion } from '../lib/sqlGenerator';
 import { LinkifiedText } from './LinkifiedText';
+import { questionTransitionName } from '../lib/viewTransition';
 
 interface QuestionDetailViewProps {
   question: Question;
@@ -391,7 +392,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
         {/* Left Column (Question Content & Alternatives) - 8 cols */}
         <div className="lg:col-span-8 space-y-5">
           {/* Question Metadata Bar */}
-          <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-4">
+          <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-4" style={{ viewTransitionName: questionTransitionName(question.id) }}>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
               <div className="flex items-center gap-2.5">
                 <span className="font-mono text-base font-bold text-white px-2.5 py-0.5 rounded-lg bg-brand/20 border border-brand/40">

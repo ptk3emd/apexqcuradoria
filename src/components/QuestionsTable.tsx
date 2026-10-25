@@ -16,6 +16,7 @@ import { StatusBadge } from './StatusBadge';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboardHelper';
 import { AdvancedFilters, AdvancedFilterState, GRANDES_AREAS_MAP } from './AdvancedFilters';
+import { viewTransition, nameQuestionRowOf } from '../lib/viewTransition';
 
 interface QuestionsTableProps {
   questions: Question[];
@@ -99,6 +100,24 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   }, [filterState, sortBy, sortOrder]);
 
   // Filtered and sorted questions with all facets
+  // Queue summary for the header: everything audited vs. still pending, and what is waiting on you.
+  const queue = useMemo(() => {
+    const count = (status: QuestionStatus) => questions.filter(q => q.status === status).length;
+    const pending = count('pendente');
+    return {
+      total: questions.length,
+      audited: questions.length - pending,
+      pending,
+      mine: questions.filter(q => q.status === 'pendente' && q.responsavel_id === activeCurator.id).length,
+      segments: [
+        { label: 'Aprovadas', value: count('aprovadas'), className: 'bg-emerald-500' },
+        { label: 'Corrigidas', value: count('questao_corrigida'), className: 'bg-blue-500' },
+        { label: 'Revisar', value: count('revisar_questao'), className: 'bg-amber-500' },
+        { label: 'Eliminar', value: count('eliminar_questao'), className: 'bg-rose-500' },
+      ],
+    };
+  }, [questions, activeCurator.id]);
+
   const filteredQuestions = useMemo(() => {
     return questions
       .filter(q => {
@@ -216,30 +235,59 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   return (
     <>
     <div className="w-full space-y-4">
+      {/* Queue header: how far the audit is, at a glance */}
+      <section aria-labelledby="queue-title" className="space-y-4 pt-1 pb-2">
+        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <h1 id="queue-title" className="text-[clamp(1.75rem,4vw,2.75rem)] font-bold leading-[1.05] tracking-[-0.02em] text-apex-text">
+            Fila de curadoria: <span className="tabular-nums text-brand-soft">{queue.audited}</span>
+            <span className="tabular-nums text-shell-muted"> / {queue.total}</span>
+          </h1>
+          <p className="text-sm text-apex-readable">
+            <span className="tabular-nums font-bold text-apex-text">{queue.pending}</span> pendentes
+            <span className="mx-2 text-shell-subtle" aria-hidden="true">•</span>
+            <span className="tabular-nums font-bold text-apex-text">{queue.mine}</span> com você
+          </p>
+        </div>
+        <div
+          className="flex h-2 w-full overflow-hidden rounded-full bg-white/[0.06]"
+          role="img"
+          aria-label={queue.segments.map(seg => `${seg.label}: ${seg.value}`).join(', ') + `, Pendentes: ${queue.pending}`}
+        >
+          {queue.total > 0 && queue.segments.map(seg => (
+            <div
+              key={seg.label}
+              className={`${seg.className} h-full transition-[width] duration-700 ease-out motion-reduce:transition-none`}
+              style={{ width: `${(seg.value / queue.total) * 100}%` }}
+              title={`${seg.label}: ${seg.value}`}
+            />
+          ))}
+        </div>
+      </section>
+
       {/* Advanced Filters Component (Todas as opções do FilterScreen) */}
       <AdvancedFilters
         questions={questions}
         activeCurator={activeCurator}
         filterState={filterState}
-        onChangeFilterState={setFilterState}
+        onChangeFilterState={next => viewTransition(() => setFilterState(next), { glide: true })}
         totalFilteredCount={filteredQuestions.length}
       />
 
-      <div className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-2 md:gap-2.5 rounded-2xl border border-white/[0.08] bg-shell-2 px-4 py-3" aria-live="polite">
-        <label className="col-span-2 md:hidden flex items-center gap-2.5 min-h-11 text-xs font-bold text-apex-text cursor-pointer">
-          <input type="checkbox" aria-label="Selecionar questões disponíveis desta página" disabled={busy || !selectablePage.length} checked={allPageSelected}
-            ref={el => { if (el) el.indeterminate = !allPageSelected && selectablePage.some(q => selectedIds.has(q.id)); }}
-            onChange={togglePageSelection} />
-          Selecionar página
-        </label>
-        <span className="col-span-2 md:col-auto text-xs font-bold text-apex-text md:mr-1"><span className="tabular-nums">{selectedIds.size}</span> selecionadas <span className="font-normal text-apex-readable">(máximo 100)</span></span>
-        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('assign')} className="w-full md:w-auto px-4 py-2 rounded-full text-xs font-bold text-center text-white bg-brand hover:bg-brand-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand">Assumir selecionadas</button>
-        <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('review')} className="w-full md:w-auto px-4 py-2 rounded-full text-xs font-bold text-center text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-amber-500/10">Marcar selecionadas para revisão</button>
-        <button disabled={busy || !selectedIds.size} onClick={() => setSelectedIds(new Set())} className="col-span-2 md:col-auto justify-self-center md:justify-self-auto px-3 py-2 rounded-full text-xs font-bold text-apex-readable hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-apex-readable">Limpar seleção</button>
-        <span className="hidden md:inline text-xs text-apex-readable">A seleção acompanha a paginação. Alterar filtros limpa a seleção.</span>
-      </div>
       {/* Main Questions Table */}
       <div className="w-full rounded-2xl bg-shell-2 border border-white/[0.08] overflow-hidden shadow-2xl">
+        <div className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-2 md:gap-2.5 border-b border-white/[0.06] bg-shell-3/40 px-4 py-3" aria-live="polite">
+          <label className="col-span-2 md:hidden flex items-center gap-2.5 min-h-11 text-xs font-bold text-apex-text cursor-pointer">
+            <input type="checkbox" aria-label="Selecionar questões disponíveis desta página" disabled={busy || !selectablePage.length} checked={allPageSelected}
+              ref={el => { if (el) el.indeterminate = !allPageSelected && selectablePage.some(q => selectedIds.has(q.id)); }}
+              onChange={togglePageSelection} />
+            Selecionar página
+          </label>
+          <span className="col-span-2 md:col-auto text-xs font-bold text-apex-text md:mr-1"><span className="tabular-nums">{selectedIds.size}</span> selecionadas <span className="font-normal text-apex-readable">(máximo 100)</span></span>
+          <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('assign')} className="w-full md:w-auto px-4 py-2 rounded-full text-xs font-bold text-center text-white bg-brand hover:bg-brand-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand">Assumir selecionadas</button>
+          <button disabled={busy || !selectedIds.size} onClick={() => void submitSelection('review')} className="w-full md:w-auto px-4 py-2 rounded-full text-xs font-bold text-center text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-amber-500/10">Marcar selecionadas para revisão</button>
+          <button disabled={busy || !selectedIds.size} onClick={() => setSelectedIds(new Set())} className="col-span-2 md:col-auto justify-self-center md:justify-self-auto px-3 py-2 rounded-full text-xs font-bold text-apex-readable hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-apex-readable">Limpar seleção</button>
+          <span className="hidden md:inline text-xs text-apex-readable">A seleção acompanha a paginação. Alterar filtros limpa a seleção.</span>
+        </div>
         <div className="overflow-x-auto">
           <table className="block md:table w-full text-left text-xs text-apex-text border-collapse">
             <thead className="hidden md:table-header-group">
@@ -252,26 +300,26 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                   </label>
                 </th>
                 <th scope="col" aria-sort={sortBy === 'id' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 font-bold">
-                  <button type="button" aria-label="Ordenar por ID" className="min-h-11 py-3 text-left hover:text-white" onClick={() => {
+                  <button type="button" aria-label="Ordenar por ID" className="min-h-11 py-3 text-left hover:text-white" onClick={() => viewTransition(() => {
                     if (sortBy === 'id') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
                     else { setSortBy('id'); setSortOrder('asc'); }
-                  }}>
+                  }, { glide: true })}>
                     ID {sortBy === 'id' && <span aria-hidden="true">{sortOrder === 'asc' ? '↑' : '↓'}</span>}
                   </button>
                 </th>
                 <th scope="col" aria-sort={sortBy === 'status' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 font-bold">
-                  <button type="button" aria-label="Ordenar por Status" className="min-h-11 py-3 text-left hover:text-white" onClick={() => {
+                  <button type="button" aria-label="Ordenar por Status" className="min-h-11 py-3 text-left hover:text-white" onClick={() => viewTransition(() => {
                     if (sortBy === 'status') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
                     else { setSortBy('status'); setSortOrder('asc'); }
-                  }}>
+                  }, { glide: true })}>
                     Status {sortBy === 'status' && <span aria-hidden="true">{sortOrder === 'asc' ? '↑' : '↓'}</span>}
                   </button>
                 </th>
                 <th scope="col" aria-sort={sortBy === 'especialidade' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 font-bold">
-                  <button type="button" aria-label="Ordenar por Especialidade / Tema" className="min-h-11 py-3 text-left hover:text-white" onClick={() => {
+                  <button type="button" aria-label="Ordenar por Especialidade / Tema" className="min-h-11 py-3 text-left hover:text-white" onClick={() => viewTransition(() => {
                     if (sortBy === 'especialidade') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
                     else { setSortBy('especialidade'); setSortOrder('asc'); }
-                  }}>
+                  }, { glide: true })}>
                     Especialidade / Tema {sortBy === 'especialidade' && <span aria-hidden="true">{sortOrder === 'asc' ? '↑' : '↓'}</span>}
                   </button>
                 </th>
@@ -313,6 +361,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                     return (
                       <tr
                         key={q.id}
+                        data-question-id={q.id}
                         className="group flex flex-wrap items-center gap-x-3 gap-y-2.5 px-4 py-3 md:table-row md:p-0 hover:bg-white/[0.03] transition-colors"
                       >
                         <td className="order-1 p-0 md:order-none" onClick={e => e.stopPropagation()}>
@@ -375,9 +424,9 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                           <button
                             type="button"
                             disabled={busy}
-                            onClick={() => onSelectQuestion(q)}
+                            onClick={(e) => { nameQuestionRowOf(e.currentTarget); onSelectQuestion(q); }}
                             aria-label={`Abrir questão ${q.id}: ${(q.enunciado || '').slice(0, 80)}`}
-                            className="block w-full text-left line-clamp-2 leading-relaxed text-xs group-hover:text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-muted rounded disabled:cursor-not-allowed"
+                            className="w-full text-left line-clamp-2 leading-relaxed text-xs group-hover:text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-muted rounded disabled:cursor-not-allowed"
                           >
                             {q.enunciado}
                           </button>
@@ -465,7 +514,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                             {/* Abrir 1 a 1 */}
                             <button
                               disabled={busy}
-                              onClick={(e) => { e.stopPropagation(); onSelectQuestion(q); }}
+                              onClick={(e) => { e.stopPropagation(); nameQuestionRowOf(e.currentTarget); onSelectQuestion(q); }}
                               className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-brand/20 px-2.5 py-1.5 text-brand-muted transition-all hover:bg-brand/40 hover:text-white md:min-h-0 md:p-1.5"
                               title="Abrir em tela cheia"
                               aria-label={`Abrir questão ${q.id} em tela cheia`}
@@ -521,14 +570,14 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
             <div className="flex items-center gap-1.5">
               <button
                 disabled={currentPage <= 1}
-                onClick={() => setCurrentPage(1)}
+                onClick={() => viewTransition(() => setCurrentPage(1), { glide: true })}
                 className="px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] disabled:opacity-30 disabled:pointer-events-none text-xs text-white"
               >
                 « Primeira
               </button>
               <button
                 disabled={currentPage <= 1}
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                onClick={() => viewTransition(() => setCurrentPage(p => Math.max(1, p - 1)), { glide: true })}
                 className="px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] disabled:opacity-30 disabled:pointer-events-none text-xs text-white"
               >
                 ‹ Anterior
@@ -540,14 +589,14 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
 
               <button
                 disabled={currentPage >= Math.ceil(filteredQuestions.length / pageSize)}
-                onClick={() => setCurrentPage(p => p + 1)}
+                onClick={() => viewTransition(() => setCurrentPage(p => p + 1), { glide: true })}
                 className="px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] disabled:opacity-30 disabled:pointer-events-none text-xs text-white"
               >
                 Próxima ›
               </button>
               <button
                 disabled={currentPage >= Math.ceil(filteredQuestions.length / pageSize)}
-                onClick={() => setCurrentPage(Math.ceil(filteredQuestions.length / pageSize))}
+                onClick={() => viewTransition(() => setCurrentPage(Math.ceil(filteredQuestions.length / pageSize)), { glide: true })}
                 className="px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] disabled:opacity-30 disabled:pointer-events-none text-xs text-white"
               >
                 Última »
