@@ -12,15 +12,60 @@ export function generateSqlForQuestion(q:Question, _curatorName='Curador ApexMed
 }
 
 export function generateProgressiveSqlScript(_logs:AuditLogItem[], questions:Question[], regexFilter?:string):string {
+  const result = progressiveResult(questions, regexFilter);
+  return result.errors.length ? result.errors.map(error => '-- SQL não gerado: '+comment(error)).join('\n') : result.sql;
+}
+
+function progressiveResult(questions:Question[], regexFilter?:string) {
   let selected = questions;
   if (regexFilter?.trim()) {
     try {
       const regex = new RegExp(regexFilter, 'i');
       selected = questions.filter(q => regex.test(q.id) || regex.test(generateSqlForQuestion(q)));
-    } catch {return '-- SQL não gerado: filtro de expressão regular inválido.';}
+    } catch {return {sql:'', statements:[], errors:['filtro de expressão regular inválido.']};}
   }
-  const result = generateCorrectedQuestionsSql(selected);
-  return result.errors.length ? result.errors.map(error => '-- SQL não gerado: '+comment(error)).join('\n') : result.sql;
+  return generateCorrectedQuestionsSql(selected);
+}
+
+export const PROGRESSIVE_BATCH_SIZE = 50;
+export interface ProgressiveSqlBatch {
+  key: string;
+  number: number;
+  questionIds: string[];
+  sql: string;
+}
+
+// Fingerprint the content, not its position: changed corrections become pending.
+function batchKey(content:string):string {
+  let a = 0xdeadbeef, b = 0x41c6ce57;
+  for (let i = 0; i < content.length; i++) {
+    a = Math.imul(a ^ content.charCodeAt(i), 2654435761);
+    b = Math.imul(b ^ content.charCodeAt(i), 1597334677);
+  }
+  return `${content.length}-${(a >>> 0).toString(16)}-${(b >>> 0).toString(16)}`;
+}
+
+export function generateProgressiveSqlBatches(questions:Question[], regexFilter?:string) {
+  const result = progressiveResult(questions, regexFilter);
+  const batches:ProgressiveSqlBatch[] = [];
+  // Keep the existing all-or-nothing validation before offering any batch.
+  if (!result.errors.length) {
+    for (let i = 0; i < result.statements.length; i += PROGRESSIVE_BATCH_SIZE) {
+      const statements = result.statements.slice(i, i + PROGRESSIVE_BATCH_SIZE);
+      const body = statements.map(s => s.sql).join('\n\n');
+      const number = batches.length + 1;
+      batches.push({
+        key: batchKey(body), number, questionIds: statements.map(s => String(s.id)),
+        sql: [
+          '-- ApexMed — correções de todos os curadores',
+          `-- Lote ${number}: ${statements.length} questões; última versão confirmada de cada ID.`,
+          '-- Confira a base de destino antes de executar. IDs e datas de criação são preservados.',
+          'BEGIN;', '', body, '', 'COMMIT;',
+        ].join('\n'),
+      });
+    }
+  }
+  return {batches, errors:result.errors};
 }
 
 export function getSupabaseInitialSchemaSql():string {

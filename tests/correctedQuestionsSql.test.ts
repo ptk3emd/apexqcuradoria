@@ -2,8 +2,54 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {generateCorrectedQuestionsSql, sqlText} from '../src/lib/correctedQuestionsSql';
 import type {Question} from '../src/types/question';
+import {generateProgressiveSqlBatches} from '../src/lib/sqlGenerator';
 const FIG='https://beedxpjaufgujusyuziq.supabase.co/storage/v1/object/public/question-images/1/3f2a9c1e-6c1b-4a0e-9a53-7d2b8f5e1a10.webp';
 const q = (id:string, data:Partial<Question>={}) => ({id, status:'questao_corrigida', enunciado:'Original', ...data} as Question);
+
+test('progressive batches contain at most 50 distinct questions in numeric order', () => {
+  for (const count of [0, 1, 49, 50, 51, 100, 101]) {
+    const questions = Array.from({length:count}, (_, i) => q(String(count - i)));
+    const {batches, errors} = generateProgressiveSqlBatches(questions);
+    assert.deepEqual(errors, []);
+    assert.deepEqual(batches.map(batch => batch.questionIds.length),
+      Array.from({length:Math.ceil(count / 50)}, (_, i) => Math.min(50, count - i * 50)));
+    assert.deepEqual(batches.flatMap(batch => batch.questionIds), Array.from({length:count}, (_, i) => String(i + 1)));
+  }
+  const original = Array.from({length:51}, (_, i) => q(String(i + 1)));
+  const result = generateProgressiveSqlBatches([...original, q('01', {sync_version:2, enunciado:'Latest'})]);
+  assert.match(result.batches[0].sql, /Latest/);
+  assert.equal(result.batches[0].questionIds.length, 50);
+  assert.equal(result.batches[0].key, generateProgressiveSqlBatches([...original, q('01', {sync_version:2, enunciado:'Latest'})].reverse()).batches[0].key);
+  const changed = generateProgressiveSqlBatches(original);
+  assert.notEqual(result.batches[0].key, changed.batches[0].key);
+  assert.equal(result.batches[1].key, changed.batches[1].key);
+});
+
+test('progressive batches filter complete questions and block all export on invalid content', () => {
+  const questions = Array.from({length:101}, (_, i) => q(String(i + 1), {enunciado:i % 2 ? 'Other' : 'Selected'}));
+  assert.deepEqual(generateProgressiveSqlBatches(questions, 'Selected').batches.map(b => b.questionIds.length), [50, 1]);
+  assert.deepEqual(generateProgressiveSqlBatches(questions, 'No matches').batches, []);
+  const invalidRegex = generateProgressiveSqlBatches(questions, '[');
+  assert.equal(invalidRegex.batches.length, 0);
+  assert.match(invalidRegex.errors.join(), /inválido/);
+  const invalidContent = generateProgressiveSqlBatches([...questions, q('bad-id')]);
+  assert.equal(invalidContent.batches.length, 0);
+  assert.match(invalidContent.errors.join(), /bigint/);
+});
+
+test('each progressive batch executes independently without changing another batch', async () => {
+  const {PGlite} = await import('@electric-sql/pglite');
+  const db = new PGlite();
+  try {
+    await db.exec("CREATE TABLE public.questions(id bigint PRIMARY KEY, enunciado text); INSERT INTO public.questions SELECT id, 'Before' FROM generate_series(1, 51) AS id;");
+    const {batches} = generateProgressiveSqlBatches(Array.from({length:51}, (_, i) => q(String(i + 1), {enunciado:"After ' ; $$ $apex_update_0$"})));
+    await db.exec(batches[1].sql);
+    assert.deepEqual((await db.query('SELECT enunciado FROM public.questions WHERE id = 1')).rows, [{enunciado:'Before'}]);
+    assert.deepEqual((await db.query('SELECT enunciado FROM public.questions WHERE id = 51')).rows, [{enunciado:"After ' ; $$ $apex_update_0$"}]);
+    await db.exec(batches[0].sql);
+    assert.equal((await db.query<{count:number}>("SELECT count(*)::int AS count FROM public.questions WHERE enunciado <> 'Before'")).rows[0].count, 51);
+  } finally {await db.close();}
+});
 
 test('global script includes all authors, consolidates latest versions and retains changed content after approval', () => {
   const result=generateCorrectedQuestionsSql([

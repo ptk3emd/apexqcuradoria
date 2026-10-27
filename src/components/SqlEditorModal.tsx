@@ -6,15 +6,12 @@ import {
   Search, 
   X, 
   Check, 
-  Layers, 
   Trash2, 
-  RefreshCw, 
   Database,
   Terminal,
-  FileCode2
 } from 'lucide-react';
 import { Question, AuditLogItem } from '../types/question';
-import { generateProgressiveSqlScript, getSupabaseInitialSchemaSql } from '../lib/sqlGenerator';
+import { generateProgressiveSqlBatches, getSupabaseInitialSchemaSql } from '../lib/sqlGenerator';
 import { copyTextToClipboard } from '../lib/clipboardHelper';
 import { useDialog } from '../lib/useDialog';
 
@@ -25,6 +22,14 @@ interface SqlEditorModalProps {
   allQuestions: Question[];
   onClearLogs: () => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
+}
+
+const EXECUTED_BATCHES_KEY = 'apexqcuradoria:progressive-sql:executed:v1';
+function readExecutedBatches():string[] {
+  try {
+    const saved:unknown = JSON.parse(localStorage.getItem(EXECUTED_BATCHES_KEY) ?? '[]');
+    return Array.isArray(saved) ? saved.filter((key):key is string => typeof key === 'string') : [];
+  } catch {return [];}
 }
 
 export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
@@ -39,11 +44,24 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
   const [regexPattern, setRegexPattern] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'progressive' | 'ddl'>('progressive');
   const [copied, setCopied] = useState(false);
+  const [selectedBatchIndex, setSelectedBatchIndex] = useState(0);
+  const [executedBatches, setExecutedBatches] = useState<string[]>(readExecutedBatches);
 
   // Generate the progressive SQL code with live regex filter
-  const progressiveSql = useMemo(() => {
-    return generateProgressiveSqlScript(auditLogs, allQuestions, regexPattern);
-  }, [auditLogs, allQuestions, regexPattern]);
+  const {batches, errors} = useMemo(() => generateProgressiveSqlBatches(allQuestions, regexPattern), [allQuestions, regexPattern]);
+  const selectedBatch = batches[Math.min(selectedBatchIndex, batches.length - 1)];
+  const progressiveSql = selectedBatch?.sql ?? (errors.length
+    ? errors.map(error => '-- SQL não gerado: ' + error.replace(/[\r\n\u0000]/g, ' ')).join('\n')
+    : '-- Nenhuma questão corrigida para exportar com o filtro atual.');
+  const executedCount = batches.filter(batch => executedBatches.includes(batch.key)).length;
+  const exportDisabled = activeTab === 'progressive' && !selectedBatch;
+
+  const toggleExecuted = (key:string, checked:boolean) => {
+    const next = checked ? [...new Set([...executedBatches, key])] : executedBatches.filter(item => item !== key);
+    setExecutedBatches(next);
+    try {localStorage.setItem(EXECUTED_BATCHES_KEY, JSON.stringify(next));}
+    catch {onShowToast('Marcação temporária', 'Não foi possível salvar neste navegador. A marcação vale apenas enquanto a tela permanecer aberta.', 'info');}
+  };
 
   const ddlSql = useMemo(() => {
     return getSupabaseInitialSchemaSql();
@@ -51,20 +69,13 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
 
   const activeSqlContent = activeTab === 'progressive' ? progressiveSql : ddlSql;
 
-  // Stats calculation
-  const stats = useMemo(() => {
-    const deleteMatches = (progressiveSql.match(/DELETE FROM/gi) || []).length;
-    const updateMatches = (progressiveSql.match(/UPDATE public\.questions/gi) || []).length;
-    const lines = progressiveSql.split('\n').length;
-    return {
-      deletes: deleteMatches,
-      updates: updateMatches,
-      totalStatements: deleteMatches + updateMatches,
-      lines,
-    };
-  }, [progressiveSql]);
+  const stats = {
+    updates: selectedBatch?.questionIds.length ?? 0,
+    lines: progressiveSql.split('\n').length,
+  };
 
   const handleCopy = async () => {
+    if (exportDisabled) return;
     const success = await copyTextToClipboard(activeSqlContent);
     if (success) {
       setCopied(true);
@@ -80,9 +91,10 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
   };
 
   const handleDownload = () => {
+    if (exportDisabled) return;
     const filename =
       activeTab === 'progressive'
-        ? `curadoria_apexmed_${new Date().toISOString().split('T')[0]}.sql`
+        ? `curadoria_apexmed_lote_${selectedBatch.number}_${new Date().toISOString().split('T')[0]}.sql`
         : 'supabase_schema_apexmed.sql';
 
     const blob = new Blob([activeSqlContent], { type: 'text/sql;charset=utf-8;' });
@@ -93,6 +105,7 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     onShowToast('Arquivo baixado!', `Salvo como ${filename}.`, 'success');
   };
 
@@ -140,7 +153,7 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
               }`}
             >
               <Terminal className="w-3.5 h-3.5" />
-              <span>SQL Progressivo ({stats.totalStatements} comandos)</span>
+              <span>SQL Progressivo ({batches.length} lotes)</span>
             </button>
 
             <button
@@ -165,14 +178,14 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
                   aria-label="Filtrar SQL por expressão regular"
                   type="text"
                   value={regexPattern}
-                  onChange={(e) => setRegexPattern(e.target.value)}
+                  onChange={(e) => {setRegexPattern(e.target.value); setSelectedBatchIndex(0); setCopied(false);}}
                   placeholder="Filtrar SQL via Regex (ex: correta, WHERE id = 12)..."
                   className="w-full bg-shell-3 border border-white/[0.1] rounded-full pl-8 pr-10 py-1.5 text-xs text-apex-text placeholder-shell-muted outline-none focus:border-amber-400 font-mono"
                 />
                 {regexPattern && (
                   <button
                     type="button"
-                    onClick={() => setRegexPattern('')}
+                    onClick={() => {setRegexPattern(''); setSelectedBatchIndex(0); setCopied(false);}}
                     aria-label="Limpar busca"
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-7 h-7 rounded-full text-xs text-shell-muted hover:text-white"
                   >
@@ -184,11 +197,43 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
           )}
         </div>
 
+        {activeTab === 'progressive' && batches.length > 0 && (
+          <section aria-label="Lotes de SQL" className="space-y-2">
+            <p className="text-xs text-apex-readable" aria-live="polite">
+              Lotes de até 50 questões · {executedCount} de {batches.length} executados
+            </p>
+            <p className="text-xs text-shell-muted">
+              Copie ou baixe cada lote e execute no Supabase. Depois, marque Executado manualmente.
+              As marcações ficam neste navegador; alterações no SQL tornam o lote pendente novamente.
+            </p>
+            <div className="max-h-40 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {batches.map((batch, index) => (
+                <div key={batch.key} className={`flex items-center gap-3 rounded-lg border p-2 ${selectedBatch?.key === batch.key ? 'border-amber-400 bg-amber-500/10' : 'border-white/[0.1] bg-shell-3'}`}>
+                  <button type="button" aria-pressed={selectedBatch?.key === batch.key}
+                    aria-label={`Selecionar lote ${batch.number}`}
+                    onClick={() => {setSelectedBatchIndex(index); setCopied(false);}}
+                    className="flex-1 text-left text-xs text-apex-text">
+                    <span className="font-bold">Lote {batch.number} · {batch.questionIds.length} questões</span>
+                    <span className="block text-shell-muted">IDs {batch.questionIds[0]} a {batch.questionIds.at(-1)}</span>
+                  </button>
+                  <label className="flex items-center gap-2 text-xs text-apex-readable cursor-pointer">
+                    <input type="checkbox" aria-label={`Lote ${batch.number} executado`}
+                      checked={executedBatches.includes(batch.key)}
+                      onChange={event => toggleExecuted(batch.key, event.target.checked)}
+                      className="accent-emerald-500" />
+                    {executedBatches.includes(batch.key) ? 'Executado' : 'Pendente'}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Stats Pill row */}
         {activeTab === 'progressive' && (
           <div className="flex flex-wrap items-center gap-3 text-xs bg-white/[0.02] p-2.5 rounded-xl border border-white/[0.05]">
             <span className="text-[10px] uppercase font-bold tracking-wider text-shell-muted">
-              Resumo da Auditoria:
+              Lote selecionado:
             </span>
             <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold border border-blue-500/30">
               {stats.updates} UPDATEs (Correções de conteúdo)
@@ -206,10 +251,10 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
         <div className="flex-1 min-h-[300px] overflow-hidden rounded-xl border border-white/[0.08] bg-shell-2 relative flex flex-col">
           <div className="flex items-center justify-between gap-3 px-3 py-1.5 bg-shell-2 border-b border-white/[0.06] text-[11px] text-shell-muted font-mono">
             <span className="min-w-0 truncate">
-              {activeTab === 'progressive' ? 'curadoria_progressiva.sql' : 'supabase_ddl_schema.sql'}
+              {activeTab === 'progressive' ? (selectedBatch ? `curadoria_progressiva_lote_${selectedBatch.number}.sql` : 'curadoria_progressiva.sql') : 'supabase_ddl_schema.sql'}
             </span>
             <span className="shrink-0 whitespace-nowrap text-[10px] text-emerald-400 flex items-center gap-1">
-              ● Transação Atômica Ativa
+              {activeTab === 'progressive' && selectedBatch ? '● Transação independente por lote' : 'Prévia SQL'}
             </span>
           </div>
 
@@ -238,18 +283,20 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={handleDownload}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold text-apex-text bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] transition-all"
+              disabled={exportDisabled}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold text-apex-text bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] transition-all disabled:opacity-40"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Baixar .sql</span>
+              <span>{activeTab === 'progressive' ? 'Baixar lote .sql' : 'Baixar .sql'}</span>
             </button>
 
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1.5 px-6 py-2 rounded-full text-xs font-bold text-white bg-brand hover:bg-brand-hover shadow-[0_0_20px_rgba(164,57,57,0.35)] transition-all cursor-pointer"
+              disabled={exportDisabled}
+              className="flex items-center gap-1.5 px-6 py-2 rounded-full text-xs font-bold text-white bg-brand hover:bg-brand-hover shadow-[0_0_20px_rgba(164,57,57,0.35)] transition-all cursor-pointer disabled:opacity-40"
             >
               {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              <span>{copied ? 'Copiado para Área de Transferência!' : 'Copiar Código SQL'}</span>
+              <span>{copied ? 'Copiado para Área de Transferência!' : activeTab === 'progressive' ? 'Copiar SQL do lote' : 'Copiar Código SQL'}</span>
             </button>
           </div>
         </div>

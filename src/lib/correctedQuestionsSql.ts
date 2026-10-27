@@ -94,5 +94,5 @@ export function generateCorrectedQuestionsSql(questions: Question[]) {
     '-- Confira a base de destino: este arquivo contém as últimas correções exportadas, sem controle de versão do destino.',
     'BEGIN;', '', ...statements.map(s => s.sql + '\n'), 'COMMIT;',
   ].join('\n');
-  return {sql, count:corrected.length, errors};
+  return {sql, count:corrected.length, errors, statements};
 }
