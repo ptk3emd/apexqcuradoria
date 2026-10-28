@@ -25,6 +25,8 @@ interface TopNavbarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   activeView: 'table' | 'detail' | 'cockpit' | 'sql';
+  /** While a question is open on a phone, only the brand and profile stay: the question needs the screen. */
+  compact?: boolean;
   onViewChange: (view: 'table' | 'detail' | 'cockpit' | 'sql') => void;
   onOpenBatchAssignModal: () => void;
   totalQuestions: number;
@@ -42,6 +44,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   searchQuery,
   onSearchChange,
   activeView,
+  compact = false,
   onViewChange,
   onOpenBatchAssignModal,
   totalQuestions,
@@ -99,7 +102,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </div>
 
         {/* Quick Search Bar */}
-        <div className="order-3 basis-full min-w-0 md:order-none md:basis-auto md:flex-1 md:max-w-md md:min-w-[240px]">
+        <div className={`order-3 basis-full min-w-0 md:order-none md:basis-auto md:flex-1 md:max-w-md md:min-w-[240px] ${compact ? 'hidden md:block' : ''}`}>
           <div className="relative flex items-center">
             <Search className="w-4 h-4 text-shell-muted absolute left-3.5 pointer-events-none" />
             <input
@@ -125,7 +128,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </div>
 
         {/* View Switcher Tabs */}
-        <div className="order-4 flex max-w-full items-center overflow-x-auto bg-shell-2 p-1 rounded-full border border-white/[0.07] md:order-none [&>button]:shrink-0">
+        <div className={`order-4 max-w-full items-center overflow-x-auto bg-shell-2 p-1 rounded-full border border-white/[0.07] md:order-none [&>button]:shrink-0 ${compact ? 'hidden md:flex' : 'flex'}`}>
           <button
             onClick={() => onViewChange('table')}
             className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full transition-all ${

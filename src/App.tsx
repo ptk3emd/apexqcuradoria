@@ -472,6 +472,7 @@ export default function App() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         activeView={activeView}
+        compact={activeView === 'detail'}
         onViewChange={(view) => { if (view === 'cockpit' && !completeDatasetReady) {showToast('Carregando a base', 'As estatísticas globais estarão disponíveis ao concluir o carregamento.', 'info');return;} if (view === 'sql' && !completeDatasetReady) {showToast('Carregando a base', 'Aguarde para gerar o SQL de todas as questões corrigidas.', 'info');return;} if (isEditingQuestion) {showToast('Edição em andamento', 'Salve ou cancele antes de sair.', 'info');return;} if (actionPending.current) return; if (view === 'detail' && currentQuestion) void openQuestion(currentQuestion); else setActiveView(view); }}
         onOpenBatchAssignModal={() => {if (!completeDatasetReady) {showToast('Carregando a base', 'A seleção na lista já está disponível; aguarde para reservar lotes de toda a base.', 'info');return;}setIsBatchAssignModalOpen(true);}}
         totalQuestions={questions.length}
@@ -479,7 +480,7 @@ export default function App() {
         onlineCuratorsCount={new Set([...Object.values(presences).map(p => p.curador_id), ...(isAuthenticated ? [activeCurator.id] : [])]).size}
       />
 
-      <div role="status" className="px-6 py-2 text-xs text-apex-readable bg-shell-2/60">{isActionPending ? 'Salvando… Aguarde a confirmação.' : isLoadingFullDataset ? `${questions.length} questões disponíveis • Carregando o restante…` : syncMessage}</div>
+      <div role="status" className={`px-6 py-2 text-xs text-apex-readable bg-shell-2/60 ${activeView === 'detail' && !isActionPending ? 'hidden md:block' : ''}`}>{isActionPending ? 'Salvando… Aguarde a confirmação.' : isLoadingFullDataset ? `${questions.length} questões disponíveis • Carregando o restante…` : syncMessage}</div>
       {loadError && <div role="alert" className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-4 px-4 py-4 text-apex-text">
         <div className="min-w-0 flex-1"><p className="font-bold">Não foi possível carregar toda a base.</p><p className="mt-1 break-words text-sm text-apex-readable">{loadError}</p><p className="mt-1 text-sm text-apex-readable">As questões já carregadas continuam disponíveis. Reconecte e tente novamente.</p></div>
         <button type="button" disabled={isLoadingFullDataset || isActionPending || isEditingQuestion} onClick={() => {setDatasetReady(false);setDatasetLoadAttempt(attempt => attempt + 1);}} className="min-h-11 rounded-full bg-brand px-5 py-3 text-sm font-bold text-white hover:bg-brand-hover disabled:opacity-40">Tentar carregar novamente</button>

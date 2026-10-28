@@ -245,6 +245,24 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
     </>
   );
 
+  // A clear horizontal swipe moves to the previous or next question; scrolling, editing and fields are left alone.
+  const swipe = useRef<{x: number; y: number} | null>(null);
+  const onSwipeStart = (e: React.TouchEvent) => {
+    const target = e.target as HTMLElement;
+    swipe.current = e.touches.length === 1 && !target.closest('input, textarea, select, pre, [data-no-swipe]')
+      ? {x: e.touches[0].clientX, y: e.touches[0].clientY} : null;
+  };
+  const onSwipeEnd = (e: React.TouchEvent) => {
+    const start = swipe.current;
+    swipe.current = null;
+    if (!start || busy || isEditing || showRevisionModal) return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    const dy = e.changedTouches[0].clientY - start.y;
+    if (Math.abs(dx) < 80 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    if (dx < 0 && currentIndex < total - 1) onNavigateQuestion(currentIndex + 1);
+    if (dx > 0 && currentIndex > 0) onNavigateQuestion(currentIndex - 1);
+  };
+
   if (isEditing) return (
     <>
       <QuestionEditor question={editedQuestion} busy={busy} onChange={setEditedQuestion} onSave={handleSaveChanges} onCancel={requestDiscard} conflicts={conflicts}
@@ -255,18 +273,20 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
 
 
   return (
-    <fieldset disabled={busy} aria-busy={busy} className="w-full min-w-0 space-y-5 pb-28 animate-in fade-in duration-200 lg:pb-0">
+    <fieldset disabled={busy} aria-busy={busy} className="w-full min-w-0 space-y-5 pb-28 animate-in fade-in duration-200 lg:pb-0"
+      onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
       {/* Top Navigation & Status Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-shell-2 p-4 rounded-2xl border border-white/[0.08] shadow-lg">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:bg-shell-2 sm:p-4 sm:rounded-2xl sm:border sm:border-white/[0.08] sm:shadow-lg">
         {/* Left: Back button & Counter */}
         <div className="flex items-center gap-3">
           <button
             disabled={isEditing}
             onClick={onBackToList}
+            aria-label="Voltar à tabela"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-apex-readable hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all"
           >
             <ArrowLeft className="w-4 h-4 text-brand-muted" />
-            <span>Voltar à Tabela</span>
+            <span className="hidden sm:inline">Voltar à Tabela</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -307,15 +327,16 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
         )}
 
         {/* Right: Copy for AI + Assignment Button */}
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Copy for AI Button */}
           <button
             onClick={handleCopy}
-            className="flex w-full items-center justify-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold text-white bg-brand hover:bg-brand-hover shadow-[0_0_20px_rgba(164,57,57,0.35)] transition-all cursor-pointer sm:w-auto sm:py-2"
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-full text-xs font-bold text-white bg-brand hover:bg-brand-hover shadow-[0_0_20px_rgba(164,57,57,0.35)] transition-all cursor-pointer sm:px-4"
             title="Copiar texto formatado para enviar à IA ou Google"
+            aria-label="Copiar texto para IA ou Google"
           >
             <Copy className="w-4 h-4" />
-            <span className="sm:hidden">Copiar para IA</span>
+            <span className="sm:hidden">IA</span>
             <span className="hidden sm:inline">Copiar Texto p/ IA ou Google</span>
           </button>
 
@@ -392,7 +413,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
         {/* Left Column (Question Content & Alternatives) - 8 cols */}
         <div className="lg:col-span-8 space-y-5">
           {/* Question Metadata Bar */}
-          <div className="bg-shell-2 p-5 rounded-2xl border border-white/[0.08] space-y-4" style={{ viewTransitionName: questionTransitionName(question.id) }}>
+          <div className="bg-shell-2 p-4 sm:p-5 rounded-2xl border border-white/[0.08] space-y-4" style={{ viewTransitionName: questionTransitionName(question.id) }}>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
               <div className="flex items-center gap-2.5">
                 <span className="font-mono text-base font-bold text-white px-2.5 py-0.5 rounded-lg bg-brand/20 border border-brand/40">
@@ -423,8 +444,8 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             </div>
 
             {/* Specialty and Specific Theme */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="bg-shell-3 p-3 rounded-xl border border-white/[0.06]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2 text-xs">
+              <div className="sm:bg-shell-3 sm:p-3 sm:rounded-xl sm:border sm:border-white/[0.06]">
                 <p className="text-xs uppercase font-bold tracking-wider text-brand-muted mb-1">
                   Especialidade Médica
                 </p>
@@ -441,7 +462,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                 )}
               </div>
 
-              <div className="bg-shell-3 p-3 rounded-xl border border-white/[0.06]">
+              <div className="sm:bg-shell-3 sm:p-3 sm:rounded-xl sm:border sm:border-white/[0.06]">
                 <p className="text-xs uppercase font-bold tracking-wider text-brand-muted mb-1">
                   Tema Específico
                 </p>
@@ -454,7 +475,7 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                     className="w-full bg-shell-2 border border-white/[0.15] rounded px-2 py-1 text-xs text-white"
                   />
                 ) : (
-                  <p className="font-bold text-sm text-apex-text truncate" title={question.tema_especifico}>
+                  <p className="font-bold text-sm text-apex-text sm:truncate" title={question.tema_especifico}>
                     {question.tema_especifico || 'Geral'}
                   </p>
                 )}
@@ -829,8 +850,8 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             </form>
           </div>
 
-          {/* Real-time Generated SQL Statement Preview */}
-          <div className="bg-shell-2 p-4 rounded-2xl border border-white/[0.08] space-y-2">
+          {/* Real-time Generated SQL Statement Preview (desktop: the SQL tab covers it on phones) */}
+          <div className="hidden lg:block bg-shell-2 p-4 rounded-2xl border border-white/[0.08] space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs uppercase font-bold tracking-wider text-amber-400 flex items-center gap-1.5">
                 <Code2 className="w-3.5 h-3.5" />
@@ -912,9 +933,9 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
             className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl border text-xs font-bold ${question.status === 'eliminar_questao' ? 'border-rose-500 bg-rose-600 text-white' : 'border-rose-600/30 bg-rose-950/30 text-rose-200'}`}>
             <Trash2 className="h-4 w-4" aria-hidden="true" />Eliminar
           </button>
-          <button type="button" onClick={() => onAssignQuestion(question.id, isAssignedToMe ? null : activeCurator)}
-            className="flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl border border-white/15 bg-white/[0.05] text-xs font-bold text-apex-text">
-            <UserCheck className="h-4 w-4 text-brand-muted" aria-hidden="true" />{isAssignedToMe ? 'Liberar' : 'Assumir'}
+          <button type="button" disabled={isEditing || currentIndex >= total - 1} onClick={() => onNavigateQuestion(currentIndex + 1)}
+            className="flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl border border-white/15 bg-white/[0.05] text-xs font-bold text-apex-text disabled:opacity-40">
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />Próxima
           </button>
         </div>
       </div>
