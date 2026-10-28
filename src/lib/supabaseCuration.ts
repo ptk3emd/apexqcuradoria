@@ -102,20 +102,83 @@ export async function loadSupabaseBase(onPage?:(page:Question[])=>void, signal?:
     onPage?.(cached.questions);
     return cached.questions;
   }
+  try {
+    const questions=await loadLightList(onPage,signal);
+    scheduleCacheSave();
+    return questions;
+  } catch(error) {
+    if(!isMissingFunction(error)) throw error;
+  }
+  const questions=await loadFullBase(onPage,signal);
+  scheduleCacheSave();
+  return questions;
+}
+// Before migration 20261028150000 the server has only curation_base.
+function isMissingFunction(error:unknown) {
+  return /Could not find the function|does not exist/i.test((error as Error)?.message ?? '');
+}
+const PARALLEL_REQUESTS=6;
+async function inParallel<T>(tasks:(()=>Promise<T>)[], limit:number):Promise<T[]> {
+  const results:T[]=new Array(tasks.length);
+  let next=0;
+  const worker=async()=>{while(next<tasks.length){const index=next++;results[index]=await tasks[index]();}};
+  await Promise.all(Array.from({length:Math.min(limit,tasks.length)},worker));
+  return results;
+}
+// Rows the sync already replaced keep the newer snapshot in the cache.
+function keep(page:Question[]) {
+  const current=page.filter(q=>!shared.get(q.id)?.deleted);
+  for(const q of current) if(!shared.has(q.id)) base.set(q.id,q);
+  return current;
+}
+// Metadata and a statement preview for every question, in blocks requested together.
+async function loadLightList(onPage?:(page:Question[])=>void, signal?:AbortSignal):Promise<Question[]> {
+  const plan=await rpc('curation_list_plan',{p_block:1000},signal) as {cursor:number; starts:(string|number)[]};
+  cursor=plan.cursor;
+  const starts=plan.starts.map(String);
+  const pages=await inParallel(starts.map((from,i)=>async()=>{
+    const page=keep(await rpc('curation_list',{p_from:from,p_to:starts[i+1]??null},signal) as Question[]);
+    onPage?.(page);
+    return page;
+  }),PARALLEL_REQUESTS);
+  return pages.flat();
+}
+async function loadFullBase(onPage?:(page:Question[])=>void, signal?:AbortSignal):Promise<Question[]> {
   cursor=await rpc('curation_initial_cursor',{},signal);
   const questions:Question[]=[];
   let after:string|null=null;
   while(true) {
     const page=await rpc('curation_base',{p_after:after,p_limit:500},signal) as Question[];
-    const currentPage=page.filter(q=>!shared.get(q.id)?.deleted);
+    const currentPage=keep(page);
     questions.push(...currentPage);
     onPage?.(currentPage);
     if(page.length<500) break;
     after=page[page.length-1].id;
   }
-  for(const q of questions) if(!shared.has(q.id)) base.set(q.id,q);
-  scheduleCacheSave();
   return questions;
+}
+/** Full content of light-list questions, 200 per request. */
+export async function loadFullQuestions(ids:string[], signal?:AbortSignal):Promise<Question[]> {
+  const unique=[...new Set(ids)];
+  const chunks:string[][]=[];
+  for(let i=0;i<unique.length;i+=200) chunks.push(unique.slice(i,i+200));
+  const pages=await inParallel(chunks.map(chunk=>async()=>await rpc('curation_full',{p_ids:chunk},signal) as Question[]),3);
+  const full=pages.flat().map(q=>({...q,parcial:false}));
+  for(const q of full) {
+    const known=base.get(q.id);
+    if(!known || (q.sync_version??0)>=(known.sync_version??0)) base.set(q.id,q);
+  }
+  if(full.length) scheduleCacheSave();
+  return full;
+}
+/** Ids whose full text contains every term; null when the server cannot search. */
+export async function searchQuestionIds(terms:string[], signal?:AbortSignal):Promise<string[]|null> {
+  try {
+    return await rpc('curation_search',{p_terms:terms.slice(0,10)},signal) as string[];
+  } catch(error) {
+    if(isMissingFunction(error)) return null;
+    throw error;
+  }
 }
 export async function fetchSupabaseShared() {
   const changes=new Map<string,SharedRow>();
@@ -125,9 +188,9 @@ export async function fetchSupabaseShared() {
     for(const q of result.questions as Question[]) {
       const previous=shared.get(q.id);
       if(!previous || previous.deleted || (q.sync_version??0)>previous.version) {
-        const row={id:q.id,patch:q,version:q.sync_version??0};
+        const row={id:q.id,patch:{...q,parcial:false},version:q.sync_version??0};
         shared.set(q.id,row);changes.set(q.id,row);
-        base.set(q.id,q);
+        base.set(q.id,row.patch);
       }
     }
     for(const id of result.removed_ids || []) {
@@ -168,6 +231,8 @@ function patchFor(q:Question, fields?:readonly string[]):Record<string,unknown> 
   return patch;
 }
 export async function mutateSupabase(questions:Question[],action:string,target?:Curator|null,fields?:readonly string[]):Promise<Question[]> {
+  // A light-list row lacks the long fields; saving it whole would blank them.
+  if(action==='save' && !fields && questions.some(q=>q.parcial)) throw new Error('A questão ainda está carregando. Aguarde e tente de novo.');
   const result=await rpc('curation_mutate',{
     p_action:action,p_session:tabSession,p_request:crypto.randomUUID(),
     p_items:questions.map(q=>({id:q.sync_source_id || q.id,version:q.sync_version??0,target:target?.id||null,

@@ -41,6 +41,8 @@ export function generateCorrectedQuestionsSql(questions: Question[]) {
   const errors: string[] = [];
   const statements: {id: bigint; sql: string}[] = [];
   for (const q of corrected) {
+    // A light-list row has no alternatives or comment yet; its UPDATE would blank them.
+    if (q.parcial) { errors.push(`Questão ${q.id}: conteúdo completo ainda carregando.`); continue; }
     if (!/^-?\d+$/.test(q.id) || BigInt(q.id) < -9223372036854775808n || BigInt(q.id) > 9223372036854775807n) {
       errors.push(`Questão ${q.id}: ID incompatível com bigint.`);
       continue;

@@ -21,7 +21,9 @@ import { BatchAssignModal } from './components/BatchAssignModal';
 import { SqlEditorModal } from './components/SqlEditorModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { SupabaseAuthGate } from './components/SupabaseAuthGate';
-import { loadSupabaseBase, subscribeSupabaseChanges, signOutSupabase } from './lib/supabaseCuration';
+import { loadSupabaseBase, loadFullQuestions, subscribeSupabaseChanges, signOutSupabase } from './lib/supabaseCuration';
+import { useServerSearch } from './lib/useServerSearch';
+import { isCorrectedQuestion } from './lib/correctedQuestionsSql';
 import { viewTransition, nameQuestionRow } from './lib/viewTransition';
 const STORAGE_KEY_LOGS = 'apexmed_audit_logs_v1';
 const STORAGE_KEY_COMMENTS = 'apexmed_comments_v1';
@@ -135,11 +137,13 @@ export default function App() {
       setLoadError(null);
       setCompleteDatasetReady(false);
       try {
-        await loadSupabaseBase(page => {
+        const loaded = await loadSupabaseBase(page => {
           if (!isMounted) return;
           setQuestions(previous => mergeShared(previous, page.map(q => ({id:q.id, patch:q, version:q.sync_version ?? 0}))));
           setDatasetReady(true);
         }, controller.signal);
+        // The SQL exports read the full text of every corrected question.
+        await mergeFullQuestions(loaded.filter(q => q.parcial && isCorrectedQuestion(q)).map(q => q.id), controller.signal);
         if (isMounted) {setDatasetReady(true);setCompleteDatasetReady(true);}
       } catch (err) {
         console.warn('Carregamento inicial completo:', err);
@@ -220,6 +224,8 @@ export default function App() {
   }, [questions, selectedQuestionId]);
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
+  const hasPartialQuestions = useMemo(() => questions.some(q => q.parcial), [questions]);
+  const serverSearchIds = useServerSearch([deferredSearchQuery], hasPartialQuestions);
 
   // Questions filtered by search query
   const searchedQuestions = useMemo(() => {
@@ -227,6 +233,7 @@ export default function App() {
     const q = deferredSearchQuery.toLowerCase().trim();
     return questions.filter(item => {
       return (
+        serverSearchIds?.has(item.id) ||
         item.id.toLowerCase().includes(q) ||
         (item.especialidade && item.especialidade.toLowerCase().includes(q)) ||
         (item.tema_especifico && item.tema_especifico.toLowerCase().includes(q)) ||
@@ -235,7 +242,7 @@ export default function App() {
         (item.origem && item.origem.toLowerCase().includes(q))
       );
     });
-  }, [questions, deferredSearchQuery]);
+  }, [questions, deferredSearchQuery, serverSearchIds]);
 
   const applyConfirmed = useCallback((updated: Question[]) => {
     setQuestions(prev => {
@@ -271,6 +278,37 @@ export default function App() {
   };
 
   // Opening never reserves: several curators may edit the same question.
+  // Light-list rows get their full text on demand; a newer version already in the list wins.
+  const mergeFullQuestions = useCallback(async (ids: string[], signal?: AbortSignal) => {
+    if (!ids.length) return [];
+    const full = await loadFullQuestions(ids, signal);
+    const byId = new Map(full.map(q => [q.id, q]));
+    setQuestions(prev => prev.map(q => {
+      const next = byId.get(q.id);
+      return next && q.parcial && (next.sync_version ?? 0) >= (q.sync_version ?? 0) ? next : q;
+    }));
+    return full;
+  }, []);
+  const fullQuestion = useCallback(async (question: Question) => {
+    if (!question.parcial) return question;
+    return (await mergeFullQuestions([question.id])).find(q => q.id === question.id) ?? question;
+  }, [mergeFullQuestions]);
+
+  // The open question and its neighbours load in full so moving between them is instant.
+  const [fullLoadError, setFullLoadError] = useState<string | null>(null);
+  useEffect(() => {
+    if (activeView !== 'detail' || !currentQuestion) return;
+    const index = searchedQuestions.findIndex(q => q.id === currentQuestion.id);
+    const wanted = [currentQuestion, searchedQuestions[index - 1], searchedQuestions[index + 1]].filter((q): q is Question => Boolean(q?.parcial));
+    if (!wanted.length) return;
+    const controller = new AbortController();
+    setFullLoadError(null);
+    mergeFullQuestions(wanted.map(q => q.id), controller.signal).catch(error => {
+      if ((error as Error).name !== 'AbortError') setFullLoadError(describeError(error));
+    });
+    return () => controller.abort();
+  }, [activeView, currentQuestion?.id, currentQuestion?.parcial, searchedQuestions, mergeFullQuestions]);
+
   const openQuestion = async (question: Question) => {
     if (!isAuthenticated || !datasetReady) {
       showToast('Aguarde a conexão', 'Entre na sessão e aguarde o carregamento das questões.', 'info');
@@ -463,12 +501,20 @@ export default function App() {
             onUpdateStatus={handleUpdateStatus}
             onAssignQuestion={handleAssignQuestion}
             onShowToast={showToast}
+            onLoadFullQuestion={fullQuestion}
             searchActive={Boolean(searchQuery.trim())}
             onClearSearch={() => setSearchQuery('')}
           />
         )}
 
-        {activeView === 'detail' && currentQuestion && (
+        {activeView === 'detail' && currentQuestion?.parcial && (
+          <div role="status" className="mx-auto max-w-3xl p-8 text-center text-apex-readable">
+            {fullLoadError ? <><p className="font-bold text-apex-text">Não foi possível abrir a questão #{currentQuestion.id}.</p><p className="mt-1 text-sm">{fullLoadError}</p>
+              <button type="button" onClick={() => {setFullLoadError(null);void fullQuestion(currentQuestion).catch(error => setFullLoadError(describeError(error)));}} className="mt-4 min-h-11 rounded-full bg-brand px-5 py-3 text-sm font-bold text-white hover:bg-brand-hover">Tentar novamente</button></>
+              : <p>Carregando a questão #{currentQuestion.id}…</p>}
+          </div>
+        )}
+        {activeView === 'detail' && currentQuestion && !currentQuestion.parcial && (
           <QuestionDetailView
             busy={isActionPending}
             onEditingChange={setIsEditingQuestion}

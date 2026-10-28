@@ -27,6 +27,7 @@ await db.exec(masterSql);
 await db.exec(await readFile('supabase/migrations/20261012120000_questions_anulada_referencias.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261012190000_concurrent_editing.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261023120000_question_image_mutate.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261028150000_curation_light_list.sql','utf8'));
 await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
 const asUser=async user=>{
@@ -209,4 +210,31 @@ test('annulled questions lose their answer key; references are saved and blank o
  assert.equal(restored.questions[0].correta,'A');
  await db.exec('reset role');
  await assert.rejects(db.exec("update public.questions set anulada=true where id=30"),/questions_anulada_sem_gabarito_check/);
+});
+
+test('the light list comes in planned ranges, full content and search on demand',async()=>{
+ await db.exec('reset role');
+ await db.exec("insert into public.questions(id,enunciado,a,comentario) select g,'Enunciado '||g||' '||repeat('x',300),'Alternativa '||g,case when g=950 then 'Bronquiolite: 50%_off' else 'Comentário' end from generate_series(700,1049) g");
+ await asUser(patrick);
+ const plan=(await db.query('select public.curation_list_plan(100) as r')).rows[0].r;
+ assert.equal(plan.block,100);
+ const starts=plan.starts.map(Number);
+ const pages=await Promise.all(starts.map(async(from,i)=>(await db.query('select public.curation_list($1,$2) as r',[from,starts[i+1]??null])).rows[0].r));
+ const rows=pages.flat();
+ const all=(await db.query('select count(*)::int n from public.curation_questions')).rows[0].n;
+ assert.equal(rows.length,all);
+ assert.equal(new Set(rows.map(r=>r.id)).size,all);
+ const row=rows.find(r=>r.id==='800');
+ assert.equal(row.parcial,true);assert.equal(row.a,undefined);assert.equal(row.comentario,undefined);
+ assert.equal(row.enunciado.length,240);assert.equal(row.status,'pendente');
+ const full=(await db.query('select public.curation_full($1::bigint[]) as r',[[800,801]])).rows[0].r;
+ assert.deepEqual(full.map(q=>q.id),['800','801']);assert.equal(full[0].a,'Alternativa 800');assert.equal(full[0].parcial,undefined);
+ const search=async terms=>(await db.query('select public.curation_search($1::text[]) as r',[terms])).rows[0].r;
+ assert.deepEqual(await search(['BRONQUIOLITE']),['950']);
+ assert.deepEqual(await search(['bronquiolite','50%_']),['950']);
+ assert.deepEqual(await search(['bronquiolite','5_%']),[]);
+ assert.deepEqual(await search(['alternativa 1001']),['1001']);
+ await db.exec('reset role');await db.query("select set_config('request.headers',$1,false)",[JSON.stringify({'x-apex-session':'invented'})]);await db.exec('set role authenticated');
+ await assert.rejects(db.query('select public.curation_list(1)'),/não autorizado/);
+ await assert.rejects(db.query("select public.curation_search(array['x'])"),/não autorizado/);
 });
