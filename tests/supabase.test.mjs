@@ -32,6 +32,7 @@ await db.exec(await readFile('supabase/migrations/20261028160000_curation_light_
 await db.exec(await readFile('supabase/migrations/20261028170000_curation_quality_flags.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261028180000_quality_flags_null_text.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261028190000_quality_flags_ranges.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261028200000_curation_activity_goals.sql','utf8'));
 await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
 const asUser=async user=>{
@@ -276,5 +277,28 @@ test('quality flags find missing parts and answer keys contradicted by justifica
  assert.ok(all['5001'].includes('falta_a'));
  const ranged=(await db.query('select public.curation_quality_flags(5001,5002) as r')).rows[0].r;
  assert.deepEqual(Object.keys(ranged),['5001']);
+ await db.exec('reset role');
+});
+
+test('activity counts distinct questions audited per curator and day; goals are shared and validated',async()=>{
+ await db.exec('reset role');
+ await db.exec("insert into public.questions(id,enunciado) values(6001,'x'),(6002,'y'),(6003,'z')");
+ await asUser(lucas);
+ await call('status',[{id:'6001',version:0,patch:{status:'aprovadas'}},{id:'6002',version:0,patch:{status:'aprovadas'}}]);
+ await call('review',[{id:'6001',version:1}]);
+ await call('claim',[{id:'6003',version:0}]);
+ await db.exec('set role anon');
+ const activity=(await db.query('select public.curation_activity(30) as r')).rows[0].r;
+ const today=activity.daily.filter(d=>d.curator==='lucas'&&d.day===activity.today);
+ assert.equal(today.length,1);assert.ok(today[0].audited>=2);
+ assert.ok(activity.totals.lucas>=2);
+ assert.deepEqual(activity.goals.daily,{});
+ const saved=(await db.query("select public.curation_set_goals('{\"lucas\":40,\"patrick\":25}'::jsonb,'2026-12-31') as r")).rows[0].r;
+ assert.equal(saved.daily.lucas,40);assert.equal(saved.deadline,'2026-12-31');assert.equal(saved.updated_by,'Lucas');
+ await assert.rejects(db.query("select public.curation_set_goals('{\"lucas\":-1}'::jsonb,null)"),/inteiro de 0 a 1000/);
+ await assert.rejects(db.query("select public.curation_set_goals('{\"zé\":10}'::jsonb,null)"),/desconhecido/);
+ await db.exec('reset role');await db.query("select set_config('request.headers',$1,false)",[JSON.stringify({'x-apex-session':'invented'})]);await db.exec('set role anon');
+ await assert.rejects(db.query('select public.curation_activity()'),/não autorizado/);
+ await assert.rejects(db.query("select public.curation_set_goals('{}'::jsonb,null)"),/não autorizado/);
  await db.exec('reset role');
 });

@@ -13,11 +13,9 @@ import {
 import { Question, AuditLogItem } from '../types/question';
 import { generateProgressiveSqlBatches, getSupabaseInitialSchemaSql } from '../lib/sqlGenerator';
 import { copyTextToClipboard } from '../lib/clipboardHelper';
-import { useDialog } from '../lib/useDialog';
+import { MigrationsPanel } from './MigrationsPanel';
 
-interface SqlEditorModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+interface SqlWorkspaceProps {
   auditLogs: AuditLogItem[];
   allQuestions: Question[];
   onClearLogs: () => void;
@@ -32,9 +30,8 @@ function readExecutedBatches():string[] {
   } catch {return [];}
 }
 
-export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
-  isOpen,
-  onClose,
+/** The SQL tab: progressive correction batches, the migrations to apply and the schema reference. */
+export const SqlWorkspace: React.FC<SqlWorkspaceProps> = ({
   auditLogs,
   allQuestions,
   onClearLogs,
@@ -42,7 +39,7 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
 }) => {
 
   const [regexPattern, setRegexPattern] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'progressive' | 'ddl'>('progressive');
+  const [activeTab, setActiveTab] = useState<'progressive' | 'migrations' | 'ddl'>('progressive');
   const [copied, setCopied] = useState(false);
   const [selectedBatchIndex, setSelectedBatchIndex] = useState(0);
   const [executedBatches, setExecutedBatches] = useState<string[]>(readExecutedBatches);
@@ -109,13 +106,9 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
     onShowToast('Arquivo baixado!', `Salvo como ${filename}.`, 'success');
   };
 
-  const dialogRef = useDialog<HTMLDivElement>(onClose, isOpen);
-
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="sql-dialog-title" className="w-full max-w-4xl rounded-2xl bg-shell-2 border border-white/[0.12] p-4 sm:p-6 space-y-4 shadow-2xl flex flex-col max-h-[90dvh] overflow-y-auto">
+    <section aria-labelledby="sql-dialog-title" className="w-full">
+      <div className="w-full space-y-4 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
           <div className="flex items-center gap-2.5">
@@ -123,27 +116,20 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
               <Code2 className="w-4 h-4 text-amber-400" />
             </div>
             <div>
-              <h3 id="sql-dialog-title" className="font-bold text-base text-apex-text">
-                Supabase SQL Editor — Geração Progressiva
-              </h3>
-              <p className="text-xs text-shell-muted">
-                UPDATEs de conteúdo em public.questions, com as correções confirmadas de todos os curadores
+              <h1 id="sql-dialog-title" className="font-bold text-2xl tracking-[-0.02em] text-apex-text">
+                SQL e migrações
+              </h1>
+              <p className="text-xs text-apex-readable">
+                Correções em lotes para public.questions, migrações do Supabase e referência do esquema
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            aria-label="Fechar"
-            onClick={onClose}
-            className="p-1 rounded-lg text-shell-muted hover:text-white hover:bg-white/[0.06] transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
         </div>
 
         {/* Tab switch + Regex filter bar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex bg-shell-3 p-1 rounded-full border border-white/[0.08] text-xs font-bold">
+          <div className="flex flex-wrap bg-shell-3 p-1 rounded-full border border-white/[0.08] text-xs font-bold">
             <button
               onClick={() => setActiveTab('progressive')}
               className={`px-3.5 py-1 rounded-full transition-all flex items-center gap-1.5 ${
@@ -154,6 +140,18 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
             >
               <Terminal className="w-3.5 h-3.5" />
               <span>SQL Progressivo ({batches.length} lotes)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('migrations')}
+              className={`px-3.5 py-1 rounded-full transition-all flex items-center gap-1.5 ${
+                activeTab === 'migrations'
+                  ? 'bg-brand text-white shadow-sm'
+                  : 'text-apex-readable hover:text-white'
+              }`}
+            >
+              <Code2 className="w-3.5 h-3.5" />
+              <span>Migrações</span>
             </button>
 
             <button
@@ -247,6 +245,7 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
           </div>
         )}
 
+        {activeTab === 'migrations' ? <MigrationsPanel onShowToast={onShowToast} /> : <>
         {/* Code Editor Preview Box */}
         <div className="flex-1 min-h-[300px] overflow-hidden rounded-xl border border-white/[0.08] bg-shell-2 relative flex flex-col">
           <div className="flex items-center justify-between gap-3 px-3 py-1.5 bg-shell-2 border-b border-white/[0.06] text-[11px] text-shell-muted font-mono">
@@ -300,7 +299,8 @@ export const SqlEditorModal: React.FC<SqlEditorModalProps> = ({
             </button>
           </div>
         </div>
+        </>}
       </div>
-    </div>
+    </section>
   );
 };

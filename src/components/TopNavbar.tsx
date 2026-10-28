@@ -24,9 +24,8 @@ interface TopNavbarProps {
   onSelectCurator: (curator: Curator) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  activeView: 'table' | 'detail' | 'cockpit';
-  onViewChange: (view: 'table' | 'detail' | 'cockpit') => void;
-  onOpenSqlModal: () => void;
+  activeView: 'table' | 'detail' | 'cockpit' | 'sql';
+  onViewChange: (view: 'table' | 'detail' | 'cockpit' | 'sql') => void;
   onOpenBatchAssignModal: () => void;
   totalQuestions: number;
   modifiedCount: number;
@@ -44,7 +43,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   onSearchChange,
   activeView,
   onViewChange,
-  onOpenSqlModal,
   onOpenBatchAssignModal,
   totalQuestions,
   modifiedCount,
@@ -127,7 +125,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </div>
 
         {/* View Switcher Tabs */}
-        <div className="order-4 flex items-center bg-shell-2 p-1 rounded-full border border-white/[0.07] md:order-none">
+        <div className="order-4 flex max-w-full items-center overflow-x-auto bg-shell-2 p-1 rounded-full border border-white/[0.07] md:order-none [&>button]:shrink-0">
           <button
             onClick={() => onViewChange('table')}
             className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full transition-all ${
@@ -164,6 +162,24 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             <BarChart3 className="w-3.5 h-3.5" />
             <span>Estatísticas</span>
           </button>
+
+          <button
+            onClick={() => onViewChange('sql')}
+            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full transition-all ${
+              activeView === 'sql'
+                ? 'bg-brand text-white shadow-[0_0_14px_rgba(164,57,57,0.4)]'
+                : 'text-apex-readable hover:text-white'
+            }`}
+            title="Correções em lotes, migrações do Supabase e referência do esquema"
+          >
+            <Code2 className="w-3.5 h-3.5" />
+            <span>SQL</span>
+            {modifiedCount > 0 && (
+              <span className="min-w-4 h-4 px-1 rounded-full bg-white/15 text-[10px] flex items-center justify-center font-bold tabular-nums">
+                {modifiedCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Action Controls & Modal Triggers */}
@@ -177,21 +193,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           >
             <Layers className="w-3.5 h-3.5 text-brand-muted" />
             <span>Atribuir lote</span>
-          </button>
-
-          {/* Progressive SQL Editor */}
-          <button
-            onClick={onOpenSqlModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-apex-text bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] relative transition-all cursor-pointer"
-            title="Visualizar SQL gerado progressivamente pela curadoria"
-          >
-            <Code2 className="w-3.5 h-3.5 text-amber-400" />
-            <span>SQL</span>
-            {modifiedCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-brand text-white text-[10px] flex items-center justify-center font-bold">
-                {modifiedCount}
-              </span>
-            )}
           </button>
 
           {/* Active Curator Profile Switcher (3 Curators) */}

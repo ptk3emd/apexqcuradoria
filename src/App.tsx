@@ -18,7 +18,7 @@ import { QuestionsTable } from './components/QuestionsTable';
 import { QuestionDetailView } from './components/QuestionDetailView';
 import { AuditCockpit } from './components/AuditCockpit';
 import { BatchAssignModal } from './components/BatchAssignModal';
-import { SqlEditorModal } from './components/SqlEditorModal';
+import { SqlWorkspace } from './components/SqlWorkspace';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { SupabaseAuthGate } from './components/SupabaseAuthGate';
 import { loadSupabaseBase, loadFullQuestions, subscribeSupabaseChanges, signOutSupabase } from './lib/supabaseCuration';
@@ -89,13 +89,12 @@ export default function App() {
   const [presences, setPresences] = useState<Record<string, CuratorPresence>>({});
 
   // 6. UI Views & Filter Search
-  const [activeView, setActiveView] = useState<'table' | 'detail' | 'cockpit'>('table');
+  const [activeView, setActiveView] = useState<'table' | 'detail' | 'cockpit' | 'sql'>('table');
   const [isEditingQuestion, setIsEditingQuestion] = useState(false);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // 7. Modals
-  const [isSqlModalOpen, setIsSqlModalOpen] = useState(false);
   const [isBatchAssignModalOpen, setIsBatchAssignModalOpen] = useState(false);
 
   // 8. Toasts
@@ -473,8 +472,7 @@ export default function App() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         activeView={activeView}
-        onViewChange={(view) => { if (view === 'cockpit' && !completeDatasetReady) {showToast('Carregando a base', 'As estatísticas globais estarão disponíveis ao concluir o carregamento.', 'info');return;} if (isEditingQuestion) {showToast('Edição em andamento', 'Salve ou cancele antes de sair.', 'info');return;} if (actionPending.current) return; if (view === 'detail' && currentQuestion) void openQuestion(currentQuestion); else setActiveView(view); }}
-        onOpenSqlModal={() => {if (!completeDatasetReady) {showToast('Carregando a base', 'Aguarde para gerar o SQL de todas as questões corrigidas.', 'info');return;}setIsSqlModalOpen(true);}}
+        onViewChange={(view) => { if (view === 'cockpit' && !completeDatasetReady) {showToast('Carregando a base', 'As estatísticas globais estarão disponíveis ao concluir o carregamento.', 'info');return;} if (view === 'sql' && !completeDatasetReady) {showToast('Carregando a base', 'Aguarde para gerar o SQL de todas as questões corrigidas.', 'info');return;} if (isEditingQuestion) {showToast('Edição em andamento', 'Salve ou cancele antes de sair.', 'info');return;} if (actionPending.current) return; if (view === 'detail' && currentQuestion) void openQuestion(currentQuestion); else setActiveView(view); }}
         onOpenBatchAssignModal={() => {if (!completeDatasetReady) {showToast('Carregando a base', 'A seleção na lista já está disponível; aguarde para reservar lotes de toda a base.', 'info');return;}setIsBatchAssignModalOpen(true);}}
         totalQuestions={questions.length}
         modifiedCount={modifiedCount}
@@ -538,6 +536,18 @@ export default function App() {
           />
         )}
 
+        {activeView === 'sql' && (
+          <SqlWorkspace
+            auditLogs={auditLogs}
+            allQuestions={questions}
+            onClearLogs={() => {
+              setAuditLogs([]);
+              showToast('Histórico de Logs Limpo', 'O script progressivo foi reiniciado.', 'info');
+            }}
+            onShowToast={showToast}
+          />
+        )}
+
         {activeView === 'cockpit' && (
           <AuditCockpit
             onShowToast={showToast}
@@ -552,17 +562,6 @@ export default function App() {
       </main>
 
       {/* Modals */}
-      <SqlEditorModal
-        isOpen={isSqlModalOpen}
-        onClose={() => setIsSqlModalOpen(false)}
-        auditLogs={auditLogs}
-        allQuestions={questions}
-        onClearLogs={() => {
-          setAuditLogs([]);
-          showToast('Histórico de Logs Limpo', 'O script progressivo foi reiniciado.', 'info');
-        }}
-        onShowToast={showToast}
-      />
 
       <BatchAssignModal
         isOpen={isBatchAssignModalOpen}
