@@ -172,6 +172,15 @@ export async function loadFullQuestions(ids:string[], signal?:AbortSignal):Promi
   if(full.length) scheduleCacheSave();
   return full;
 }
+/** Problem codes per question id (see migration 20261028170000); null when the server cannot check. */
+export async function fetchQualityFlags(signal?:AbortSignal):Promise<Record<string,string[]>|null> {
+  try {
+    return await rpc('curation_quality_flags',{},signal) as Record<string,string[]>;
+  } catch(error) {
+    if(isMissingFunction(error)) return null;
+    throw error;
+  }
+}
 /** Ids whose full text contains every term; null when the server cannot search. */
 export async function searchQuestionIds(terms:string[], signal?:AbortSignal):Promise<string[]|null> {
   try {
