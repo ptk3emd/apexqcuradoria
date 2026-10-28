@@ -113,9 +113,10 @@ export async function loadSupabaseBase(onPage?:(page:Question[])=>void, signal?:
   scheduleCacheSave();
   return questions;
 }
-// Before migration 20261028150000 the server has only curation_base.
+// Before migrations 20261028150000/160000 the server has only curation_base,
+// or the new functions exist without the anon grant the browser calls with.
 function isMissingFunction(error:unknown) {
-  return /Could not find the function|does not exist/i.test((error as Error)?.message ?? '');
+  return /Could not find the function|does not exist|permission denied for function/i.test((error as Error)?.message ?? '');
 }
 const PARALLEL_REQUESTS=6;
 async function inParallel<T>(tasks:(()=>Promise<T>)[], limit:number):Promise<T[]> {
