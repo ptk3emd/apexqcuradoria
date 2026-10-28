@@ -3,11 +3,19 @@ import type {Curator, CuratorPresence, Question} from '../types/question';
 import type {SharedRow} from './sharedState';
 import {DEFAULT_CURATORS} from '../data/defaultCurators';
 import {normalizeDifficulty} from './difficulty';
+import {clearCachedBase, readCachedBase, writeCachedBase} from './questionCache';
 
 let client:SupabaseClient | null = null;
 const tabSession = crypto.randomUUID();
 let cursor=0;
 const shared=new Map<string,SharedRow>();
+// Latest server snapshot of every question, mirrored to the local cache.
+const base=new Map<string,Question>();
+let saveTimer:ReturnType<typeof setTimeout>|undefined;
+function scheduleCacheSave() {
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{void writeCachedBase(cursor,[...base.values()]);},1000);
+}
 const SESSION_KEY='apexmed_supabase_session';
 export function hasSupabaseSession() {return Boolean(sessionStorage.getItem(SESSION_KEY));}
 export async function loginSupabase(curatorId:string,password:string):Promise<Curator> {
@@ -83,8 +91,18 @@ async function rpc(name:string, args:Record<string,unknown>, signal?:AbortSignal
   return data;
 }
 export async function loadSupabaseBase(onPage?:(page:Question[])=>void, signal?:AbortSignal):Promise<Question[]> {
-  cursor=await rpc('curation_initial_cursor',{},signal);
   shared.clear();
+  base.clear();
+  // A cached base shows at once; the regular sync then replays only the events after its cursor.
+  const cached=await readCachedBase();
+  if(cached) {
+    signal?.throwIfAborted();
+    cursor=cached.cursor;
+    for(const q of cached.questions) base.set(q.id,q);
+    onPage?.(cached.questions);
+    return cached.questions;
+  }
+  cursor=await rpc('curation_initial_cursor',{},signal);
   const questions:Question[]=[];
   let after:string|null=null;
   while(true) {
@@ -95,7 +113,8 @@ export async function loadSupabaseBase(onPage?:(page:Question[])=>void, signal?:
     if(page.length<500) break;
     after=page[page.length-1].id;
   }
-  
+  for(const q of questions) if(!shared.has(q.id)) base.set(q.id,q);
+  scheduleCacheSave();
   return questions;
 }
 export async function fetchSupabaseShared() {
@@ -108,14 +127,17 @@ export async function fetchSupabaseShared() {
       if(!previous || previous.deleted || (q.sync_version??0)>previous.version) {
         const row={id:q.id,patch:q,version:q.sync_version??0};
         shared.set(q.id,row);changes.set(q.id,row);
+        base.set(q.id,q);
       }
     }
     for(const id of result.removed_ids || []) {
       const row={id,patch:{},version:0,deleted:true};
       shared.set(id,row);changes.set(id,row);
+      base.delete(id);
     }
     cursor=result.cursor;
   } while(result.more);
+  if(changes.size) scheduleCacheSave();
   return {rows:[...changes.values()],presences:presencesFromLeases(result.leases)};
 }
 type Lease = {question_id?:string; actor:string; name:string; session:string; until:number};
@@ -165,5 +187,7 @@ export function subscribeSupabaseChanges(refresh:()=>void) {
 }
 export async function signOutSupabase() {
   try {await rpc('curation_logout',{});} catch { /* Local sign-out remains available offline. */ } finally {sessionStorage.removeItem(SESSION_KEY);}
-  cursor=0;shared.clear();
+  clearTimeout(saveTimer);
+  cursor=0;shared.clear();base.clear();
+  await clearCachedBase();
 }
