@@ -51,6 +51,8 @@ export interface Question {
   revisado_em?: string | null;
   notas_revisao?: string | null;
   modificado?: boolean;
+  // Light list row: long text fields are missing and the statement is a preview.
+  parcial?: boolean;
 }
 
 export interface Curator {

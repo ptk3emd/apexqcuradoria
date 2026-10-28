@@ -262,6 +262,8 @@ test('Supabase first page is delivered before remaining pages and idle sync does
     const url=String(input);
     assert.ok(url.startsWith('https://jcbinmjiimqomjdyfdia.supabase.co/rest/v1/rpc/'));
     let result:any;
+    // A server without migration 20261028150000 falls back to curation_base.
+    if(url.endsWith('curation_list_plan')) return new Response(JSON.stringify({code:'PGRST202',message:'Could not find the function public.curation_list_plan(p_block) in the schema cache'}),{status:404,headers:{'Content-Type':'application/json'}});
     if(url.endsWith('curation_initial_cursor')) result=10;
     else if(url.endsWith('curation_base')) {
       if(++baseCalls===1) result=page;
@@ -280,6 +282,41 @@ test('Supabase first page is delivered before remaining pages and idle sync does
     assert.equal((await fetchSupabaseShared()).rows.length,0);
   } finally {
     release!();globalThis.fetch=originalFetch;
+    if(originalStorage) Object.defineProperty(globalThis,'sessionStorage',originalStorage);
+    else delete (globalThis as any).sessionStorage;
+  }
+});
+
+test('Supabase light list requests every planned block at once and loads full text on demand', async () => {
+  const {loadSupabaseBase, loadFullQuestions, mutateSupabase}=await import('../src/lib/supabaseCuration');
+  const originalFetch=globalThis.fetch;
+  const originalStorage=Object.getOwnPropertyDescriptor(globalThis,'sessionStorage');
+  Object.defineProperty(globalThis,'sessionStorage',{configurable:true,value:{getItem:()=> 'test-token'}});
+  let inFlight=0, peak=0;
+  const requested:any[]=[];
+  globalThis.fetch=(async(input:any,init:any)=> {
+    const url=String(input);
+    const body=init?.body ? JSON.parse(String(init.body)) : {};
+    let result:any;
+    if(url.endsWith('curation_list_plan')) result={cursor:7,block:1000,starts:['1','1001','2001','3001']};
+    else if(url.endsWith('curation_list')) {
+      requested.push(body);inFlight++;peak=Math.max(peak,inFlight);
+      await new Promise(resolve=>setTimeout(resolve,5));inFlight--;
+      result=[{...rows[0],id:body.p_from,enunciado:'Prévia',a:undefined,parcial:true,sync_version:0}];
+    } else if(url.endsWith('curation_full')) result=body.p_ids.map((id:string)=>({...rows[0],id,sync_version:0}));
+    else throw new Error('inesperado '+url);
+    return new Response(JSON.stringify(result),{status:200,headers:{'Content-Type':'application/json'}});
+  }) as typeof fetch;
+  try {
+    const loaded=await loadSupabaseBase();
+    assert.equal(peak,4);
+    assert.deepEqual(requested.map(r=>[r.p_from,r.p_to]),[['1','1001'],['1001','2001'],['2001','3001'],['3001',null]]);
+    assert.equal(loaded.length,4);assert.ok(loaded.every(q=>q.parcial));
+    await assert.rejects(mutateSupabase([loaded[0]],'save'),/carregando/);
+    const full=await loadFullQuestions(['1001']);
+    assert.equal(full[0].parcial,false);assert.equal(full[0].a,rows[0].a);
+  } finally {
+    globalThis.fetch=originalFetch;
     if(originalStorage) Object.defineProperty(globalThis,'sessionStorage',originalStorage);
     else delete (globalThis as any).sessionStorage;
   }

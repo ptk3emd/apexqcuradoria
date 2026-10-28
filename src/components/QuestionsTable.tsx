@@ -17,6 +17,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboardHelper';
 import { AdvancedFilters, AdvancedFilterState, GRANDES_AREAS_MAP } from './AdvancedFilters';
 import { viewTransition, nameQuestionRowOf } from '../lib/viewTransition';
+import { useServerSearch } from '../lib/useServerSearch';
 
 interface QuestionsTableProps {
   questions: Question[];
@@ -29,6 +30,8 @@ interface QuestionsTableProps {
   onUpdateStatus: (id: string, status: QuestionStatus, notas?: string) => Promise<boolean>;
   onAssignQuestion: (id: string, curator: Curator | null) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
+  /** Full text of a light-list row, for copying it. */
+  onLoadFullQuestion?: (question: Question) => Promise<Question>;
   searchActive?: boolean;
   onClearSearch?: () => void;
 }
@@ -58,6 +61,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   onUpdateStatus,
   onAssignQuestion,
   onShowToast,
+  onLoadFullQuestion,
   searchActive = false,
   onClearSearch,
 }) => {
@@ -118,6 +122,9 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
     };
   }, [questions, activeCurator.id]);
 
+  const hasPartialQuestions = useMemo(() => questions.some(q => q.parcial), [questions]);
+  const serverKeywordIds = useServerSearch(filterState.searchQueries, hasPartialQuestions);
+
   const filteredQuestions = useMemo(() => {
     return questions
       .filter(q => {
@@ -171,7 +178,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         // 9. Search Queries / Palavras-chave
         if (filterState.searchQueries.length > 0) {
           const haystack = `${q.id} ${q.enunciado || ''} ${q.tema_especifico || ''} ${q.especialidade || ''} ${q.categoria || ''} ${q.a || ''} ${q.b || ''} ${q.c || ''} ${q.d || ''} ${q.e || ''} ${q.comentario || ''}`.toLowerCase();
-          const matchesAll = filterState.searchQueries.every(term => haystack.includes(term.toLowerCase()));
+          const matchesAll = serverKeywordIds?.has(q.id) || filterState.searchQueries.every(term => haystack.includes(term.toLowerCase()));
           if (!matchesAll) return false;
         }
 
@@ -192,7 +199,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         }
         return sortOrder === 'asc' ? comp : -comp;
       });
-  }, [questions, filterState, sortBy, sortOrder, activeCurator.id]);
+  }, [questions, filterState, serverKeywordIds, sortBy, sortOrder, activeCurator.id]);
 
   const pageQuestions = filteredQuestions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selectablePage = pageQuestions;
@@ -219,7 +226,10 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
 
   const handleCopyQuestion = async (q: Question, e: React.MouseEvent) => {
     e.stopPropagation();
-    const formatted = formatQuestionForAiPrompt(q);
+    let full = q;
+    try { if (q.parcial && onLoadFullQuestion) full = await onLoadFullQuestion(q); }
+    catch { onShowToast('Falha ao copiar texto', 'Não foi possível carregar a questão. Tente novamente.', 'error'); return; }
+    const formatted = formatQuestionForAiPrompt(full);
     const success = await copyTextToClipboard(formatted);
     if (success) {
       onShowToast(
