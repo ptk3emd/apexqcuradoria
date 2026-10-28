@@ -29,6 +29,7 @@ await db.exec(await readFile('supabase/migrations/20261012190000_concurrent_edit
 await db.exec(await readFile('supabase/migrations/20261023120000_question_image_mutate.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261028150000_curation_light_list.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261028160000_curation_light_list_anon.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261028170000_curation_quality_flags.sql','utf8'));
 await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
 const asUser=async user=>{
@@ -243,5 +244,29 @@ test('the light list comes in planned ranges, full content and search on demand'
  assert.ok((await db.query('select public.curation_list_plan() as r')).rows[0].r.starts.length>0);
  assert.equal((await db.query('select public.curation_full($1::bigint[]) as r',[[800]])).rows[0].r.length,1);
  assert.deepEqual((await db.query("select public.curation_search(array['BRONQUIOLITE']) as r")).rows[0].r,['950']);
+ await db.exec('reset role');
+});
+
+test('quality flags find missing parts and answer keys contradicted by justifications or comment',async()=>{
+ await db.exec('reset role');
+ const ok={enunciado:'Paciente de 30 anos com febre.',a:'Um',b:'Dois',c:'Três',d:'Quatro',e:'Cinco',correta:'A',
+  comentario:'A resposta correta é a letra A, e a conduta é expectante.',justificativa_a:'Correta. Conduta indicada.',justificativa_b:'Incorreta: não indicada.',
+  justificativa_c:'Errada, pois não é a correta.',justificativa_d:'Não é a alternativa correta.',justificativa_e:'Falsa.',
+  especialidade:'Pediatria',tema_especifico:'Febre',origem:'ENARE',ano:'2024'};
+ const flags=async content=>(await db.query('select curation_private.quality_flags($1::jsonb) as f',[JSON.stringify(content)])).rows[0].f;
+ assert.deepEqual(await flags(ok),[]);
+ assert.deepEqual(await flags({...ok,justificativa_c:'Correta, é a conduta indicada.'}),['justificativa_contradiz']);
+ assert.deepEqual(await flags({...ok,justificativa_a:'Incorreta, a febre não justifica.'}),['justificativa_contradiz']);
+ assert.deepEqual(await flags({...ok,comentario:'Gabarito: C. A conduta é expectante.'}),['comentario_contradiz']);
+ assert.deepEqual(await flags({...ok,comentario:'A alternativa D está correta porque...'}),['comentario_contradiz']);
+ assert.deepEqual(await flags({...ok,comentario:'A resposta a esse quadro e a conduta e a evolução.'}),[]);
+ assert.deepEqual(await flags({...ok,b:'',justificativa_e:'  ',origem:null}),['falta_b','falta_justificativa_e','falta_origem']);
+ assert.deepEqual(await flags({...ok,correta:'F'}),['gabarito_invalido']);
+ assert.deepEqual(await flags({...ok,correta:null,anulada:true}),[]);
+ assert.deepEqual(await flags({...ok,c:'um '}),['alternativas_repetidas']);
+ await db.exec("insert into public.questions(id,enunciado) values(5001,'Só enunciado')");
+ await asUser(patrick);await db.exec('set role anon');
+ const all=(await db.query('select public.curation_quality_flags() as r')).rows[0].r;
+ assert.ok(all['5001'].includes('falta_a'));
  await db.exec('reset role');
 });
