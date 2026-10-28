@@ -41,6 +41,7 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
   const [issues, setIssues] = useState<Set<IssueKey>>(new Set());
   const [flags, setFlags] = useState<Record<string, string[]> | null>(null);
   const [flagsState, setFlagsState] = useState<'idle' | 'loading' | 'ready' | 'unavailable' | 'error'>('idle');
+  const [flagsError, setFlagsError] = useState('');
 
   // The checks read the full text, which only the server has; run them each time the dialog opens.
   useEffect(() => {
@@ -49,7 +50,7 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
     setFlagsState('loading');
     fetchQualityFlags(controller.signal)
       .then(result => { setFlags(result); setFlagsState(result ? 'ready' : 'unavailable'); })
-      .catch(error => { if ((error as Error).name !== 'AbortError') setFlagsState('error'); });
+      .catch(error => { if ((error as Error).name !== 'AbortError') { setFlagsError((error as Error).message || ''); setFlagsState('error'); } });
     return () => controller.abort();
   }, [isOpen]);
 
@@ -223,7 +224,7 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
             <p className="text-xs text-apex-readable">
               {flagsState === 'loading' ? 'Verificando o texto completo das questões…'
                 : flagsState === 'unavailable' ? 'A verificação ainda não está instalada no banco (migração 20261028170000).'
-                : flagsState === 'error' ? 'Não foi possível verificar as questões agora. Os outros filtros continuam valendo.'
+                : flagsState === 'error' ? `Não foi possível verificar as questões agora${flagsError ? ` (${flagsError})` : ''}. Os outros filtros continuam valendo.`
                 : 'Marque um ou mais para reservar só as questões com esses sinais. Os sinais vêm de regras automáticas: confira cada questão.'}
             </p>
             <div className="flex flex-wrap gap-2">

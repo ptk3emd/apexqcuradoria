@@ -172,10 +172,18 @@ export async function loadFullQuestions(ids:string[], signal?:AbortSignal):Promi
   if(full.length) scheduleCacheSave();
   return full;
 }
-/** Problem codes per question id (see migration 20261028170000); null when the server cannot check. */
+/**
+ * Problem codes per question id (migrations 20261028170000/190000), checked in
+ * the same id blocks as the light list so no request runs into the server's
+ * statement timeout. Null when the server cannot check.
+ */
 export async function fetchQualityFlags(signal?:AbortSignal):Promise<Record<string,string[]>|null> {
   try {
-    return await rpc('curation_quality_flags',{},signal) as Record<string,string[]>;
+    const plan=await rpc('curation_list_plan',{p_block:1000},signal) as {starts:(string|number)[]};
+    const starts=plan.starts.map(String);
+    const parts=await inParallel(starts.map((from,i)=>async()=>
+      await rpc('curation_quality_flags',{p_from:from,p_to:starts[i+1]??null},signal) as Record<string,string[]>),PARALLEL_REQUESTS);
+    return Object.assign({},...parts);
   } catch(error) {
     if(isMissingFunction(error)) return null;
     throw error;
