@@ -3,6 +3,7 @@ import type {Curator, CuratorPresence, Question} from '../types/question';
 import type {SharedRow} from './sharedState';
 import {DEFAULT_CURATORS} from '../data/defaultCurators';
 import {normalizeDifficulty} from './difficulty';
+import type {CurationActivity} from './curationPace';
 import {clearCachedBase, readCachedBase, writeCachedBase} from './questionCache';
 
 let client:SupabaseClient | null = null;
@@ -188,6 +189,18 @@ export async function fetchQualityFlags(signal?:AbortSignal):Promise<Record<stri
     if(isMissingFunction(error)) return null;
     throw error;
   }
+}
+/** Audits per curator and day plus the shared goals (migration 20261028200000); null when not installed. */
+export async function fetchCurationActivity(signal?:AbortSignal):Promise<CurationActivity|null> {
+  try {
+    return await rpc('curation_activity',{p_days:90},signal) as CurationActivity;
+  } catch(error) {
+    if(isMissingFunction(error)) return null;
+    throw error;
+  }
+}
+export async function saveCurationGoals(daily:Record<string,number>, deadline:string|null):Promise<CurationActivity['goals']> {
+  return await rpc('curation_set_goals',{p_daily:daily,p_deadline:deadline||null}) as CurationActivity['goals'];
 }
 /** Ids whose full text contains every term; null when the server cannot search. */
 export async function searchQuestionIds(terms:string[], signal?:AbortSignal):Promise<string[]|null> {

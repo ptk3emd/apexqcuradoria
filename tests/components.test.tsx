@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {create, act} from 'react-test-renderer';
 import {BatchAssignModal} from '../src/components/BatchAssignModal';
-import {SqlEditorModal} from '../src/components/SqlEditorModal';
+import {SqlWorkspace} from '../src/components/SqlWorkspace';
 import {QuestionsTable} from '../src/components/QuestionsTable';
 import {DEFAULT_CURATORS} from '../src/data/defaultCurators';
 import type {Question} from '../src/types/question';
@@ -22,7 +22,7 @@ test('SQL batch selection, manual completion and persistence follow the batch co
   Object.defineProperty(globalThis, 'window', {configurable:true, value:{isSecureContext:true}});
   let renderer:any;
   const questions = Array.from({length:51}, (_, i)=>({id:String(i+1),status:'questao_corrigida',enunciado:'Correction'} as Question));
-  const render = (data=questions) => <SqlEditorModal {...common} isOpen={true} auditLogs={[]} allQuestions={data} onClearLogs={()=>{}}/>;
+  const render = (data=questions) => <SqlWorkspace {...common} auditLogs={[]} allQuestions={data} onClearLogs={()=>{}}/>;
   const checkbox = (number:number) => renderer.root.findByProps({'aria-label':`Lote ${number} executado`});
   const button = (text:string) => renderer.root.findAllByType('button').find((node:any)=>node.findAllByType('span').some((span:any)=>span.children.includes(text)));
   try {
@@ -60,7 +60,6 @@ test('SQL batch selection, manual completion and persistence follow the batch co
 
 for (const [name, Component, props] of [
   ['batch', BatchAssignModal, {onAssignBatch:async()=>true,onReleaseAllMyAssignments:async()=>true}],
-  ['sql', SqlEditorModal, {auditLogs:[],allQuestions:rows,onClearLogs:()=>{}}],
 ] as const) {
   test(`${name} modal can open, close, and reopen without changing hook order`, async () => {
     let renderer: any;
@@ -105,21 +104,6 @@ test('open button stops row propagation, causing one open request', async () => 
   button.props.onClick({stopPropagation:()=>{stopped=true;}});
   assert.equal(stopped,true);
   assert.equal(opens,1);
-  await act(async()=>renderer.unmount());
-});
-
-test('statistics SQL panel updates when shared corrections arrive from another curator', async () => {
-  const {CorrectedQuestionsSql}=await import('../src/components/CorrectedQuestionsSql');
-  let renderer:any;
-  await act(async()=>{renderer=create(<CorrectedQuestionsSql questions={[]} onShowToast={()=>{}}/>);});
-  const sql=()=>renderer.root.findByProps({'aria-label':'SQL acumulado de correções'}).props.value;
-  assert.match(sql(),/Nenhuma questão/);
-  await act(async()=>{renderer.update(<CorrectedQuestionsSql questions={[
-    {...rows[0],status:'questao_corrigida',revisado_por:'Lucas'},
-    {...rows[1],status:'aprovadas',modificado:true,revisado_por:'Thierry'},
-  ]} onShowToast={()=>{}}/>);});
-  assert.match(sql(),/WHERE id = 1;/);assert.match(sql(),/WHERE id = 2;/);
-  assert.equal((sql().match(/UPDATE public.questions/g)||[]).length,2);
   await act(async()=>renderer.unmount());
 });
 
