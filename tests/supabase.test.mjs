@@ -31,6 +31,7 @@ await db.exec(await readFile('supabase/migrations/20261028150000_curation_light_
 await db.exec(await readFile('supabase/migrations/20261028160000_curation_light_list_anon.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261028170000_curation_quality_flags.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261028180000_quality_flags_null_text.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261028190000_quality_flags_ranges.sql','utf8'));
 await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
 const asUser=async user=>{
@@ -266,10 +267,14 @@ test('quality flags find missing parts and answer keys contradicted by justifica
  assert.deepEqual(await flags({...ok,b:'null',justificativa_c:' NULL ',comentario:'Null',correta:'null'}),['falta_b','falta_comentario','falta_justificativa_c','falta_correta']);
  assert.deepEqual(await flags({...ok,c:'Nulla est'}),[]);
  assert.deepEqual(await flags({...ok,correta:null,anulada:true}),[]);
+ assert.deepEqual(await flags({...ok,correta:null,anulada:'sim'}),[]);
+ assert.deepEqual(await flags({...ok,anulada:''}),[]);
  assert.deepEqual(await flags({...ok,c:'um '}),['alternativas_repetidas']);
  await db.exec("insert into public.questions(id,enunciado) values(5001,'Só enunciado')");
  await asUser(patrick);await db.exec('set role anon');
  const all=(await db.query('select public.curation_quality_flags() as r')).rows[0].r;
  assert.ok(all['5001'].includes('falta_a'));
+ const ranged=(await db.query('select public.curation_quality_flags(5001,5002) as r')).rows[0].r;
+ assert.deepEqual(Object.keys(ranged),['5001']);
  await db.exec('reset role');
 });
