@@ -9,7 +9,8 @@ import {
   Sparkles,
   ChevronRight,
   MessageSquare,
-  AlertCircle
+  AlertCircle,
+  ArrowRight,
 } from 'lucide-react';
 import { Question, QuestionStatus, Curator, CuratorPresence, QuestionComment } from '../types/question';
 import { StatusBadge } from './StatusBadge';
@@ -108,19 +109,40 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   const queue = useMemo(() => {
     const count = (status: QuestionStatus) => questions.filter(q => q.status === status).length;
     const pending = count('pendente');
+    const today = new Date().toDateString();
+    const byId = (a: Question, b: Question) => Number(a.id) - Number(b.id);
+    const minePending = questions.filter(q => q.status === 'pendente' && q.responsavel_id === activeCurator.id).sort(byId);
+    const freePending = questions.filter(q => q.status === 'pendente' && !q.responsavel_id).sort(byId);
     return {
       total: questions.length,
       audited: questions.length - pending,
       pending,
-      mine: questions.filter(q => q.status === 'pendente' && q.responsavel_id === activeCurator.id).length,
+      mine: minePending.length,
+      free: freePending.length,
+      review: count('revisar_questao'),
+      // The question "Continuar" opens: your own first, then the first free one.
+      next: minePending[0] ?? freePending[0] ?? null,
+      nextIsMine: Boolean(minePending[0]),
+      doneToday: questions.filter(q => q.revisado_por === activeCurator.nome && q.revisado_em && new Date(q.revisado_em).toDateString() === today).length,
       segments: [
-        { label: 'Aprovadas', value: count('aprovadas'), className: 'bg-emerald-500' },
-        { label: 'Corrigidas', value: count('questao_corrigida'), className: 'bg-blue-500' },
-        { label: 'Revisar', value: count('revisar_questao'), className: 'bg-amber-500' },
-        { label: 'Eliminar', value: count('eliminar_questao'), className: 'bg-rose-500' },
+        { status: 'aprovadas', label: 'Aprovadas', value: count('aprovadas'), className: 'bg-emerald-500' },
+        { status: 'questao_corrigida', label: 'Corrigidas', value: count('questao_corrigida'), className: 'bg-blue-500' },
+        { status: 'revisar_questao', label: 'Revisar', value: count('revisar_questao'), className: 'bg-amber-500' },
+        { status: 'eliminar_questao', label: 'Eliminar', value: count('eliminar_questao'), className: 'bg-rose-500' },
+        { status: 'pendente', label: 'Pendentes', value: pending, className: 'bg-white/20' },
       ],
     };
-  }, [questions, activeCurator.id]);
+  }, [questions, activeCurator.id, activeCurator.nome]);
+
+  // One-tap scopes over the same filters the "Refinar" panel edits.
+  const scopes = [
+    { key: 'minha', label: 'Minha fila', count: queue.mine, status: 'pendente', responsavel: 'minhas' },
+    { key: 'livres', label: 'Livres', count: queue.free, status: 'pendente', responsavel: 'sem_responsavel' },
+    { key: 'revisar', label: 'Para revisar', count: queue.review, status: 'revisar_questao', responsavel: 'todos' },
+    { key: 'todas', label: 'Todas', count: queue.total, status: 'todas', responsavel: 'todos' },
+  ];
+  const applyScope = (status: string, responsavel: string) =>
+    viewTransition(() => setFilterState(prev => ({ ...prev, status, responsavel })), { glide: true });
 
   const hasPartialQuestions = useMemo(() => questions.some(q => q.parcial), [questions]);
   const serverKeywordIds = useServerSearch(filterState.searchQueries, hasPartialQuestions);
@@ -245,32 +267,83 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   return (
     <>
     <div className="w-full space-y-4">
-      {/* Queue header: how far the audit is, at a glance */}
-      <section aria-labelledby="queue-title" className="space-y-4 pt-1 pb-2">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <h1 id="queue-title" className="text-[clamp(1.75rem,4vw,2.75rem)] font-bold leading-[1.05] tracking-[-0.02em] text-apex-text">
-            Fila de curadoria: <span className="tabular-nums text-brand-soft">{queue.audited}</span>
-            <span className="tabular-nums text-shell-muted"> / {queue.total}</span>
-          </h1>
-          <p className="text-sm text-apex-readable">
-            <span className="tabular-nums font-bold text-apex-text">{queue.pending}</span> pendentes
-            <span className="mx-2 text-shell-subtle" aria-hidden="true">•</span>
-            <span className="tabular-nums font-bold text-apex-text">{queue.mine}</span> com você
-          </p>
+      {/* Queue header: how far the audit is, where to continue, and which slice to work */}
+      <section aria-labelledby="queue-title" className="space-y-5 pt-1 pb-2">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0 space-y-2">
+            <h1 id="queue-title" className="text-[clamp(1.75rem,4vw,2.75rem)] font-bold leading-[1.05] tracking-[-0.02em] text-apex-text">
+              Fila de curadoria: <span className="tabular-nums text-brand-soft">{queue.audited}</span>
+              <span className="tabular-nums text-shell-muted"> / {queue.total}</span>
+            </h1>
+            <p className="text-sm text-apex-readable">
+              <span className="tabular-nums font-bold text-apex-text">{queue.pending}</span> pendentes
+              <span className="mx-2 text-shell-subtle" aria-hidden="true">•</span>
+              <span className="tabular-nums font-bold text-apex-text">{queue.mine}</span> com você
+              <span className="mx-2 text-shell-subtle" aria-hidden="true">•</span>
+              <span className="tabular-nums font-bold text-apex-text">{queue.doneToday}</span> auditadas por você hoje
+            </p>
+          </div>
+          {queue.next ? (
+            <button
+              type="button"
+              onClick={() => onSelectQuestion(queue.next!)}
+              className="group flex w-full min-h-14 items-center gap-4 rounded-2xl bg-brand px-5 py-3 text-left text-white shadow-[0_8px_24px_-8px_rgba(164,57,57,0.6)] transition-colors hover:bg-brand-hover lg:w-auto lg:max-w-md"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold">{queue.nextIsMine ? 'Continuar minha fila' : 'Pegar a próxima livre'}</span>
+                <span className="block truncate text-xs text-white/80">
+                  <span className="tabular-nums">#{queue.next.id}</span> · {queue.next.especialidade || 'Sem especialidade'}{queue.next.tema_especifico ? ` · ${queue.next.tema_especifico}` : ''}
+                </span>
+              </span>
+              <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+            </button>
+          ) : (
+            <p className="text-sm text-apex-readable lg:max-w-xs lg:text-right">Nenhuma questão pendente com você ou livre. Veja as que estão para revisar.</p>
+          )}
         </div>
-        <div
-          className="flex h-2 w-full overflow-hidden rounded-full bg-white/[0.06]"
-          role="img"
-          aria-label={queue.segments.map(seg => `${seg.label}: ${seg.value}`).join(', ') + `, Pendentes: ${queue.pending}`}
-        >
-          {queue.total > 0 && queue.segments.map(seg => (
-            <div
-              key={seg.label}
-              className={`${seg.className} h-full transition-[width] duration-700 ease-out motion-reduce:transition-none`}
-              style={{ width: `${(seg.value / queue.total) * 100}%` }}
-              title={`${seg.label}: ${seg.value}`}
-            />
-          ))}
+
+        <div className="space-y-2.5">
+          <div
+            className="flex h-2 w-full overflow-hidden rounded-full bg-white/[0.06]"
+            role="img"
+            aria-label={queue.segments.map(seg => `${seg.label}: ${seg.value}`).join(', ')}
+          >
+            {queue.total > 0 && queue.segments.filter(seg => seg.status !== 'pendente').map(seg => (
+              <div
+                key={seg.label}
+                className={`${seg.className} h-full transition-[width] duration-700 ease-out motion-reduce:transition-none`}
+                style={{ width: `${(seg.value / queue.total) * 100}%` }}
+              />
+            ))}
+          </div>
+          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-apex-readable" aria-hidden="true">
+            {queue.segments.map(seg => (
+              <li key={seg.status} className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${seg.className}`} />
+                {seg.label} <span className="tabular-nums font-bold text-apex-text">{seg.value}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+          <div role="group" aria-label="Escopo da lista" className="inline-flex min-w-max gap-1 rounded-full bg-shell-2 p-1 border border-white/[0.08]">
+            {scopes.map(scope => {
+              const active = filterState.status === scope.status && filterState.responsavel === scope.responsavel;
+              return (
+                <button
+                  key={scope.key}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => applyScope(scope.status, scope.responsavel)}
+                  className={`flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-bold transition-colors ${active ? 'bg-brand text-white' : 'text-apex-readable hover:bg-white/[0.06] hover:text-apex-text'}`}
+                >
+                  {scope.label}
+                  <span className={`tabular-nums text-xs font-normal ${active ? 'text-white/80' : 'text-shell-muted'}`}>{scope.count}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
 
