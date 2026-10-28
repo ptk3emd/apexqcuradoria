@@ -28,6 +28,7 @@ await db.exec(await readFile('supabase/migrations/20261012120000_questions_anula
 await db.exec(await readFile('supabase/migrations/20261012190000_concurrent_editing.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261023120000_question_image_mutate.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261028150000_curation_light_list.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261028160000_curation_light_list_anon.sql','utf8'));
 await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
 const asUser=async user=>{
@@ -237,4 +238,10 @@ test('the light list comes in planned ranges, full content and search on demand'
  await db.exec('reset role');await db.query("select set_config('request.headers',$1,false)",[JSON.stringify({'x-apex-session':'invented'})]);await db.exec('set role authenticated');
  await assert.rejects(db.query('select public.curation_list(1)'),/não autorizado/);
  await assert.rejects(db.query("select public.curation_search(array['x'])"),/não autorizado/);
+ // The browser calls as anon with the session header, like curation_base.
+ await asUser(patrick);await db.exec('set role anon');
+ assert.ok((await db.query('select public.curation_list_plan() as r')).rows[0].r.starts.length>0);
+ assert.equal((await db.query('select public.curation_full($1::bigint[]) as r',[[800]])).rows[0].r.length,1);
+ assert.deepEqual((await db.query("select public.curation_search(array['BRONQUIOLITE']) as r")).rows[0].r,['950']);
+ await db.exec('reset role');
 });
