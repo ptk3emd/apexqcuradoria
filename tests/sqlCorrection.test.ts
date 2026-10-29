@@ -73,3 +73,16 @@ test('a question found by SELECT ... INTO and a REPLACE on the statement apply t
   const wrong = parseCorrectionSql(vsr, {...open, b: 'Outra conduta.'} as Question);
   assert.equal(wrong.guards.find(g => g.text.startsWith('b ILIKE'))!.passes, false);
 });
+
+test('a result-listing SELECT after COMMIT is not a guard, and the answer key is upper-cased', () => {
+  const sql = readFileSync(new URL('./fixtures/correction-carvedilol.sql', import.meta.url), 'utf8');
+  const open = {id: '5150', correta: 'B', anulada: false, origem: 'ENAMED', b: 'Carvedilol.', d: 'Espironolactona.',
+    enunciado: 'Mulher de 58 anos com IC, fração de ejeção de 38% e BNP elevado.'} as unknown as Question;
+  const r = parseCorrectionSql(sql, open);
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.guards.every(g => g.passes === true), JSON.stringify(r.guards));
+  assert.ok(!r.guards.some(g => g.text.startsWith('origem')));
+  assert.equal(r.changes.correta, 'B');
+  assert.equal(r.changes.anulada, false);
+  assert.equal(r.targetId, '5150');
+});

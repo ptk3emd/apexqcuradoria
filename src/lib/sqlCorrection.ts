@@ -243,7 +243,9 @@ export function parseCorrectionSql(sql: string, question: Question): ParsedCorre
       if (typeof value.value !== 'boolean') { result.errors.push('anulada precisa ser true ou false.'); continue; }
       result.changes.anulada = value.value;
     } else {
-      result.changes[column as keyof ParsedCorrection['changes']] = value.value === null ? null : String(value.value);
+      const text = value.value === null ? null : String(value.value);
+      // The answer key is stored as one upper-case letter, whatever case the script used.
+      result.changes[column as keyof ParsedCorrection['changes']] = column === 'correta' && text !== null ? text.trim().toUpperCase() : text;
     }
   }
   if (!Object.keys(result.changes).length && !result.errors.length) result.errors.push('O UPDATE não altera nenhuma coluna.');
@@ -262,10 +264,14 @@ export function parseCorrectionSql(sql: string, question: Question): ParsedCorre
   // PERFORM 1 / SELECT ... INTO ... FROM public.questions WHERE ... [FOR UPDATE]: conditions that identify the question.
   for (let k = 0; k < tokens.length; k++) {
     if (!isWord(tokens[k], 'perform') && !isWord(tokens[k], 'select')) continue;
+    // Checks run before the UPDATE; a SELECT after it (often after COMMIT) only shows the result.
+    if (k > updates[0]) continue;
     const stop = tokens.findIndex((t, m) => m > k && t.text === ';');
     let check = tokens.slice(k + 1, stop < 0 ? undefined : stop);
     const w = check.findIndex(t => isWord(t, 'where'));
     if (w < 0 || !check.slice(0, w).some(t => isWord(t, 'questions'))) continue;
+    // A plain SELECT without INTO only lists rows; it does not guard anything.
+    if (isWord(tokens[k], 'select') && !check.slice(0, w).some(t => isWord(t, 'into'))) continue;
     check = check.slice(w + 1);
     const forAt = check.findIndex((t, m) => isWord(t, 'for') && isWord(check[m + 1], 'update'));
     if (forAt >= 0) check = check.slice(0, forAt);
