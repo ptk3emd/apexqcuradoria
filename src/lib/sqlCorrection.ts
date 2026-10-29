@@ -177,6 +177,30 @@ function evaluate(cond: Token[], vars: Map<string, Value>, question: Question): 
   return cond[opAt].text === '=' ? equal : !equal && current !== null && right.value !== null;
 }
 
+/** A SET value: a literal, a column of the question, or REPLACE(expr, 'from', 'to') over one. */
+function textExpr(tokens: Token[], vars: Map<string, Value>, question: Question, notes: string[], target: string): {ok: true; value: Value} | {ok: false} {
+  const lit = literal(tokens, vars);
+  if (lit.ok) return lit;
+  const col = columnExpr(tokens);
+  if (col) {
+    const v = currentValue(question, col.column);
+    return {ok: true, value: v === null || typeof v === 'boolean' ? v : col.apply(String(v))};
+  }
+  if (isWord(tokens[0], 'replace') && tokens[1]?.text === '(' && tokens.at(-1)?.text === ')') {
+    const args = splitTop(tokens.slice(2, -1), t => t.text === ',');
+    if (args.length !== 3) return {ok: false};
+    const base = textExpr(args[0], vars, question, notes, target);
+    const from = literal(args[1], vars);
+    const to = literal(args[2], vars);
+    if (!base.ok || !from.ok || !to.ok || typeof from.value !== 'string' || typeof to.value !== 'string') return {ok: false};
+    if (base.value === null) return {ok: true, value: null};
+    const text = String(base.value);
+    if (!from.value || !text.includes(from.value)) notes.push(`${target}: o trecho "${from.value}" não foi encontrado; o texto fica como está.`);
+    return {ok: true, value: from.value ? text.split(from.value).join(to.value) : text};
+  }
+  return {ok: false};
+}
+
 export function parseCorrectionSql(sql: string, question: Question): ParsedCorrection {
   const result: ParsedCorrection = {changes: {}, guards: [], blocks: [], targetId: null, notes: [], errors: []};
   let tokens: Token[];
@@ -213,8 +237,8 @@ export function parseCorrectionSql(sql: string, question: Question): ParsedCorre
     const column = lower(assignment[0]);
     if (assignment[1]?.text !== '=') { result.errors.push(`Não entendi a atribuição: ${render(assignment)}`); continue; }
     if (!(CORRECTABLE_FIELDS as readonly string[]).includes(column)) { result.errors.push(`A coluna ${assignment[0].text} não pode ser alterada pela curadoria.`); continue; }
-    const value = literal(assignment.slice(2), vars);
-    if (!value.ok) { result.errors.push(`O valor de ${column} precisa ser um texto, número, true/false ou NULL.`); continue; }
+    const value = textExpr(assignment.slice(2), vars, question, result.notes, column);
+    if (!value.ok) { result.errors.push(`O valor de ${column} precisa ser um texto, número, true/false, NULL, outra coluna ou REPLACE(coluna, 'de', 'para').`); continue; }
     if (column === 'anulada') {
       if (typeof value.value !== 'boolean') { result.errors.push('anulada precisa ser true ou false.'); continue; }
       result.changes.anulada = value.value;
@@ -227,14 +251,17 @@ export function parseCorrectionSql(sql: string, question: Question): ParsedCorre
   // An id variable left NULL ("put the real id here") means the open question.
   const idCond = splitTop(wherePart, t => isWord(t, 'and')).find(c => lower(c[0]) === 'id' && c[1]?.text === '=' && c.length === 3 && c[2].kind === 'word');
   const idVar = idCond ? lower(idCond[2]) : '';
-  if (idVar && vars.has(idVar) && vars.get(idVar) === null) {
+  if (idVar && !COLUMNS.has(idVar) && (!vars.has(idVar) || vars.get(idVar) === null)) {
+    const leftEmpty = vars.has(idVar);
     vars.set(idVar, question.id);
-    result.notes.push(`O SQL deixou ${idCond![2].text} vazio: foi usada a questão aberta, #${question.id}.`);
+    result.notes.push(leftEmpty
+      ? `O SQL deixou ${idCond![2].text} vazio: foi usada a questão aberta, #${question.id}.`
+      : `O SQL localiza a questão por busca (${idCond![2].text}): foi usada a questão aberta, #${question.id}. As condições da busca são conferidas abaixo.`);
   }
 
-  // PERFORM 1 FROM public.questions WHERE ... [FOR UPDATE]; IF NOT FOUND THEN RAISE: more conditions to check.
+  // PERFORM 1 / SELECT ... INTO ... FROM public.questions WHERE ... [FOR UPDATE]: conditions that identify the question.
   for (let k = 0; k < tokens.length; k++) {
-    if (!isWord(tokens[k], 'perform')) continue;
+    if (!isWord(tokens[k], 'perform') && !isWord(tokens[k], 'select')) continue;
     const stop = tokens.findIndex((t, m) => m > k && t.text === ';');
     let check = tokens.slice(k + 1, stop < 0 ? undefined : stop);
     const w = check.findIndex(t => isWord(t, 'where'));
