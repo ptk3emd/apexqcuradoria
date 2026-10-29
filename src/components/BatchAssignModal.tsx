@@ -4,6 +4,7 @@ import { Question, Curator } from '../types/question';
 import { useDialog } from '../lib/useDialog';
 import { fetchQualityFlags } from '../lib/supabaseCuration';
 import { ISSUE_GROUPS, IssueKey, describeIssues, matchesIssues } from '../lib/qualityFlags';
+import { matchPastedIds, parsePastedIds } from '../lib/pastedIds';
 
 // curation_mutate takes at most 100 questions per call.
 const MAX_BATCH = 100;
@@ -98,6 +99,27 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
     return next;
   });
 
+  // Pasted ids: assigned to you as typed, in calls of up to MAX_BATCH.
+  const [pasted, setPasted] = useState('');
+  const pastedIds = useMemo(() => parsePastedIds(pasted), [pasted]);
+  const pastedMatch = useMemo(() => matchPastedIds(pastedIds, questions), [pastedIds, questions]);
+  const pastedToAssign = pastedMatch.found.filter(q => q.responsavel_id !== activeCurator.id);
+  const pastedFromOthers = pastedToAssign.filter(q => q.responsavel_id).length;
+  const pastedAlreadyMine = pastedMatch.found.length - pastedToAssign.length;
+  const handleAssignPasted = async () => {
+    const ids = pastedToAssign.map(q => q.id);
+    if (!ids.length) return;
+    for (let i = 0; i < ids.length; i += MAX_BATCH) {
+      if (!await onAssignBatch(ids.slice(i, i + MAX_BATCH), activeCurator.id, activeCurator.nome)) {
+        if (i) onShowToast('Atribuição parcial', `${i} de ${ids.length} questões foram atribuídas a você antes do erro.`, 'error');
+        return;
+      }
+    }
+    onShowToast(`${ids.length} questões atribuídas a você`, 'As questões coladas estão na sua fila.', 'success');
+    setPasted('');
+    onClose();
+  };
+
   const handleClaim = async () => {
     if (pool.length === 0) {
       onShowToast('Nenhuma questão livre com esses filtros', 'Remova algum filtro e tente de novo.', 'error');
@@ -191,6 +213,38 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
             <span>Questões livres disponíveis para assumir:</span>
             <span className="font-bold text-emerald-400">{unassignedPending.length} pendentes</span>
           </div>
+        </div>
+
+        {/* Paste ids: reserve exactly these questions */}
+        <div className="space-y-2 pt-1 border-t border-white/[0.06]">
+          <label htmlFor="batch-pasted-ids" className="block text-xs font-bold text-apex-text">Colar IDs</label>
+          <p className="text-xs text-apex-readable">Cole os IDs separados por vírgula, espaço ou linha. Eles vão para a sua fila, mesmo os que estão com outro curador.</p>
+          <textarea
+            id="batch-pasted-ids"
+            value={pasted}
+            onChange={e => setPasted(e.target.value)}
+            rows={3}
+            placeholder="1201, 1202, 1350…"
+            className="w-full rounded-xl border border-white/[0.1] bg-shell-3 px-3 py-2 font-mono text-sm text-apex-text outline-none focus:border-brand"
+          />
+          {pastedIds.length > 0 && (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-apex-readable" aria-live="polite">
+                <span className="font-bold tabular-nums text-apex-text">{pastedMatch.found.length}</span> encontradas
+                {pastedAlreadyMine > 0 && <> · <span className="tabular-nums">{pastedAlreadyMine}</span> já são suas</>}
+                {pastedFromOthers > 0 && <> · <span className="tabular-nums text-amber-300">{pastedFromOthers}</span> com outro curador</>}
+                {pastedMatch.missing.length > 0 && <> · <span className="text-rose-300">não existem: {pastedMatch.missing.slice(0, 8).join(', ')}{pastedMatch.missing.length > 8 ? ` e mais ${pastedMatch.missing.length - 8}` : ''}</span></>}
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleAssignPasted()}
+                disabled={!pastedToAssign.length}
+                className="min-h-11 shrink-0 rounded-full bg-brand px-5 text-xs font-bold text-white hover:bg-brand-hover disabled:opacity-40"
+              >
+                {pastedToAssign.length ? `Adicionar ${pastedToAssign.length} para mim` : 'Nada novo para adicionar'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Batch Selection Form */}
