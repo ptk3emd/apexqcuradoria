@@ -13,42 +13,43 @@ const actor = DEFAULT_CURATORS[0];
 const rows = ['1','2','3'].map(id=>({id,status:'pendente',enunciado:'Question '+id,correta:'A'})) as Question[];
 const common = {questions:rows,activeCurator:actor,curators:DEFAULT_CURATORS,onClose:()=>{},onShowToast:()=>{},busy:false};
 
-test('SQL batch selection, manual completion and persistence follow the batch content', async () => {
-  const originals = new Map(['localStorage','navigator','window'].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+test('SQL batches: copy and download stay visible, marked batches leave the pending list and come back when corrected again', async () => {
+  const originals = new Map(['localStorage','navigator','window','fetch','sessionStorage'].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   const saved = new Map<string,string>();
   let clipboard = '';
   Object.defineProperty(globalThis, 'localStorage', {configurable:true, value:{getItem:(key:string)=>saved.get(key) ?? null, setItem:(key:string,value:string)=>saved.set(key,value)}});
+  Object.defineProperty(globalThis, 'sessionStorage', {configurable:true, value:{getItem:()=> 'token', removeItem:()=>{}}});
   Object.defineProperty(globalThis, 'navigator', {configurable:true, value:{clipboard:{writeText:async(text:string)=>{clipboard=text;}}}});
-  Object.defineProperty(globalThis, 'window', {configurable:true, value:{isSecureContext:true}});
+  Object.defineProperty(globalThis, 'window', {configurable:true, value:{isSecureContext:true, dispatchEvent:()=>{}}});
+  // Server without migration 20261029150000: marks stay in this browser.
+  Object.defineProperty(globalThis, 'fetch', {configurable:true, writable:true, value:async()=>new Response(JSON.stringify({code:'PGRST202',message:'Could not find the function public.curation_sql_state'}),{status:404,headers:{'Content-Type':'application/json'}})});
   let renderer:any;
-  const questions = Array.from({length:51}, (_, i)=>({id:String(i+1),status:'questao_corrigida',enunciado:'Correction'} as Question));
+  const questions = Array.from({length:51}, (_, i)=>({id:String(i+1),status:'questao_corrigida',enunciado:'Correction',sync_version:1} as Question));
   const render = (data=questions) => <SqlWorkspace {...common} auditLogs={[]} allQuestions={data} onClearLogs={()=>{}}/>;
-  const checkbox = (number:number) => renderer.root.findByProps({'aria-label':`Lote ${number} executado`});
-  const button = (text:string) => renderer.root.findAllByType('button').find((node:any)=>node.findAllByType('span').some((span:any)=>span.children.includes(text)));
+  const textOf = (node:any):string => typeof node === 'string' ? node : (node.children ?? []).map(textOf).join('');
+  const button = (text:string) => renderer.root.findAllByType('button').filter((node:any)=>textOf(node).includes(text));
+  const settle = async () => { for (let i=0;i<5;i++) await act(async()=>{await new Promise(r=>setTimeout(r,0));}); };
   try {
     await act(async()=>{renderer=create(render());});
-    assert.equal(checkbox(1).props.checked,false);
-    await act(async()=>renderer.root.findByProps({'aria-label':'Selecionar lote 2'}).props.onClick());
-    await act(async()=>button('Copiar SQL do lote').props.onClick());
+    await settle();
+    const headings = () => renderer.root.findAllByType('h2').map((h:any)=>h.children.join(''));
+    assert.deepEqual(headings(), ['Lote 1','Lote 2']);
+    assert.equal(renderer.root.findAllByType('pre').length, 0);
+    await act(async()=>button('Copiar SQL')[1].props.onClick());
     assert.match(clipboard,/WHERE id = 51;/);
-    assert.doesNotMatch(clipboard,/WHERE id = 1;/);
-    assert.equal(checkbox(2).props.checked,false);
-    await act(async()=>checkbox(2).props.onChange({target:{checked:true}}));
-    assert.equal(checkbox(2).props.checked,true);
+    await act(async()=>button('Ver SQL')[0].props.onClick());
+    assert.equal(renderer.root.findAllByType('pre').length, 1);
+    await act(async()=>{await button('Marcar migrado')[0].props.onClick();});
+    await settle();
+    assert.deepEqual(headings(), ['Lote 1']);
     await act(async()=>renderer.unmount());
     await act(async()=>{renderer=create(render());});
-    assert.equal(checkbox(2).props.checked,true);
-    await act(async()=>renderer.update(render(questions.map(q=>q.id==='51'?{...q,enunciado:'New correction'}:q))));
-    assert.equal(checkbox(2).props.checked,false);
-    await act(async()=>renderer.update(render()));
-    assert.equal(checkbox(2).props.checked,true);
-    await act(async()=>checkbox(2).props.onChange({target:{checked:false}}));
-    await act(async()=>renderer.unmount());
-    await act(async()=>{renderer=create(render());});
-    assert.equal(checkbox(2).props.checked,false);
-    await act(async()=>renderer.root.findByProps({'aria-label':'Filtrar SQL por expressão regular'}).props.onChange({target:{value:'['}}));
-    assert.equal(button('Copiar SQL do lote').props.disabled,true);
-    assert.equal(button('Baixar lote .sql').props.disabled,true);
+    await settle();
+    assert.deepEqual(headings(), ['Lote 1']);
+    await act(async()=>renderer.update(render(questions.map(q=>q.id==='3'?{...q,sync_version:2}:q))));
+    await settle();
+    assert.deepEqual(headings(), ['Lote 1']);
+    assert.match(textOf(renderer.root), /2 correções pendentes/);
   } finally {
     if(renderer) await act(async()=>renderer.unmount());
     for(const [name, original] of originals) {

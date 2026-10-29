@@ -35,6 +35,7 @@ await db.exec(await readFile('supabase/migrations/20261028190000_quality_flags_r
 await db.exec(await readFile('supabase/migrations/20261028200000_curation_activity_goals.sql','utf8'));
 await db.exec("insert into public.questions(id,enunciado) values(3294,'P0 Patrick'),(9398,'P0 Thierry'),(11131,'P0 Lucas'),(7098,'P2 primeira')");
 await db.exec(await readFile('supabase/migrations/20261029120000_curation_priorities.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261029150000_sql_export_tracking.sql','utf8'));
 await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
 const asUser=async user=>{
@@ -322,5 +323,23 @@ test('priorities assign P0/P1 to their curator, plan P2/P3 in rotation and add a
  assert.equal(g.deadline_priority,'2026-11-30');
  await assert.rejects(db.query("select public.curation_set_goals('{}'::jsonb,'2026-11-01','2026-12-01')"),/antes do prazo/);
  assert.equal((await db.query('select public.curation_activity() as r')).rows[0].r.goals.deadline_priority,'2026-11-30');
+ await db.exec('reset role');
+});
+
+test('exported corrections and applied migrations are shared, per question version',async()=>{
+ await asUser(lucas);await db.exec('set role anon');
+ const state=async()=>(await db.query('select public.curation_sql_state() as r')).rows[0].r;
+ assert.ok((await state()).migrations['20261029150000_sql_export_tracking.sql']);
+ assert.equal((await db.query(`select public.curation_mark_exported('[{"id":"10","version":2},{"id":"11","version":1}]'::jsonb,'Lote 1') as n`)).rows[0].n,2);
+ assert.equal((await db.query(`select public.curation_mark_exported('[{"id":"10","version":2}]'::jsonb,'Lote 1') as n`)).rows[0].n,0);
+ let s=await state();
+ assert.deepEqual(s.exported.map(e=>[e.id,e.version,e.by,e.batch]),[['10',2,'Lucas','Lote 1'],['11',1,'Lucas','Lote 1']]);
+ await db.query(`select public.curation_mark_exported('[{"id":"11","version":1}]'::jsonb,null,false)`);
+ assert.equal((await state()).exported.length,1);
+ const m=(await db.query("select public.curation_mark_migration('20261029120000_curation_priorities.sql') as r")).rows[0].r;
+ assert.equal(m['20261029120000_curation_priorities.sql'].by,'Lucas');
+ await assert.rejects(db.query("select public.curation_mark_migration('x; drop table')"),/inválido/);
+ await db.exec('reset role');await db.query("select set_config('request.headers',$1,false)",[JSON.stringify({'x-apex-session':'invented'})]);await db.exec('set role anon');
+ await assert.rejects(db.query('select public.curation_sql_state()'),/não autorizado/);
  await db.exec('reset role');
 });

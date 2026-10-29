@@ -554,6 +554,7 @@ export default function App() {
           <SqlWorkspace
             auditLogs={auditLogs}
             allQuestions={questions}
+            curatorName={activeCurator.nome}
             onClearLogs={() => {
               setAuditLogs([]);
               showToast('Histórico de Logs Limpo', 'O script progressivo foi reiniciado.', 'info');
