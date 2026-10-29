@@ -29,7 +29,7 @@ test('guards that do not hold, another question, risky scripts and odd literals 
   assert.match(parseCorrectionSql("UPDATE public.questions SET a = 'x';", question).errors.join(), /sem ele, todas/);
   assert.match(parseCorrectionSql("UPDATE public.questions SET id = 5 WHERE id = 123456;", question).errors.join(), /coluna id/);
   assert.match(parseCorrectionSql("DELETE FROM public.questions WHERE id = 1;", question).errors.join(), /Nenhum UPDATE/);
-  assert.match(parseCorrectionSql("UPDATE public.questions SET a = upper(b) WHERE id = 123456;", question).errors.join(), /valor de a/);
+  assert.match(parseCorrectionSql("UPDATE public.questions SET a = b || 'x' WHERE id = 123456;", question).errors.join(), /valor de a/);
   const ok = parseCorrectionSql("update questions set a = E'linha\\nnova', b = 'It''s', anulada = true, e = NULL where id = 123456 and anulada = false;", question);
   assert.deepEqual(ok.errors, []);
   assert.deepEqual(ok.changes, {a: 'linha\nnova', b: "It's", anulada: true, e: null});
@@ -52,4 +52,37 @@ test('a named DO block with PERFORM checks, ILIKE and an id left NULL reads agai
   assert.equal(other.guards.find(g => g.text.startsWith('enunciado ILIKE'))!.passes, false);
   // A $$ string outside a DO block stays a string.
   assert.equal(parseCorrectionSql("update questions set a = $$x; UPDATE$$ where id = 777;", open).changes.a, 'x; UPDATE');
+});
+
+test('a question found by SELECT ... INTO and a REPLACE on the statement apply to the open question', () => {
+  const vsr = readFileSync(new URL('./fixtures/correction-vsr.sql', import.meta.url), 'utf8');
+  const open = {id: '4242', correta: 'B', anulada: false, b: 'Indicar palivizumabe mensalmente.',
+    enunciado: 'Lactente com 3 meses de idade cronológica e 45 dias de idade corrigida, displasia broncopulmonar e pragmatismo de canal arterial.'} as unknown as Question;
+  const r = parseCorrectionSql(vsr, open);
+  assert.deepEqual(r.errors, []);
+  assert.equal(r.targetId, '4242');
+  assert.match(r.notes.join(), /busca \(v_id\).*#4242/);
+  assert.equal(r.changes.enunciado, 'Lactente com 3 meses de idade cronológica e 45 dias de idade corrigida, displasia broncopulmonar e persistência do canal arterial.');
+  assert.equal(r.changes.justificativa_e, null);
+  assert.equal(r.changes.origem, 'SCM-BH');
+  assert.ok(r.guards.length >= 6);
+  assert.ok(r.guards.every(g => g.passes === true), JSON.stringify(r.guards));
+  assert.equal(r.blocks.length, 0);
+  const already = parseCorrectionSql(vsr, {...open, enunciado: open.enunciado.replace('pragmatismo de', 'persistência do')} as Question);
+  assert.match(already.notes.join(), /enunciado: o trecho "pragmatismo de canal arterial" não foi encontrado/);
+  const wrong = parseCorrectionSql(vsr, {...open, b: 'Outra conduta.'} as Question);
+  assert.equal(wrong.guards.find(g => g.text.startsWith('b ILIKE'))!.passes, false);
+});
+
+test('a result-listing SELECT after COMMIT is not a guard, and the answer key is upper-cased', () => {
+  const sql = readFileSync(new URL('./fixtures/correction-carvedilol.sql', import.meta.url), 'utf8');
+  const open = {id: '5150', correta: 'B', anulada: false, origem: 'ENAMED', b: 'Carvedilol.', d: 'Espironolactona.',
+    enunciado: 'Mulher de 58 anos com IC, fração de ejeção de 38% e BNP elevado.'} as unknown as Question;
+  const r = parseCorrectionSql(sql, open);
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.guards.every(g => g.passes === true), JSON.stringify(r.guards));
+  assert.ok(!r.guards.some(g => g.text.startsWith('origem')));
+  assert.equal(r.changes.correta, 'B');
+  assert.equal(r.changes.anulada, false);
+  assert.equal(r.targetId, '5150');
 });
