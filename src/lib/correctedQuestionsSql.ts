@@ -20,7 +20,8 @@ function readAnulada(value: unknown): boolean | undefined {
 }
 
 export function sqlText(value: string | null): string {
-  return value === null ? 'NULL' : `E'${value.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
+  // Line breaks travel escaped: a raw newline can become CRLF on copy or download and count twice.
+  return value === null ? 'NULL' : `E'${value.replace(/\\/g, '\\\\').replace(/'/g, "''").replace(/\n/g, '\\n')}'`;
 }
 
 export function isCorrectedQuestion(q: Question): boolean {
@@ -56,7 +57,7 @@ export function generateCorrectedQuestionsSql(questions: Question[]) {
       let value = (column === 'correta' && anulada ? null : q[column]) as string | null | undefined;
       // Missing optional values are omitted, preserving database content.
       if (value === undefined) continue;
-      if (value !== null) value = String(value);
+      if (value !== null) value = String(value).replace(/\r\n?/g, '\n');
       if (column === 'referencias' && value !== null && value.trim() === '') value = null;
       if (column === 'referencias' && value !== null && Array.from(value).length > REFERENCIAS_MAX_LENGTH) {
         errors.push(`Questão ${q.id}: referências excedem ${REFERENCIAS_MAX_LENGTH} caracteres.`);

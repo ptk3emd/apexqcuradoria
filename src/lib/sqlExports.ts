@@ -25,3 +25,8 @@ export function exportHistory(exported: ExportRecord[]): ExportGroup[] {
   }
   return [...groups.values()].sort((a, b) => b.at.localeCompare(a.at));
 }
+
+/** Numbers of the batches marked as migrated ("Lote 3 · 29/10/2026" → 3). */
+export function usedBatchNumbers(exported: ExportRecord[]): number[] {
+  return [...new Set(exported.map(e => Number(/^Lote (\d+)/.exec(e.batch ?? '')?.[1])).filter(n => n > 0))];
+}
