@@ -1,5 +1,5 @@
 import React,{useState} from 'react';
-import {Save,ArrowLeft,CheckCircle2,Users} from 'lucide-react';
+import {Save,ArrowLeft,CheckCircle2,Users,Wand2} from 'lucide-react';
 import type {Question} from '../types/question';
 import {normalizeDifficulty} from '../lib/difficulty';
 import {REFERENCIAS_MAX_LENGTH} from '../lib/correctedQuestionsSql';
@@ -7,6 +7,7 @@ import {LinkifiedText} from './LinkifiedText';
 import {AiVerificationControl} from './AiVerificationControl';
 import {QuestionImageField} from './QuestionImageField';
 import {imageProblem} from '../lib/questionImage';
+import {SqlCorrectionPanel} from './SqlCorrectionPanel';
 
 const fieldClass='mt-2 w-full rounded-xl border border-white/15 bg-shell-2 px-4 py-3 text-base font-normal leading-7 text-white outline-none focus:border-brand-muted focus:ring-2 focus:ring-brand-muted/20';
 // `conflicts`: fields another curator saved while this draft also changed them
@@ -16,6 +17,8 @@ export function QuestionEditor({question,busy,onChange,onSave,onCancel,conflicts
  const conflictNote=(key:string)=>conflicts?.has(key)?<p role="status" className="mt-1 text-xs font-normal text-amber-300">Outra pessoa também alterou este campo. Ao salvar, vale o seu texto.</p>:null;
  const [section,setSection]=useState('questao');
  const [error,setError]=useState('');
+ const [correcting,setCorrecting]=useState(false);
+ const [applied,setApplied]=useState(0);
  let difficultyValue = question.difficulty_bucket || '';
  try {difficultyValue = normalizeDifficulty(question.difficulty_bucket) || '';} catch { /* Invalid legacy values must be replaced before saving. */ }
  const set=(key:keyof Question,value:string)=>onChange({...question,[key]:value});
@@ -36,8 +39,13 @@ export function QuestionEditor({question,busy,onChange,onSave,onCancel,conflicts
   <fieldset disabled={busy} className="min-w-0 space-y-6" aria-busy={busy}>
    <header className="flex flex-wrap items-center justify-between gap-4">
     <div><p className="text-xs uppercase tracking-widest text-brand-muted">Curadoria • Questão #{question.id}</p><h1 className="mt-2 text-3xl font-bold">Editar questão</h1><p className="mt-2 text-sm text-apex-readable">Revise o conteúdo e salve para sincronizar com os outros curadores.</p></div>
-    <button type="button" onClick={onCancel} className="flex items-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm"><ArrowLeft size={16}/> Cancelar edição</button>
+    <div className="flex flex-wrap gap-2">
+     <button type="button" onClick={()=>setCorrecting(open=>!open)} aria-expanded={correcting} className="flex items-center gap-2 rounded-xl border border-brand/40 bg-brand/10 px-4 py-3 text-sm font-bold text-white hover:bg-brand/20"><Wand2 size={16}/> Correção automática</button>
+     <button type="button" onClick={onCancel} className="flex items-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm"><ArrowLeft size={16}/> Cancelar edição</button>
+    </div>
    </header>
+   {correcting&&<SqlCorrectionPanel question={question} onClose={()=>setCorrecting(false)} onApply={patch=>{onChange({...question,...patch});setApplied(Object.keys(patch).length);}}/>}
+   {applied>0&&!correcting&&<p role="status" className="flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-100"><CheckCircle2 size={18} className="mt-0.5 shrink-0" aria-hidden="true"/><span>Correção aplicada em {applied} campos. Revise as abas e clique em Salvar alterações para gravar.</span></p>}
    <div role="tablist" aria-label="Seções da edição" className="flex gap-2 overflow-x-auto border-b border-white/10 pb-3"
     onKeyDown={e=>{
      const order=['questao','resolucao','classificacao'];
