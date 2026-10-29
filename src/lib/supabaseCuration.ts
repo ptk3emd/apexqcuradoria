@@ -213,6 +213,21 @@ export async function fetchPriorities(signal?:AbortSignal):Promise<CurationPrior
     throw error;
   }
 }
+export interface SqlState {
+  exported: {id: string; version: number; batch: string | null; by: string; at: string}[];
+  migrations: Record<string, {by: string; at: string}>;
+}
+/** Exported corrections and applied migrations (migration 20261029150000); null when not installed. */
+export async function fetchSqlState(signal?:AbortSignal):Promise<SqlState|null> {
+  try { return await rpc('curation_sql_state',{},signal) as SqlState; }
+  catch(error) { if(isMissingFunction(error)) return null; throw error; }
+}
+export async function markExported(items:{id:string; version:number}[], batch:string|null, done:boolean):Promise<void> {
+  for(let i=0;i<items.length;i+=500) await rpc('curation_mark_exported',{p_items:items.slice(i,i+500),p_batch:batch,p_done:done});
+}
+export async function markMigration(file:string, done:boolean):Promise<SqlState['migrations']> {
+  return await rpc('curation_mark_migration',{p_file:file,p_done:done}) as SqlState['migrations'];
+}
 /** Ids whose full text contains every term; null when the server cannot search. */
 export async function searchQuestionIds(terms:string[], signal?:AbortSignal):Promise<string[]|null> {
   try {
