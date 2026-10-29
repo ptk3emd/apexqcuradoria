@@ -180,3 +180,10 @@ test('line breaks are escaped and CRLF normalized, so pasted SQL keeps the count
   const {sql} = generateCorrectedQuestionsSql([q('7', {referencias:'a\r\nb\nc'})]);
   assert.match(sql, /referencias = E'a\\nb\\nc'/);
 });
+
+test('a migrated batch never grows: new corrections open the next batch', () => {
+  // Lote 1 migrated with only 30 questions; 5 new corrections arrive later (lower and higher IDs).
+  const fresh = ['3', '40', '41', '42', '43'].map(id => q(id));
+  const {batches} = generateProgressiveSqlBatches(fresh, undefined, [1]);
+  assert.deepEqual(batches.map(b => [b.number, b.questionIds.length]), [[2, 5]]);
+});
