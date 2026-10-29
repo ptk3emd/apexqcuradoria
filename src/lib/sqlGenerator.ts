@@ -45,7 +45,10 @@ function batchKey(content:string):string {
   return `${content.length}-${(a >>> 0).toString(16)}-${(b >>> 0).toString(16)}`;
 }
 
-export function generateProgressiveSqlBatches(questions:Question[], regexFilter?:string) {
+/** `usedNumbers`: numbers of batches already migrated; pending batches take the free ones, so numbers never shift. */
+export function generateProgressiveSqlBatches(questions:Question[], regexFilter?:string, usedNumbers:Iterable<number> = []) {
+  const used = new Set(usedNumbers);
+  let next = 1;
   const result = progressiveResult(questions, regexFilter);
   const batches:ProgressiveSqlBatch[] = [];
   // Keep the existing all-or-nothing validation before offering any batch.
@@ -53,7 +56,8 @@ export function generateProgressiveSqlBatches(questions:Question[], regexFilter?
     for (let i = 0; i < result.statements.length; i += PROGRESSIVE_BATCH_SIZE) {
       const statements = result.statements.slice(i, i + PROGRESSIVE_BATCH_SIZE);
       const body = statements.map(s => s.sql).join('\n\n');
-      const number = batches.length + 1;
+      while (used.has(next)) next++;
+      const number = next++;
       batches.push({
         key: batchKey(body), number, questionIds: statements.map(s => String(s.id)),
         sql: [

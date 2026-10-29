@@ -41,14 +41,14 @@ test('SQL batches: copy and download stay visible, marked batches leave the pend
     assert.equal(renderer.root.findAllByType('pre').length, 1);
     await act(async()=>{await button('Marcar migrado')[0].props.onClick();});
     await settle();
-    assert.deepEqual(headings(), ['Lote 1']);
+    assert.deepEqual(headings(), ['Lote 2']);
     await act(async()=>renderer.unmount());
     await act(async()=>{renderer=create(render());});
     await settle();
-    assert.deepEqual(headings(), ['Lote 1']);
+    assert.deepEqual(headings(), ['Lote 2']);
     await act(async()=>renderer.update(render(questions.map(q=>q.id==='3'?{...q,sync_version:2}:q))));
     await settle();
-    assert.deepEqual(headings(), ['Lote 1']);
+    assert.deepEqual(headings(), ['Lote 2']);
     assert.match(textOf(renderer.root), /2 correções pendentes/);
   } finally {
     if(renderer) await act(async()=>renderer.unmount());

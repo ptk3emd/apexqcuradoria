@@ -3,7 +3,7 @@ import { Check, CheckCircle2, ChevronDown, Code2, Copy, Database, Download, Hist
 import { Question, AuditLogItem } from '../types/question';
 import { generateProgressiveSqlBatches, getSupabaseInitialSchemaSql, type ProgressiveSqlBatch } from '../lib/sqlGenerator';
 import { copyTextToClipboard } from '../lib/clipboardHelper';
-import { exportHistory, splitCorrections } from '../lib/sqlExports';
+import { exportHistory, splitCorrections, usedBatchNumbers } from '../lib/sqlExports';
 import { useSqlState } from '../lib/useSqlState';
 import { MigrationsPanel } from './MigrationsPanel';
 
@@ -38,7 +38,7 @@ export const SqlWorkspace: React.FC<SqlWorkspaceProps> = ({ allQuestions, curato
 
   // Only corrections whose current version was not migrated go into batches.
   const { corrected, pending, exportedCount } = useMemo(() => splitCorrections(allQuestions, state.exported), [allQuestions, state.exported]);
-  const { batches, errors } = useMemo(() => generateProgressiveSqlBatches(pending, regexPattern), [pending, regexPattern]);
+  const { batches, errors } = useMemo(() => generateProgressiveSqlBatches(pending, regexPattern, usedBatchNumbers(state.exported)), [pending, regexPattern, state.exported]);
   const history = useMemo(() => exportHistory(state.exported), [state.exported]);
   const versionOf = useMemo(() => new Map(allQuestions.map(q => [q.id, q.sync_version ?? 0])), [allQuestions]);
   const pendingTotal = batches.reduce((n, b) => n + b.questionIds.length, 0);

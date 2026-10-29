@@ -80,7 +80,7 @@ test('only writable schema fields are exported; absent optional data is preserve
 
 test('PostgreSQL E literals escape quotes and backslashes, preserving multiline and dollar text', () => {
   assert.equal(sqlText(null),'NULL');
-  assert.equal(sqlText("O'Brien\\path\n$$"),"E'O''Brien\\\\path\n$$'");
+  assert.equal(sqlText("O'Brien\\path\n$$"),"E'O''Brien\\\\path\\n$$'");
   assert.equal(sqlText(''),'E\'\'');
   const {sql}=generateCorrectedQuestionsSql([q('5',{comentario:null as any,difficulty_bucket:''})]);
   assert.match(sql,/comentario = NULL/);assert.match(sql,/difficulty_bucket = NULL/);
@@ -165,4 +165,18 @@ test('annulled questions export without an answer key; references are exported a
     assert.equal(row.anulada,true);assert.equal(row.correta,null);assert.equal(row.referencias,'Diretriz: https://example.org/d.pdf');
     await assert.rejects(db.exec("UPDATE public.questions SET correta='A' WHERE id=1"),/questions_anulada_sem_gabarito_check/);
   } finally {await db.close();}
+});
+
+test('batch numbers stay fixed: pending batches skip the numbers already migrated', () => {
+  const questions = Array.from({length:120}, (_, i) => q(String(i + 1)));
+  assert.deepEqual(generateProgressiveSqlBatches(questions).batches.map(b => b.number), [1, 2, 3]);
+  // Lote 2 migrated: its questions leave, the others keep 1 and 3.
+  const rest = questions.filter(x => Number(x.id) <= 50 || Number(x.id) > 100);
+  const {batches} = generateProgressiveSqlBatches(rest, undefined, [2]);
+  assert.deepEqual(batches.map(b => [b.number, b.questionIds[0]]), [[1, '1'], [3, '101']]);
+});
+
+test('line breaks are escaped and CRLF normalized, so pasted SQL keeps the counted length', () => {
+  const {sql} = generateCorrectedQuestionsSql([q('7', {referencias:'a\r\nb\nc'})]);
+  assert.match(sql, /referencias = E'a\\nb\\nc'/);
 });
