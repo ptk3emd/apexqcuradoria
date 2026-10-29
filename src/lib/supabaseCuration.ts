@@ -4,6 +4,7 @@ import type {SharedRow} from './sharedState';
 import {DEFAULT_CURATORS} from '../data/defaultCurators';
 import {normalizeDifficulty} from './difficulty';
 import type {CurationActivity} from './curationPace';
+import {buildPriorities, type CurationPriorities} from './priorities';
 import {clearCachedBase, readCachedBase, writeCachedBase} from './questionCache';
 
 let client:SupabaseClient | null = null;
@@ -199,8 +200,18 @@ export async function fetchCurationActivity(signal?:AbortSignal):Promise<Curatio
     throw error;
   }
 }
-export async function saveCurationGoals(daily:Record<string,number>, deadline:string|null):Promise<CurationActivity['goals']> {
-  return await rpc('curation_set_goals',{p_daily:daily,p_deadline:deadline||null}) as CurationActivity['goals'];
+export async function saveCurationGoals(daily:Record<string,number>, deadline:string|null, deadlinePriority:string|null=null):Promise<CurationActivity['goals']> {
+  return await rpc('curation_set_goals',{p_daily:daily,p_deadline:deadline||null,p_deadline_priority:deadlinePriority||null}) as CurationActivity['goals'];
+}
+/** Priorities (P0–P3) and the planned owner of each question (migration 20261029120000); null when not installed. */
+export async function fetchPriorities(signal?:AbortSignal):Promise<CurationPriorities|null> {
+  try {
+    const raw=await rpc('curation_priorities',{},signal) as {priority?:Record<string,string[]>; planned?:Record<string,string[]>};
+    return buildPriorities(raw.priority??{},raw.planned??{});
+  } catch(error) {
+    if(isMissingFunction(error)) return null;
+    throw error;
+  }
 }
 /** Ids whose full text contains every term; null when the server cannot search. */
 export async function searchQuestionIds(terms:string[], signal?:AbortSignal):Promise<string[]|null> {

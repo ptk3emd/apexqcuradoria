@@ -21,8 +21,9 @@ import { BatchAssignModal } from './components/BatchAssignModal';
 import { SqlWorkspace } from './components/SqlWorkspace';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { SupabaseAuthGate } from './components/SupabaseAuthGate';
-import { loadSupabaseBase, loadFullQuestions, subscribeSupabaseChanges, signOutSupabase } from './lib/supabaseCuration';
+import { fetchPriorities, loadSupabaseBase, loadFullQuestions, subscribeSupabaseChanges, signOutSupabase } from './lib/supabaseCuration';
 import { useServerSearch } from './lib/useServerSearch';
+import type { CurationPriorities } from './lib/priorities';
 import { isCorrectedQuestion } from './lib/correctedQuestionsSql';
 import { viewTransition, nameQuestionRow } from './lib/viewTransition';
 const STORAGE_KEY_LOGS = 'apexmed_audit_logs_v1';
@@ -221,6 +222,17 @@ export default function App() {
     if (!selectedQuestionId) return questions[0] || null;
     return questions.find(q => q.id === selectedQuestionId) || questions[0] || null;
   }, [questions, selectedQuestionId]);
+
+  // P0–P3 priorities and planned owners; loaded once per session, absent until the migration is applied.
+  const [priorities, setPriorities] = useState<CurationPriorities | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated) { setPriorities(null); return; }
+    const controller = new AbortController();
+    fetchPriorities(controller.signal).then(setPriorities).catch(error => {
+      if ((error as Error).name !== 'AbortError') console.warn('[curadoria] prioridades', (error as Error).message);
+    });
+    return () => controller.abort();
+  }, [isAuthenticated]);
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const hasPartialQuestions = useMemo(() => questions.some(q => q.parcial), [questions]);
@@ -501,6 +513,7 @@ export default function App() {
             onAssignQuestion={handleAssignQuestion}
             onShowToast={showToast}
             onLoadFullQuestion={fullQuestion}
+            priorities={priorities}
             searchActive={Boolean(searchQuery.trim())}
             onClearSearch={() => setSearchQuery('')}
           />
@@ -551,6 +564,7 @@ export default function App() {
 
         {activeView === 'cockpit' && (
           <AuditCockpit
+            priorities={priorities}
             onShowToast={showToast}
             questions={questions}
             curators={curators}

@@ -33,3 +33,18 @@ test('no goal, no pace and an empty base have explicit outcomes', () => {
   assert.equal(computePace({today: '2026-10-28', daily: [], totals: {}, goals: {daily: {}, deadline: null}}, curators, []).team.eta, '2026-10-28');
   assert.equal(formatDay('2026-12-05', '2026-10-28'), '5 dez'); assert.equal(formatDay('2027-01-05', '2026-10-28'), '5 jan 2027');
 });
+
+test('with priorities the plan has a P0/P1 phase first and each curator sees their urgent queue', async () => {
+  const {buildPriorities, priorityOrder} = await import('../src/lib/priorities');
+  const today = '2026-10-28';
+  const pr = buildPriorities({P0: ['1'], P1: ['2', '3'], P2: ['4', '5']}, {ana: ['1', '2', '4'], bia: ['3', '5']});
+  const qs = [q('1', 'pendente', 'ana'), q('2', 'aprovadas', 'ana'), q('3', 'pendente', 'bia'), q('4', 'pendente'), q('5', 'pendente'), q('6', 'pendente')];
+  const daily = Array.from({length: 14}, (_, i) => ({day: addDays(today, -i), curator: 'ana', audited: 1}));
+  const {team, curators: pace} = computePace({today, daily, totals: {}, goals: {daily: {}, deadline: '2026-11-27', deadline_priority: '2026-11-07'}}, curators, qs, pr);
+  assert.deepEqual([team.phases!.urgent.pending, team.phases!.urgent.total, team.phases!.rest.pending, team.phases!.rest.total], [2, 3, 3, 3]);
+  assert.equal(team.phases!.urgent.eta, addDays(today, 2));
+  assert.equal(team.phases!.urgent.requiredPerDay, 1);
+  assert.equal(team.phases!.rest.requiredPerDay, 1);
+  assert.deepEqual(pace.map(c => [c.urgentPending, c.plannedPending]), [[1, 1], [1, 1]]);
+  assert.deepEqual(qs.slice().sort(priorityOrder(pr)).map(x => x.id), ['1', '2', '3', '4', '5', '6']);
+});
