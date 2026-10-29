@@ -35,3 +35,21 @@ test('guards that do not hold, another question, risky scripts and odd literals 
   assert.deepEqual(ok.changes, {a: 'linha\nnova', b: "It's", anulada: true, e: null});
   assert.equal(ok.blocks.length, 0);
 });
+
+test('a named DO block with PERFORM checks, ILIKE and an id left NULL reads against the open question', () => {
+  const asthma = readFileSync(new URL('./fixtures/correction-asthma.sql', import.meta.url), 'utf8');
+  const open = {id: '777', correta: 'C', enunciado: 'Sobre o Diagnóstico de asma em crianças pequenas, assinale', c: 'Sibilância recorrente e dispneia intermitente, com avaliação', anulada: false} as unknown as Question;
+  const r = parseCorrectionSql(asthma, open);
+  assert.deepEqual(r.errors, []);
+  assert.equal(r.targetId, '777');
+  assert.match(r.notes.join(), /vazio.*#777/);
+  assert.equal(r.blocks.length, 0);
+  assert.equal(Object.keys(r.changes).length, 10);
+  assert.match(String(r.changes.referencias), /^1\. GLOBAL INITIATIVE[\s\S]*WMS\.pdf$/);
+  assert.equal(new Set(r.guards.map(g => g.text)).size, r.guards.length);
+  assert.ok(r.guards.every(g => g.passes === true), JSON.stringify(r.guards));
+  const other = parseCorrectionSql(asthma, {...open, enunciado: 'Outro tema'} as Question);
+  assert.equal(other.guards.find(g => g.text.startsWith('enunciado ILIKE'))!.passes, false);
+  // A $$ string outside a DO block stays a string.
+  assert.equal(parseCorrectionSql("update questions set a = $$x; UPDATE$$ where id = 777;", open).changes.a, 'x; UPDATE');
+});

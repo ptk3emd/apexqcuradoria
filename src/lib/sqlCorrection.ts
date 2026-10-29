@@ -29,8 +29,13 @@ export interface ParsedCorrection {
   /** IF NOT <flag> THEN RAISE ... with the flag false: the author asked for a manual confirmation. */
   blocks: Block[];
   targetId: string | null;
+  /** Things the curator should know that do not block, e.g. an id left empty in the script. */
+  notes: string[];
   errors: string[];
 }
+
+function lower(t?: Token) { return t?.kind === 'word' ? t.text.toLowerCase() : ''; }
+function isWord(t: Token | undefined, w: string) { return lower(t) === w; }
 
 function tokenize(sql: string): Token[] {
   const tokens: Token[] = [];
@@ -46,8 +51,8 @@ function tokenize(sql: string): Token[] {
       const end = sql.indexOf(tag, i + tag.length);
       if (end < 0) throw new Error(`Texto entre ${tag} sem fechamento.`);
       const body = sql.slice(i + tag.length, end);
-      // The DO block body is SQL itself: read inside it rather than as a string.
-      if (tag === '$$') tokens.push(...tokenize(body));
+      // A DO block body ($$ or $name$) is SQL itself: read inside it rather than as a string.
+      if (isWord(tokens.at(-1), 'do')) tokens.push(...tokenize(body));
       else tokens.push({kind: 'string', text: tag, value: body.replace(/^\r?\n/, '').replace(/\r?\n$/, '')});
       i = end + tag.length;
       continue;
@@ -83,8 +88,6 @@ function tokenize(sql: string): Token[] {
   return tokens;
 }
 
-const lower = (t?: Token) => (t?.kind === 'word' ? t.text.toLowerCase() : '');
-const isWord = (t: Token | undefined, w: string) => lower(t) === w;
 const render = (tokens: Token[]) => tokens.map(t => t.kind === 'string' ? (t.text.startsWith('$') ? `${t.text}…${t.text}` : t.text) : t.text)
   .join(' ').replace(/\s*\(\s*/g, '(').replace(/\s*\)/g, ')').replace(/\s*,\s*/g, ', ').replace(/\s*\.\s*/g, '.');
 
@@ -148,6 +151,19 @@ function evaluate(cond: Token[], vars: Map<string, Value>, question: Question): 
     if (rest.join(' ') === 'true' || rest.join(' ') === 'false') return value === (rest[0] === 'true');
     return null;
   }
+  const likeAt = cond.findIndex(t => ['like', 'ilike'].includes(lower(t)));
+  if (likeAt > 0) {
+    const col = columnExpr(cond.slice(0, likeAt));
+    const negate = isWord(cond[likeAt - 1], 'not');
+    const pattern = literal(cond.slice(likeAt + 1), vars);
+    if (!col || !pattern.ok || typeof pattern.value !== 'string') return null;
+    const current = currentValue(question, col.column);
+    if (current === null || typeof current === 'boolean') return false;
+    const flags = lower(cond[likeAt]) === 'ilike' ? 'iu' : 'u';
+    const regex = new RegExp(`^${pattern.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '[\\s\\S]*').replace(/_/g, '[\\s\\S]')}$`, flags);
+    const match = regex.test(col.apply(String(current)));
+    return negate ? !match : match;
+  }
   const opAt = cond.findIndex(t => ['=', '<>', '!='].includes(t.text));
   if (opAt <= 0) return null;
   const col = columnExpr(cond.slice(0, opAt));
@@ -162,7 +178,7 @@ function evaluate(cond: Token[], vars: Map<string, Value>, question: Question): 
 }
 
 export function parseCorrectionSql(sql: string, question: Question): ParsedCorrection {
-  const result: ParsedCorrection = {changes: {}, guards: [], blocks: [], targetId: null, errors: []};
+  const result: ParsedCorrection = {changes: {}, guards: [], blocks: [], targetId: null, notes: [], errors: []};
   let tokens: Token[];
   try { tokens = tokenize(sql); } catch (error) { result.errors.push((error as Error).message); return result; }
 
@@ -177,25 +193,9 @@ export function parseCorrectionSql(sql: string, question: Question): ParsedCorre
     if (tokens[name]?.kind === 'word' && value.ok) vars.set(tokens[name].text.toLowerCase(), value.value);
   }
 
-  // IF [NOT] flag THEN RAISE EXCEPTION 'message'
-  for (let i = 0; i < tokens.length; i++) {
-    if (!isWord(tokens[i], 'if')) continue;
-    const negated = isWord(tokens[i + 1], 'not');
-    const flag = tokens[i + (negated ? 2 : 1)];
-    const then = tokens[i + (negated ? 3 : 2)];
-    if (!isWord(then, 'then') || flag?.kind !== 'word' || !vars.has(flag.text.toLowerCase())) continue;
-    const raiseAt = i + (negated ? 4 : 3);
-    if (!isWord(tokens[raiseAt], 'raise') || !isWord(tokens[raiseAt + 1], 'exception')) continue;
-    const value = vars.get(flag.text.toLowerCase());
-    if (typeof value !== 'boolean') continue;
-    if (negated ? !value : value) {
-      const msg = tokens[raiseAt + 2];
-      result.blocks.push({variable: flag.text, message: msg?.kind === 'string' ? String(msg.value) : 'O script bloqueia a atualização.'});
-    }
-  }
-
   // UPDATE [public.]questions SET ... WHERE ... ;
-  const updates = tokens.reduce<number[]>((acc, t, i) => (isWord(t, 'update') ? [...acc, i] : acc), []);
+  // FOR UPDATE (a row lock in a check) is not an UPDATE statement.
+  const updates = tokens.reduce<number[]>((acc, t, i) => (isWord(t, 'update') && !isWord(tokens[i - 1], 'for') ? [...acc, i] : acc), []);
   if (!updates.length) { result.errors.push('Nenhum UPDATE public.questions encontrado.'); return result; }
   if (updates.length > 1) { result.errors.push('O script tem mais de um UPDATE: cole uma correção por vez.'); return result; }
   let i = updates[0] + 1;
@@ -224,6 +224,29 @@ export function parseCorrectionSql(sql: string, question: Question): ParsedCorre
   }
   if (!Object.keys(result.changes).length && !result.errors.length) result.errors.push('O UPDATE não altera nenhuma coluna.');
 
+  // An id variable left NULL ("put the real id here") means the open question.
+  const idCond = splitTop(wherePart, t => isWord(t, 'and')).find(c => lower(c[0]) === 'id' && c[1]?.text === '=' && c.length === 3 && c[2].kind === 'word');
+  const idVar = idCond ? lower(idCond[2]) : '';
+  if (idVar && vars.has(idVar) && vars.get(idVar) === null) {
+    vars.set(idVar, question.id);
+    result.notes.push(`O SQL deixou ${idCond![2].text} vazio: foi usada a questão aberta, #${question.id}.`);
+  }
+
+  // PERFORM 1 FROM public.questions WHERE ... [FOR UPDATE]; IF NOT FOUND THEN RAISE: more conditions to check.
+  for (let k = 0; k < tokens.length; k++) {
+    if (!isWord(tokens[k], 'perform')) continue;
+    const stop = tokens.findIndex((t, m) => m > k && t.text === ';');
+    let check = tokens.slice(k + 1, stop < 0 ? undefined : stop);
+    const w = check.findIndex(t => isWord(t, 'where'));
+    if (w < 0 || !check.slice(0, w).some(t => isWord(t, 'questions'))) continue;
+    check = check.slice(w + 1);
+    const forAt = check.findIndex((t, m) => isWord(t, 'for') && isWord(check[m + 1], 'update'));
+    if (forAt >= 0) check = check.slice(0, forAt);
+    for (const cond of splitTop(check, t => isWord(t, 'and'))) {
+      result.guards.push({text: render(cond), passes: cond.some(t => isWord(t, 'or')) ? null : evaluate(cond, vars, question)});
+    }
+  }
+
   if (!wherePart.length) result.errors.push('O UPDATE não tem WHERE: sem ele, todas as questões seriam alteradas.');
   for (const cond of splitTop(wherePart, t => isWord(t, 'and'))) {
     if (cond.some(t => isWord(t, 'or'))) { result.guards.push({text: render(cond), passes: null}); continue; }
@@ -235,5 +258,28 @@ export function parseCorrectionSql(sql: string, question: Question): ParsedCorre
   }
   if (wherePart.length && !result.targetId) result.errors.push('O WHERE precisa fixar o ID da questão (id = …).');
   else if (result.targetId && result.targetId !== question.id) result.errors.push(`O script é para a questão #${result.targetId}, mas a questão aberta é a #${question.id}.`);
+  // PERFORM checks and the WHERE often repeat a condition: list each once.
+  const seen = new Set<string>();
+  result.guards = result.guards.filter(g => !seen.has(g.text) && seen.add(g.text));
+
+  // IF [NOT] flag THEN RAISE EXCEPTION 'message' / IF v IS NULL THEN RAISE ...: guards the author left for a person.
+  for (let i = 0; i < tokens.length; i++) {
+    if (!isWord(tokens[i], 'if')) continue;
+    const thenAt = tokens.findIndex((t, k) => k > i && isWord(t, 'then'));
+    if (thenAt < 0 || !isWord(tokens[thenAt + 1], 'raise') || !isWord(tokens[thenAt + 2], 'exception')) continue;
+    const cond = tokens.slice(i + 1, thenAt);
+    const msg = tokens[thenAt + 3];
+    const message = msg?.kind === 'string' ? String(msg.value) : 'O script bloqueia a atualização.';
+    const names = cond.map(lower);
+    let fires: boolean | null = null;
+    let variable = '';
+    if (names.length === 2 && names[0] === 'not' && vars.has(names[1])) { variable = cond[1].text; const v = vars.get(names[1]); fires = typeof v === 'boolean' ? !v : null; }
+    else if (names.length === 1 && vars.has(names[0])) { variable = cond[0].text; const v = vars.get(names[0]); fires = typeof v === 'boolean' ? v : null; }
+    else if (names.length === 3 && vars.has(names[0]) && names[1] === 'is' && names[2] === 'null') { variable = cond[0].text; fires = vars.get(names[0]) === null; }
+    else if (names.length === 2 && names[0] === 'not' && names[1] === 'found') continue; // covered by the PERFORM checks
+    if (fires) result.blocks.push({variable, message});
+  }
+
   return result;
 }
+

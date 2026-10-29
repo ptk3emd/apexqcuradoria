@@ -68,9 +68,15 @@ export function SqlCorrectionPanel({question, onApply, onClose}: {question: Ques
             </ul>
           )}
 
+          {parsed.notes.length > 0 && (
+            <ul className="space-y-1 rounded-xl bg-white/[0.05] p-3 text-sm text-apex-text">
+              {parsed.notes.map(n => <li key={n}>{n}</li>)}
+            </ul>
+          )}
+
           {parsed.guards.length > 0 && (
             <div>
-              <h3 className="text-sm font-bold text-apex-text">Condições do WHERE</h3>
+              <h3 className="text-sm font-bold text-apex-text">Condições do SQL</h3>
               <ul className="mt-2 space-y-1.5">
                 {parsed.guards.map((g, i) => (
                   <li key={i} className={`flex items-start gap-2 text-xs ${g.passes === true ? 'text-emerald-300' : g.passes === false ? 'text-rose-300' : 'text-amber-300'}`}>
