@@ -1,11 +1,12 @@
 import type {Curator, Question} from '../types/question';
+import {isUrgent, type CurationPriorities} from './priorities';
 
 // Shape returned by public.curation_activity (migration 20261028200000).
 export interface CurationActivity {
   today: string; // YYYY-MM-DD, São Paulo
   daily: {day: string; curator: string; audited: number}[];
   totals: Record<string, number>;
-  goals: {daily: Record<string, number>; deadline: string | null; updated_by?: string | null; updated_at?: string | null};
+  goals: {daily: Record<string, number>; deadline: string | null; deadline_priority?: string | null; updated_by?: string | null; updated_at?: string | null};
 }
 
 export type PaceStatus = 'em_dia' | 'atrasado' | 'sem_meta';
@@ -23,6 +24,21 @@ export interface CuratorPace {
   /** Questions short of the goal over the last 7 days (0 when on track). */
   deficit7: number;
   assignedPending: Question[];
+  /** Their P0/P1 still pending, and the P2/P3 planned for them still pending. */
+  urgentPending: number;
+  plannedPending: number;
+  /** Day their P0/P1 are done at their 7-day pace; null without pace. */
+  urgentEta: string | null;
+}
+
+/** One stage of the plan: P0/P1 first, then P2/P3 and the rest. */
+export interface Phase {
+  pending: number;
+  total: number;
+  eta: string | null;
+  deadline: string | null;
+  requiredPerDay: number | null;
+  onTrack: boolean | null;
 }
 
 export interface TeamPace {
@@ -40,13 +56,15 @@ export interface TeamPace {
   onTrack: boolean | null;
   /** Pending questions at the end of each day, rebuilt from the audits after it. */
   burndown: {day: string; pending: number}[];
+  /** With priorities: P0/P1 first, then the rest at the same pace. */
+  phases: {urgent: Phase; rest: Phase} | null;
 }
 
 const DAY = 86_400_000;
 export const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
 export const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
 
-export function computePace(activity: CurationActivity, curators: Curator[], questions: Question[], windowDays = 30) {
+export function computePace(activity: CurationActivity, curators: Curator[], questions: Question[], priorities?: CurationPriorities | null, windowDays = 30) {
   const days = Array.from({length: windowDays}, (_, i) => addDays(activity.today, i - windowDays + 1));
   const byKey = new Map(activity.daily.map(d => [`${d.curator}|${d.day}`, d.audited]));
   const sumLast = (series: {audited: number}[], n: number) => series.slice(-n).reduce((s, d) => s + d.audited, 0);
@@ -66,6 +84,12 @@ export function computePace(activity: CurationActivity, curators: Curator[], que
       assignedPending: questions
         .filter(q => q.responsavel_id === curator.id && q.status === 'pendente')
         .sort((a, b) => Number(a.id) - Number(b.id)),
+      ...(() => {
+        const urgentPending = priorities ? questions.filter(q => q.status === 'pendente' && q.responsavel_id === curator.id && isUrgent(priorities.of.get(q.id))).length : 0;
+        const plannedPending = priorities ? questions.filter(q => q.status === 'pendente' && !isUrgent(priorities.of.get(q.id)) && priorities.plannedFor.get(q.id) === curator.id).length : 0;
+        const urgentEta = urgentPending === 0 ? activity.today : avg7 > 0 ? addDays(activity.today, Math.ceil(urgentPending / avg7)) : null;
+        return {urgentPending, plannedPending, urgentEta};
+      })(),
     };
   });
 
@@ -86,10 +110,32 @@ export function computePace(activity: CurationActivity, curators: Curator[], que
     return point;
   }).reverse();
 
+  // Phases: P0/P1 go first at the whole team's pace, then everything else.
+  let phases: TeamPace['phases'] = null;
+  if (priorities) {
+    const urgent = questions.filter(q => isUrgent(priorities.of.get(q.id)));
+    const urgentPending = urgent.filter(q => q.status === 'pendente').length;
+    const restPending = pending - urgentPending;
+    const urgentDays = avg14 > 0 ? Math.ceil(urgentPending / avg14) : null;
+    const urgentEta = urgentPending === 0 ? activity.today : urgentDays === null ? null : addDays(activity.today, urgentDays);
+    const deadlineP = activity.goals.deadline_priority || null;
+    const daysP = deadlineP ? Math.max(0, daysBetween(activity.today, deadlineP)) : null;
+    const reqP = daysP === null ? null : urgentPending === 0 ? 0 : daysP === 0 ? urgentPending : Math.ceil(urgentPending / daysP);
+    // After P0/P1 (by their deadline or forecast), the rest has the days left until the base deadline.
+    const restStart = deadlineP && deadline && deadlineP < deadline ? deadlineP : activity.today;
+    const daysRest = deadline ? Math.max(0, daysBetween(restStart, deadline)) : null;
+    const reqRest = daysRest === null ? null : restPending === 0 ? 0 : daysRest === 0 ? restPending : Math.ceil(restPending / daysRest);
+    phases = {
+      urgent: {pending: urgentPending, total: urgent.length, eta: urgentEta, deadline: deadlineP, requiredPerDay: reqP, onTrack: reqP === null ? null : avg14 >= reqP},
+      rest: {pending: restPending, total: questions.length - urgent.length, eta, deadline, requiredPerDay: reqRest, onTrack: reqRest === null ? null : avg14 >= reqRest},
+    };
+  }
+
   const team: TeamPace = {
     pending, total: questions.length, audited: questions.length - pending, avg14, goalPerDay, eta, deadline, daysToDeadline, requiredPerDay,
     onTrack: requiredPerDay === null ? null : avg14 >= requiredPerDay,
     burndown,
+    phases,
   };
   return {curators: curatorPace, team, days};
 }

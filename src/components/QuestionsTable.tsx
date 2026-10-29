@@ -19,6 +19,7 @@ import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboard
 import { AdvancedFilters, AdvancedFilterState, GRANDES_AREAS_MAP } from './AdvancedFilters';
 import { viewTransition, nameQuestionRowOf } from '../lib/viewTransition';
 import { useServerSearch } from '../lib/useServerSearch';
+import { priorityIndex, priorityOrder, type CurationPriorities } from '../lib/priorities';
 
 interface QuestionsTableProps {
   questions: Question[];
@@ -33,6 +34,8 @@ interface QuestionsTableProps {
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
   /** Full text of a light-list row, for copying it. */
   onLoadFullQuestion?: (question: Question) => Promise<Question>;
+  /** P0–P3: the queue opens the most urgent question first. */
+  priorities?: CurationPriorities | null;
   searchActive?: boolean;
   onClearSearch?: () => void;
 }
@@ -63,6 +66,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   onAssignQuestion,
   onShowToast,
   onLoadFullQuestion,
+  priorities,
   searchActive = false,
   onClearSearch,
 }) => {
@@ -110,9 +114,11 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
     const count = (status: QuestionStatus) => questions.filter(q => q.status === status).length;
     const pending = count('pendente');
     const today = new Date().toDateString();
-    const byId = (a: Question, b: Question) => Number(a.id) - Number(b.id);
-    const minePending = questions.filter(q => q.status === 'pendente' && q.responsavel_id === activeCurator.id).sort(byId);
-    const freePending = questions.filter(q => q.status === 'pendente' && !q.responsavel_id).sort(byId);
+    // Most urgent first (P0, P1, P2, P3, then the rest); among free ones, those planned for you first.
+    const byPriority = priorityOrder(priorities);
+    const plannedForMe = (q: Question) => priorities?.plannedFor.get(q.id) === activeCurator.id ? 0 : 1;
+    const minePending = questions.filter(q => q.status === 'pendente' && q.responsavel_id === activeCurator.id).sort(byPriority);
+    const freePending = questions.filter(q => q.status === 'pendente' && !q.responsavel_id).sort((a, b) => priorityIndex(priorities, a.id) - priorityIndex(priorities, b.id) || plannedForMe(a) - plannedForMe(b) || byPriority(a, b));
     return {
       total: questions.length,
       audited: questions.length - pending,
@@ -132,7 +138,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         { status: 'pendente', label: 'Pendentes', value: pending, className: 'bg-white/20' },
       ],
     };
-  }, [questions, activeCurator.id, activeCurator.nome]);
+  }, [questions, activeCurator.id, activeCurator.nome, priorities]);
 
   // One-tap scopes over the same filters the "Refinar" panel edits.
   const scopes = [
@@ -292,7 +298,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-bold">{queue.nextIsMine ? 'Continuar minha fila' : 'Pegar a próxima livre'}</span>
                 <span className="block truncate text-xs text-white/80">
-                  <span className="tabular-nums">#{queue.next.id}</span> · {queue.next.especialidade || 'Sem especialidade'}{queue.next.tema_especifico ? ` · ${queue.next.tema_especifico}` : ''}
+                  {priorities?.of.get(queue.next.id) && <span className="font-bold">{priorities.of.get(queue.next.id)} · </span>}<span className="tabular-nums">#{queue.next.id}</span> · {queue.next.especialidade || 'Sem especialidade'}{queue.next.tema_especifico ? ` · ${queue.next.tema_especifico}` : ''}
                 </span>
               </span>
               <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />

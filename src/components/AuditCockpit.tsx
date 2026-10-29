@@ -5,12 +5,15 @@ import { fetchCurationActivity, saveCurationGoals } from '../lib/supabaseCuratio
 import { CurationActivity, CuratorPace, computePace, formatDay, daysBetween } from '../lib/curationPace';
 import { describeError } from '../lib/errorMessage';
 import { BurndownChart, DailyBars } from './stats/PaceCharts';
+import type { CurationPriorities } from '../lib/priorities';
+import type { Phase } from '../lib/curationPace';
 
 interface AuditCockpitProps {
   questions: Question[];
   curators: Curator[];
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
   onOpenQuestionById: (id: string) => void;
+  priorities?: CurationPriorities | null;
 }
 
 const STATUS_SEGMENTS = [
@@ -29,7 +32,7 @@ const PACE_STATUS = {
 
 const fmt = (n: number, digits = 0) => n.toLocaleString('pt-BR', { maximumFractionDigits: digits, minimumFractionDigits: digits });
 
-export const AuditCockpit: React.FC<AuditCockpitProps> = ({ questions, curators, onOpenQuestionById, onShowToast }) => {
+export const AuditCockpit: React.FC<AuditCockpitProps> = ({ questions, curators, onOpenQuestionById, onShowToast, priorities }) => {
   const [activity, setActivity] = useState<CurationActivity | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable' | 'error'>('loading');
   const [error, setError] = useState('');
@@ -47,7 +50,7 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({ questions, curators,
     return () => { clearTimeout(timer); controller.abort(); };
   }, [load, audited]);
 
-  const pace = useMemo(() => activity ? computePace(activity, curators, questions) : null, [activity, curators, questions]);
+  const pace = useMemo(() => activity ? computePace(activity, curators, questions, priorities) : null, [activity, curators, questions, priorities]);
   const total = questions.length;
   const pct = total ? (audited / total) * 100 : 0;
 
@@ -76,7 +79,7 @@ export const AuditCockpit: React.FC<AuditCockpitProps> = ({ questions, curators,
           <AuditorLanes pace={pace.curators} today={activity.today} onOpenQuestionById={onOpenQuestionById} />
           <BehindList pace={pace.curators} onOpenQuestionById={onOpenQuestionById} />
           <GoalsEditor
-            activity={activity} curators={curators} requiredPerDay={pace.team.requiredPerDay}
+            activity={activity} curators={curators} requiredPerDay={Math.max(pace.team.requiredPerDay ?? 0, pace.team.phases?.urgent.requiredPerDay ?? 0, pace.team.phases?.rest.requiredPerDay ?? 0) || null}
             onSaved={goals => setActivity(prev => prev ? { ...prev, goals } : prev)}
             onShowToast={onShowToast}
           />
@@ -155,6 +158,8 @@ function ForecastHero({ total, audited, pct, pace, state, error, onRetry }: {
         )}
       </div>
 
+      {team?.phases && <PhasePlan phases={team.phases} today={today} avg={team.avg14} />}
+
       {pace && team ? (
         <div className="rounded-2xl border border-white/[0.08] bg-shell-2 p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-apex-readable">
@@ -206,6 +211,13 @@ function AuditorLanes({ pace, today, onOpenQuestionById }: { pace: CuratorPace[]
                   </dd></div>
                 </dl>
               </div>
+              {(c.urgentPending > 0 || c.plannedPending > 0) && (
+                <p className="text-xs text-apex-readable lg:col-start-1">
+                  <span className="font-bold text-apex-text">P0/P1:</span> <span className="tabular-nums font-bold text-apex-text">{fmt(c.urgentPending)}</span> pendentes{c.urgentPending > 0 && (c.urgentEta ? <> · terminam em {formatDay(c.urgentEta, today)} no ritmo de 7 dias</> : ' · sem ritmo para prever')}
+                  <span className="mx-2 text-shell-subtle" aria-hidden="true">•</span>
+                  <span className="font-bold text-apex-text">P2/P3 previstas:</span> <span className="tabular-nums">{fmt(c.plannedPending)}</span>
+                </p>
+              )}
               <DailyBars series={c.series} goal={c.goal} color={c.curator.avatarCor} yMax={yMax} today={today} label={c.curator.nome} />
             </li>
           );
@@ -268,6 +280,8 @@ function GoalsEditor({ activity, curators, requiredPerDay, onSaved, onShowToast 
 }) {
   const [daily, setDaily] = useState<Record<string, string>>(() => Object.fromEntries(curators.map(c => [c.id, String(activity.goals.daily?.[c.id] ?? '')])));
   const [deadline, setDeadline] = useState(activity.goals.deadline ?? '');
+  const [deadlinePriority, setDeadlinePriority] = useState(activity.goals.deadline_priority ?? '');
+  const datesInvalid = Boolean(deadlinePriority && deadline && deadlinePriority > deadline);
   const [saving, setSaving] = useState(false);
   const invalid = curators.some(c => daily[c.id] !== '' && !/^\d{1,4}$/.test(daily[c.id]) || Number(daily[c.id]) > 1000);
 
@@ -279,7 +293,7 @@ function GoalsEditor({ activity, curators, requiredPerDay, onSaved, onShowToast 
   const save = async () => {
     setSaving(true);
     try {
-      const goals = await saveCurationGoals(Object.fromEntries(curators.map(c => [c.id, Number(daily[c.id] || 0)])), deadline || null);
+      const goals = await saveCurationGoals(Object.fromEntries(curators.map(c => [c.id, Number(daily[c.id] || 0)])), deadline || null, deadlinePriority || null);
       onSaved(goals);
       onShowToast('Metas salvas', 'Todos os curadores veem as mesmas metas.', 'success');
     } catch (err) {
@@ -295,7 +309,7 @@ function GoalsEditor({ activity, curators, requiredPerDay, onSaved, onShowToast 
           <p className="text-xs text-apex-readable">Atualizadas por {activity.goals.updated_by} em {new Date(activity.goals.updated_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</p>
         )}
       </div>
-      <fieldset disabled={saving} className="grid grid-cols-2 gap-4 rounded-2xl border border-white/[0.08] bg-shell-2 p-4 sm:grid-cols-4 sm:p-5 lg:grid-cols-[repeat(3,minmax(0,10rem))_minmax(0,12rem)_1fr] lg:items-end">
+      <fieldset disabled={saving} className="grid grid-cols-2 gap-4 rounded-2xl border border-white/[0.08] bg-shell-2 p-4 sm:grid-cols-4 sm:p-5 lg:grid-cols-[repeat(3,minmax(0,9rem))_repeat(2,minmax(0,11rem))_1fr] lg:items-end">
         {curators.map(c => (
           <label key={c.id} className="space-y-1.5">
             <span className="flex items-center gap-2 text-xs font-bold text-apex-text"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: c.avatarCor }} aria-hidden="true" />{c.nome} · por dia</span>
@@ -304,6 +318,11 @@ function GoalsEditor({ activity, curators, requiredPerDay, onSaved, onShowToast 
               className="w-full min-h-11 rounded-xl border border-white/[0.1] bg-shell-3 px-3 text-sm font-bold tabular-nums text-apex-text outline-none focus:border-brand" />
           </label>
         ))}
+        <label className="space-y-1.5">
+          <span className="text-xs font-bold text-apex-text">Prazo P0/P1</span>
+          <input type="date" value={deadlinePriority} onChange={e => setDeadlinePriority(e.target.value)}
+            className="w-full min-h-11 rounded-xl border border-white/[0.1] bg-shell-3 px-3 text-sm text-apex-text outline-none focus:border-brand [color-scheme:dark]" />
+        </label>
         <label className="space-y-1.5">
           <span className="text-xs font-bold text-apex-text">Prazo do banco</span>
           <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
@@ -315,12 +334,50 @@ function GoalsEditor({ activity, curators, requiredPerDay, onSaved, onShowToast 
               <Wand2 className="h-4 w-4" aria-hidden="true" />Dividir o que o prazo pede
             </button>
           ) : null}
-          <button type="button" onClick={() => void save()} disabled={invalid} className="min-h-11 rounded-full bg-brand px-5 text-xs font-bold text-white hover:bg-brand-hover disabled:opacity-40">
+          <button type="button" onClick={() => void save()} disabled={invalid || datesInvalid} className="min-h-11 rounded-full bg-brand px-5 text-xs font-bold text-white hover:bg-brand-hover disabled:opacity-40">
             {saving ? 'Salvando…' : 'Salvar metas'}
           </button>
         </div>
       </fieldset>
       {invalid && <p role="alert" className="text-xs text-amber-300">Use números inteiros de 0 a 1000.</p>}
+      {datesInvalid && <p role="alert" className="text-xs text-amber-300">O prazo de P0/P1 precisa vir antes do prazo do banco.</p>}
     </section>
+  );
+}
+
+/** P0/P1 first, then P2/P3 and the rest: forecast and deadline of each stage. */
+function PhasePlan({ phases, today, avg }: { phases: { urgent: Phase; rest: Phase }; today: string; avg: number }) {
+  const card = (title: string, hint: string, phase: Phase) => {
+    const done = phase.total ? ((phase.total - phase.pending) / phase.total) * 100 : 100;
+    return (
+      <div className="space-y-3 rounded-2xl border border-white/[0.08] bg-shell-2 p-4 sm:p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-base font-bold text-apex-text">{title}</h3>
+          {phase.onTrack !== null && phase.pending > 0 && (
+            <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${phase.onTrack ? 'text-emerald-300' : 'text-amber-300'}`}>
+              {phase.onTrack ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
+              {phase.onTrack ? 'No prazo' : 'Abaixo do ritmo do prazo'}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-apex-readable">{hint}</p>
+        <div className="h-2 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-brand-soft" style={{ width: `${done}%` }} /></div>
+        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div><dt className="text-[11px] text-apex-readable">Faltam</dt><dd className="text-lg font-bold tabular-nums text-apex-text">{fmt(phase.pending)}<span className="text-xs font-normal text-shell-muted"> / {fmt(phase.total)}</span></dd></div>
+          <div><dt className="text-[11px] text-apex-readable">Previsão</dt><dd className="text-lg font-bold text-apex-text">{phase.pending === 0 ? 'Concluída' : phase.eta ? formatDay(phase.eta, today) : '—'}</dd></div>
+          <div><dt className="text-[11px] text-apex-readable">Prazo</dt><dd className="text-lg font-bold text-apex-text">{phase.deadline ? formatDay(phase.deadline, today) : '—'}</dd></div>
+          <div><dt className="text-[11px] text-apex-readable">Precisa por dia</dt><dd className="text-lg font-bold tabular-nums text-apex-text">{phase.requiredPerDay !== null ? fmt(phase.requiredPerDay) : '—'}</dd></div>
+        </dl>
+      </div>
+    );
+  };
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-apex-readable">Plano em duas fases: a equipe termina as P0/P1 (já divididas) antes de seguir para as P2/P3, sorteadas entre os três. Ritmo atual da equipe: <span className="font-bold tabular-nums text-apex-text">{fmt(avg, 1)}</span> por dia.</p>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {card('Fase 1 · P0 e P1', 'Alta prioridade: atribuídas a Patrick, Thierry e Lucas.', phases.urgent)}
+        {card('Fase 2 · P2, P3 e demais', 'Depois da fase 1. P2/P3 já têm responsável previsto por sorteio.', phases.rest)}
+      </div>
+    </div>
   );
 }

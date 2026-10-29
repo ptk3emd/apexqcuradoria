@@ -33,6 +33,8 @@ await db.exec(await readFile('supabase/migrations/20261028170000_curation_qualit
 await db.exec(await readFile('supabase/migrations/20261028180000_quality_flags_null_text.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261028190000_quality_flags_ranges.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261028200000_curation_activity_goals.sql','utf8'));
+await db.exec("insert into public.questions(id,enunciado) values(3294,'P0 Patrick'),(9398,'P0 Thierry'),(11131,'P0 Lucas'),(7098,'P2 primeira')");
+await db.exec(await readFile('supabase/migrations/20261029120000_curation_priorities.sql','utf8'));
 await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
 const asUser=async user=>{
@@ -300,5 +302,25 @@ test('activity counts distinct questions audited per curator and day; goals are 
  await db.exec('reset role');await db.query("select set_config('request.headers',$1,false)",[JSON.stringify({'x-apex-session':'invented'})]);await db.exec('set role anon');
  await assert.rejects(db.query('select public.curation_activity()'),/não autorizado/);
  await assert.rejects(db.query("select public.curation_set_goals('{}'::jsonb,null)"),/não autorizado/);
+ await db.exec('reset role');
+});
+
+test('priorities assign P0/P1 to their curator, plan P2/P3 in rotation and add a P0/P1 deadline',async()=>{
+ await db.exec('reset role');
+ const owner=async id=>(await db.query('select responsible_id from public.curation_questions where question_id=$1',[id])).rows[0].responsible_id;
+ assert.equal(await owner(3294),'patrick');assert.equal(await owner(9398),'thierry');assert.equal(await owner(11131),'lucas');
+ assert.equal(await owner(7098),null);
+ const counts=(await db.query("select priority,count(*)::int n from public.curation_priorities group by priority order by priority")).rows;
+ assert.deepEqual(counts.map(r=>[r.priority,r.n]),[['P0',25],['P1',617],['P2',12955],['P3',6]]);
+ const ev=(await db.query("select question_ids from curation_private.events where action='priority_assign'")).rows;
+ assert.equal(ev.length,1);
+ await asUser(patrick);await db.exec('set role anon');
+ const pr=(await db.query('select public.curation_priorities() as r')).rows[0].r;
+ assert.equal(pr.priority.P0.length,25);assert.equal(pr.planned.patrick.length+pr.planned.thierry.length+pr.planned.lucas.length,13603);
+ assert.ok(pr.planned.patrick.includes('7098'));
+ const g=(await db.query("select public.curation_set_goals('{\"patrick\":30}'::jsonb,'2027-03-01','2026-11-30') as r")).rows[0].r;
+ assert.equal(g.deadline_priority,'2026-11-30');
+ await assert.rejects(db.query("select public.curation_set_goals('{}'::jsonb,'2026-11-01','2026-12-01')"),/antes do prazo/);
+ assert.equal((await db.query('select public.curation_activity() as r')).rows[0].r.goals.deadline_priority,'2026-11-30');
  await db.exec('reset role');
 });
