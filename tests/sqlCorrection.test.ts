@@ -86,3 +86,16 @@ test('a result-listing SELECT after COMMIT is not a guard, and the answer key is
   assert.equal(r.changes.anulada, false);
   assert.equal(r.targetId, '5150');
 });
+
+test('IS NULL accepts a field left blank or as the word "null" by imports, with a note', () => {
+  const q = {id: '9', correta: 'D', anulada: false, e: ''} as unknown as Question;
+  const sql = "update questions set comentario = 'x' where id = 9 and e is null and lower(btrim(correta)) = 'd';";
+  const blank = parseCorrectionSql(sql, q);
+  assert.ok(blank.guards.every(g => g.passes === true), JSON.stringify(blank.guards));
+  assert.match(blank.notes.join(), /^e: no banco está como texto vazio, não NULL/);
+  const word = parseCorrectionSql(sql, {...q, e: 'null'} as Question);
+  assert.ok(word.guards.every(g => g.passes === true));
+  assert.match(word.notes.join(), /"null"/);
+  assert.equal(parseCorrectionSql(sql, {...q, e: 'Alternativa E.'} as Question).guards.find(g => /is null/i.test(g.text))!.passes, false);
+  assert.equal(parseCorrectionSql(sql, {...q, e: null} as unknown as Question).notes.length, 0);
+});

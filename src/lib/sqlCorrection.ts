@@ -131,6 +131,10 @@ function columnExpr(tokens: Token[]): {column: string; apply: (v: string) => str
   return null;
 }
 
+function isBlankText(value: Value) {
+  return value === null || (typeof value === 'string' && ['', 'null'].includes(value.trim().toLowerCase()));
+}
+
 function currentValue(question: Question, column: string): Value {
   if (column === 'anulada') return Boolean(question.anulada);
   const v = (question as unknown as Record<string, unknown>)[column];
@@ -145,7 +149,8 @@ function evaluate(cond: Token[], vars: Map<string, Value>, question: Question): 
     const rest = cond.slice(isAt + 1).map(lower);
     if (!col) return null;
     const value = currentValue(question, col.column);
-    const empty = value === null;
+    // Imports left absent text as '' or the word "null": both count as NULL here.
+    const empty = isBlankText(value);
     if (rest.join(' ') === 'null') return empty;
     if (rest.join(' ') === 'not null') return !empty;
     if (rest.join(' ') === 'true' || rest.join(' ') === 'false') return value === (rest[0] === 'true');
@@ -291,6 +296,12 @@ export function parseCorrectionSql(sql: string, question: Question): ParsedCorre
   }
   if (wherePart.length && !result.targetId) result.errors.push('O WHERE precisa fixar o ID da questão (id = …).');
   else if (result.targetId && result.targetId !== question.id) result.errors.push(`O script é para a questão #${result.targetId}, mas a questão aberta é a #${question.id}.`);
+  // Say so when IS NULL passed only because the field holds blank text.
+  for (const column of new Set(result.guards.map(g => /^(\w+) IS NULL$/i.exec(g.text)?.[1]?.toLowerCase()).filter(Boolean))) {
+    const v = currentValue(question, column!);
+    if (v !== null && isBlankText(v)) result.notes.push(`${column}: no banco está como texto vazio${String(v).trim() ? ' ("null")' : ''}, não NULL; foi tratado como ausente.`);
+  }
+
   // PERFORM checks and the WHERE often repeat a condition: list each once.
   const seen = new Set<string>();
   result.guards = result.guards.filter(g => !seen.has(g.text) && seen.add(g.text));
