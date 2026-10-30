@@ -99,3 +99,43 @@ test('IS NULL accepts a field left blank or as the word "null" by imports, with 
   assert.equal(parseCorrectionSql(sql, {...q, e: 'Alternativa E.'} as Question).guards.find(g => /is null/i.test(g.text))!.passes, false);
   assert.equal(parseCorrectionSql(sql, {...q, e: null} as unknown as Question).notes.length, 0);
 });
+
+test('REGEXP_REPLACE, IN lists and OR groups in the checks are read against the open question', () => {
+  const q = {
+    id: '3502', correta: 'D', anulada: false, e: null,
+    enunciado: 'Paciente de 58 anos, joelho esquerdo inflamado. A conduta mais adequada solicitar  ',
+  } as unknown as Question;
+  const sql = `DO $apexmed$
+DECLARE v_id bigint; v_total integer;
+BEGIN
+  SELECT COUNT(*), MAX(id) INTO v_total, v_id FROM public.questions
+  WHERE enunciado ILIKE '%joelho esquerdo%'
+    AND (e IS NULL OR LOWER(BTRIM(e)) IN ('', 'null', '-'))
+    AND LOWER(BTRIM(correta)) IN ('a', 'd')
+    AND anulada = FALSE;
+  UPDATE public.questions SET
+    enunciado = REGEXP_REPLACE(enunciado, 'A conduta mais adequada solicitar[[:space:]]*$', 'A conduta mais adequada é solicitar', 'i'),
+    correta = 'a'
+  WHERE id = v_id AND LOWER(BTRIM(correta)) IN ('a', 'd');
+END;
+$apexmed$;`;
+  const parsed = parseCorrectionSql(sql, q);
+  assert.deepEqual(parsed.errors, []);
+  assert.equal(parsed.changes.enunciado, 'Paciente de 58 anos, joelho esquerdo inflamado. A conduta mais adequada é solicitar');
+  assert.equal(parsed.changes.correta, 'A');
+  assert.ok(parsed.guards.length > 0 && parsed.guards.every(g => g.passes === true), JSON.stringify(parsed.guards));
+
+  const other = parseCorrectionSql(sql, {...q, correta: 'B', e: 'Texto'} as unknown as Question);
+  assert.ok(other.guards.some(g => g.passes === false));
+});
+
+test('REGEXP_REPLACE replaces only the first match without g, and says when nothing matched', () => {
+  const q = {id: '5', enunciado: 'aa bb aa'} as unknown as Question;
+  const first = parseCorrectionSql(`UPDATE public.questions SET enunciado = regexp_replace(enunciado, 'aa', 'x') WHERE id = 5;`, q);
+  assert.equal(first.changes.enunciado, 'x bb aa');
+  const all = parseCorrectionSql(`UPDATE public.questions SET enunciado = regexp_replace(enunciado, 'aa', 'x', 'g') WHERE id = 5;`, q);
+  assert.equal(all.changes.enunciado, 'x bb x');
+  const none = parseCorrectionSql(`UPDATE public.questions SET enunciado = regexp_replace(enunciado, 'zz', 'x') WHERE id = 5;`, q);
+  assert.equal(none.changes.enunciado, 'aa bb aa');
+  assert.ok(none.notes.some(n => /não casou/.test(n)));
+});

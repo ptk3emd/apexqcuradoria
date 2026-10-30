@@ -141,7 +141,53 @@ function currentValue(question: Question, column: string): Value {
   return v === undefined || v === null ? null : typeof v === 'boolean' ? v : String(v);
 }
 
-function evaluate(cond: Token[], vars: Map<string, Value>, question: Question): boolean | null {
+/** Drops parentheses that wrap the whole condition: (a OR b) -> a OR b. */
+function unwrap(cond: Token[]): Token[] {
+  let tokens = cond;
+  while (tokens.length > 2 && tokens[0].text === '(' && tokens.at(-1)!.text === ')') {
+    let depth = 0;
+    let wraps = true;
+    for (let k = 0; k < tokens.length - 1; k++) {
+      if (tokens[k].text === '(') depth++;
+      if (tokens[k].text === ')') depth--;
+      if (depth === 0) { wraps = false; break; }
+    }
+    if (!wraps) break;
+    tokens = tokens.slice(1, -1);
+  }
+  return tokens;
+}
+
+const hasTopLevelOr = (cond: Token[]) => splitTop(unwrap(cond), t => isWord(t, 'or')).length > 1;
+
+function evaluate(condition: Token[], vars: Map<string, Value>, question: Question): boolean | null {
+  const cond = unwrap(condition);
+  // a OR b: true if any part is, false only when every part is false.
+  const alternatives = splitTop(cond, t => isWord(t, 'or'));
+  if (alternatives.length > 1) {
+    const results = alternatives.map(part => evaluate(part, vars, question));
+    return results.includes(true) ? true : results.every(r => r === false) ? false : null;
+  }
+  const conjuncts = splitTop(cond, t => isWord(t, 'and'));
+  if (conjuncts.length > 1) {
+    const results = conjuncts.map(part => evaluate(part, vars, question));
+    return results.includes(false) ? false : results.every(r => r === true) ? true : null;
+  }
+  // col [NOT] IN ('a', 'b')
+  const inAt = cond.findIndex(t => isWord(t, 'in'));
+  if (inAt > 0) {
+    const negate = isWord(cond[inAt - 1], 'not');
+    const col = columnExpr(cond.slice(0, negate ? inAt - 1 : inAt));
+    const list = cond.slice(inAt + 1);
+    if (!col || list[0]?.text !== '(' || list.at(-1)?.text !== ')') return null;
+    const options = splitTop(list.slice(1, -1), t => t.text === ',').map(item => literal(item, vars));
+    if (!options.length || options.some(o => !o.ok)) return null;
+    const current = currentValue(question, col.column);
+    if (current === null) return false; // SQL: NULL IN (...) is never true
+    const text = col.apply(String(current));
+    const found = options.some(o => o.ok && o.value !== null && String(o.value) === text);
+    return negate ? !found : found;
+  }
   // col IS [NOT] NULL
   const isAt = cond.findIndex(t => isWord(t, 'is'));
   if (isAt > 0) {
@@ -182,7 +228,7 @@ function evaluate(cond: Token[], vars: Map<string, Value>, question: Question): 
   return cond[opAt].text === '=' ? equal : !equal && current !== null && right.value !== null;
 }
 
-/** A SET value: a literal, a column of the question, or REPLACE(expr, 'from', 'to') over one. */
+/** A SET value: a literal, a column of the question, or REPLACE / REGEXP_REPLACE over one. */
 function textExpr(tokens: Token[], vars: Map<string, Value>, question: Question, notes: string[], target: string): {ok: true; value: Value} | {ok: false} {
   const lit = literal(tokens, vars);
   if (lit.ok) return lit;
@@ -203,7 +249,43 @@ function textExpr(tokens: Token[], vars: Map<string, Value>, question: Question,
     if (!from.value || !text.includes(from.value)) notes.push(`${target}: o trecho "${from.value}" não foi encontrado; o texto fica como está.`);
     return {ok: true, value: from.value ? text.split(from.value).join(to.value) : text};
   }
+  if (isWord(tokens[0], 'regexp_replace') && tokens[1]?.text === '(' && tokens.at(-1)?.text === ')') {
+    const args = splitTop(tokens.slice(2, -1), t => t.text === ',');
+    if (args.length !== 3 && args.length !== 4) return {ok: false};
+    const base = textExpr(args[0], vars, question, notes, target);
+    const pattern = literal(args[1], vars);
+    const replacement = literal(args[2], vars);
+    const flags = args[3] ? literal(args[3], vars) : {ok: true as const, value: ''};
+    if (!base.ok || !pattern.ok || !replacement.ok || !flags.ok) return {ok: false};
+    if (typeof pattern.value !== 'string' || typeof replacement.value !== 'string' || typeof flags.value !== 'string') return {ok: false};
+    if (base.value === null) return {ok: true, value: null};
+    const done = regexpReplace(String(base.value), pattern.value, replacement.value, flags.value);
+    if (!done.ok) return {ok: false};
+    if (!done.matched) notes.push(`${target}: o padrão "${pattern.value}" não casou; o texto fica como está.`);
+    return {ok: true, value: done.value};
+  }
   return {ok: false};
+}
+
+/** PostgreSQL regular expression -> JavaScript: the POSIX classes the scripts use. */
+function posixPattern(pattern: string): string {
+  return pattern
+    .replace(/\[:space:\]/g, '\\s').replace(/\[:digit:\]/g, '\\d').replace(/\[:alpha:\]/g, '\\p{L}')
+    .replace(/\[:alnum:\]/g, '\\p{L}\\p{Nd}').replace(/\[:upper:\]/g, '\\p{Lu}').replace(/\[:lower:\]/g, '\\p{Ll}')
+    .replace(/\[:punct:\]/g, '\\p{P}').replace(/\\y/g, '\\b');
+}
+
+/** REGEXP_REPLACE(text, pattern, replacement [, flags]); like PostgreSQL, only the first match unless flags has g. */
+function regexpReplace(text: string, pattern: string, replacement: string, flags: string): {ok: true; value: string; matched: boolean} | {ok: false} {
+  if (/[^igc]/.test(flags)) return {ok: false};
+  let regex: RegExp;
+  try { regex = new RegExp(posixPattern(pattern), `u${flags.includes('i') ? 'i' : ''}${flags.includes('g') ? 'g' : ''}`); } catch { return {ok: false}; }
+  const matched = text.search(regex) >= 0;
+  const value = text.replace(regex, (match: string, ...rest: unknown[]) => {
+    const captures = rest.slice(0, rest.findIndex(x => typeof x === 'number')) as (string | undefined)[];
+    return replacement.replace(/\\(\d|&|\\)/g, (_, c: string) => c === '&' ? match : c === '\\' ? '\\' : captures[Number(c) - 1] ?? '');
+  });
+  return {ok: true, value, matched};
 }
 
 export function parseCorrectionSql(sql: string, question: Question): ParsedCorrection {
@@ -243,7 +325,7 @@ export function parseCorrectionSql(sql: string, question: Question): ParsedCorre
     if (assignment[1]?.text !== '=') { result.errors.push(`Não entendi a atribuição: ${render(assignment)}`); continue; }
     if (!(CORRECTABLE_FIELDS as readonly string[]).includes(column)) { result.errors.push(`A coluna ${assignment[0].text} não pode ser alterada pela curadoria.`); continue; }
     const value = textExpr(assignment.slice(2), vars, question, result.notes, column);
-    if (!value.ok) { result.errors.push(`O valor de ${column} precisa ser um texto, número, true/false, NULL, outra coluna ou REPLACE(coluna, 'de', 'para').`); continue; }
+    if (!value.ok) { result.errors.push(`O valor de ${column} precisa ser um texto, número, true/false, NULL, outra coluna, REPLACE(coluna, 'de', 'para') ou REGEXP_REPLACE(coluna, 'padrão', 'novo').`); continue; }
     if (column === 'anulada') {
       if (typeof value.value !== 'boolean') { result.errors.push('anulada precisa ser true ou false.'); continue; }
       result.changes.anulada = value.value;
@@ -281,13 +363,13 @@ export function parseCorrectionSql(sql: string, question: Question): ParsedCorre
     const forAt = check.findIndex((t, m) => isWord(t, 'for') && isWord(check[m + 1], 'update'));
     if (forAt >= 0) check = check.slice(0, forAt);
     for (const cond of splitTop(check, t => isWord(t, 'and'))) {
-      result.guards.push({text: render(cond), passes: cond.some(t => isWord(t, 'or')) ? null : evaluate(cond, vars, question)});
+      result.guards.push({text: render(cond), passes: evaluate(cond, vars, question)});
     }
   }
 
   if (!wherePart.length) result.errors.push('O UPDATE não tem WHERE: sem ele, todas as questões seriam alteradas.');
   for (const cond of splitTop(wherePart, t => isWord(t, 'and'))) {
-    if (cond.some(t => isWord(t, 'or'))) { result.guards.push({text: render(cond), passes: null}); continue; }
+    if (hasTopLevelOr(cond)) { result.guards.push({text: render(cond), passes: evaluate(cond, vars, question)}); continue; }
     if (lower(cond[0]) === 'id' && cond[1]?.text === '=') {
       const id = literal(cond.slice(2), vars);
       if (id.ok && id.value !== null) result.targetId = String(id.value).replace(/^0+(?=\d)/, '');
