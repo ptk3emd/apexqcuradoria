@@ -67,6 +67,32 @@ As funções de dados têm EXECUTE para anon, mas recusam sessões ausentes, fal
 
 Validação no projeto: os três perfis acessam os dados com a senha correta; senha inválida e sessão ausente são recusadas; logout invalida o token. Nenhuma conta Auth foi criada. As questões importadas pelo usuário permanecem intactas. Ativação do frontend depende de integrar o PR e fazer novo deploy.
 
+## Senha mestra e travas de acesso (`20261030120000_master_password_locks`)
+
+A senha mestra existe somente no banco de curadoria (`jcbinmjiimqomjdyfdia`), como hash bcrypt em `curation_private.master_access`. Nunca está no código, no Git nem em variável `VITE_*`. Enquanto nenhum hash estiver cadastrado, o login recusa todo mundo ("senha mestra ainda não configurada"). Os comandos abaixo rodam no **SQL Editor do Supabase** deste projeto; o navegador não consegue chamá-los.
+
+```sql
+-- Definir ou trocar a senha (12 a 128 caracteres, ao menos 6 diferentes).
+-- Encerra todas as sessões abertas e zera os contadores de tentativas.
+select curation_private.set_master_password('uma senha longa e só de vocês');
+
+-- Trava de emergência: ninguém entra e todas as sessões caem.
+select curation_private.lock_access(true);
+-- Liberar de novo:
+select curation_private.lock_access(false);
+
+-- Estado atual (sem mostrar o hash).
+select locked, locked_at, password_changed_at from curation_private.access_state;
+```
+
+O histórico do SQL Editor guarda o texto executado, inclusive a senha. Depois de trocar, apague a consulta do histórico e não deixe a senha em snippets salvos.
+
+Proteções contra quem não tem a senha:
+- Todas as funções liberadas ao `anon` recusam chamadas sem sessão válida. O teste `every function open to anon refuses a caller without a valid session` percorre todas as funções do esquema e falha se aparecer uma nova sem essa proteção.
+- A tabela do hash, as sessões e as funções de administração não têm permissão para `anon` nem `authenticated`.
+- O login limita 20 erros por curador e endereço a cada 10 minutos e, além disso, 60 erros por curador somando todos os endereços (o endereço informado pelo cliente pode ser forjado). Passado o limite, nem a senha certa entra até a janela de 10 minutos terminar. Isso protege contra tentativa por força bruta, mas um invasor também consegue atrasar o acesso dos curadores por alguns minutos; nesse caso, troque a senha.
+- Com a trava ligada, `curation_private.actor()` não reconhece nenhuma sessão e o login recusa.
+
 ## Questão anulada e referências (`20261012120000_questions_anulada_referencias`)
 
 `public.questions` ganha `anulada` (boolean, padrão `false`) e `referencias` (texto, 1–5000 caracteres), as mesmas colunas do banco do Apex Medicina. Questão anulada não tem gabarito oficial: um CHECK exige `correta` NULL enquanto `anulada` for verdadeiro, e `curation_mutate` apaga o gabarito ao salvar uma questão marcada como anulada. Escolher uma alternativa no painel da questão desfaz a anulação. Referências em branco viram NULL. O editor mostra "Questão anulada pela banca" acima das alternativas e o campo "Referências" na aba Resolução, com prévia dos links. O SQL exportado inclui `anulada` (com `correta = NULL` quando anulada) e `referencias`.

@@ -21,6 +21,7 @@ await db.query("insert into public.curation_members values($1,'patrick','Patrick
 await db.exec(`create schema extensions;
 -- PGlite lacks pgcrypto: isolate password hashing with a stub; live RPC tests verify bcrypt separately.
 create function extensions.crypt(value text,salt text) returns text language sql immutable as $$select 'hash:'||value$$;
+create function extensions.gen_salt(kind text,rounds integer) returns text language sql immutable as $$select 'salt'$$;
 create schema realtime; create function realtime.send(jsonb,text,text,boolean) returns void language sql as $$ select $$;`);
 const masterSql=(await readFile('supabase/migrations/20261010151200_master_password_sessions.sql','utf8')).replace('create extension if not exists pgcrypto with schema extensions;','');
 await db.exec(masterSql);
@@ -36,6 +37,7 @@ await db.exec(await readFile('supabase/migrations/20261028200000_curation_activi
 await db.exec("insert into public.questions(id,enunciado) values(3294,'P0 Patrick'),(9398,'P0 Thierry'),(11131,'P0 Lucas'),(7098,'P2 primeira')");
 await db.exec(await readFile('supabase/migrations/20261029120000_curation_priorities.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261029150000_sql_export_tracking.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261030120000_master_password_locks.sql','utf8'));
 await db.exec("insert into curation_private.master_access values(true,'hash:test-master-password')");
 await db.exec(`insert into public.questions(id,enunciado) values(1,'Original'),(2,'Second');`);
 const asUser=async user=>{
@@ -342,4 +344,105 @@ test('exported corrections and applied migrations are shared, per question versi
  await db.exec('reset role');await db.query("select set_config('request.headers',$1,false)",[JSON.stringify({'x-apex-session':'invented'})]);await db.exec('set role anon');
  await assert.rejects(db.query('select public.curation_sql_state()'),/não autorizado/);
  await db.exec('reset role');
+});
+
+
+const asAnon=async headers=>{
+ await db.exec('reset role');
+ await db.query("select set_config('request.headers',$1,false)",[JSON.stringify(headers||{})]);
+ await db.exec('set role anon');
+};
+const sampleArg={text:"'x'",int4:'1',int8:'1',uuid:"'00000000-0000-0000-0000-000000000009'",jsonb:"'[]'::jsonb",_int8:"'{1}'::bigint[]",_text:"'{x}'::text[]",date:'current_date',bool:'false'};
+
+test('every function open to anon refuses a caller without a valid session',async()=>{
+ await db.exec('reset role');
+ const open=(await db.query(`select p.oid::regprocedure::text as sig,p.proname,array(select format_type(t,null) from unnest(p.proargtypes) t) as args,array(select t::regtype::text from unnest(p.proargtypes) t) as types
+  from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname in ('public','curation_private') and has_function_privilege('anon',p.oid,'execute') and p.prokind='f'
+  and p.proname not in ('crypt','gen_salt','gen_random_uuid','digest','hmac','gen_random_bytes')`)).rows;
+ // The few that must answer anonymously: the login itself, the session probe, logout and the membership test.
+ const anonymousOk=new Set(['curation_login','curation_session','curation_logout','curation_is_member']);
+ const unknown=[];let checked=0;
+ for(const f of open){
+  if(!f.proname.startsWith('curation_')){unknown.push(f.sig);continue;}
+  if(anonymousOk.has(f.proname))continue;
+  const args=f.types.map(t=>{const key=t==='bigint[]'?'_int8':t==='text[]'?'_text':t==='integer'?'int4':t==='bigint'?'int8':t==='boolean'?'bool':t;return sampleArg[key];});
+  if(args.some(a=>a===undefined)){unknown.push(f.sig);continue;}
+  checked++;
+  await asAnon({});
+  await assert.rejects(db.query(`select public.${f.proname}(${args.join(',')})`),/não autorizado|expirada/,f.sig);
+  await asAnon({'x-apex-session':'invented'});
+  await assert.rejects(db.query(`select public.${f.proname}(${args.join(',')})`),/não autorizado|expirada/,f.sig);
+ }
+ assert.deepEqual(unknown,[],'new function open to anon: add it to this check');
+ console.log('# anon functions checked:',checked);
+ assert.ok(checked>=15,`only ${checked} functions were checked`);
+ await asAnon({});
+ assert.equal((await db.query('select public.curation_is_member() as v')).rows[0].v,false);
+ await assert.rejects(db.query('select public.curation_session()'),/expirada/);
+ await db.exec('reset role');
+});
+
+test('the password hash, sessions and the admin functions are out of reach of anon and authenticated',async()=>{
+ for(const role of ['anon','authenticated']){
+  await db.exec('reset role');await db.exec(`set role ${role}`);
+  await assert.rejects(db.query('select password_hash from curation_private.master_access'),/permission denied/);
+  await assert.rejects(db.query('select * from curation_private.sessions'),/permission denied/);
+  await assert.rejects(db.query('select * from curation_private.access_state'),/permission denied/);
+  await assert.rejects(db.query("select curation_private.set_master_password('uma senha muito longa 123')"),/permission denied/);
+  await assert.rejects(db.query('select curation_private.lock_access(false)'),/permission denied/);
+ }
+ await db.exec('reset role');
+});
+
+test('changing the master password ends every session and only the new password works',async()=>{
+ const login=async(curator,password)=>(await db.query('select public.curation_login($1,$2) as result',[curator,password])).rows[0].result;
+ await asAnon({});
+ const old=await login('lucas','test-master-password');assert.equal(old.ok,true);
+ await db.exec('reset role');
+ await assert.rejects(db.query("select curation_private.set_master_password('curta')"),/entre 12 e 128/);
+ await assert.rejects(db.query("select curation_private.set_master_password('aaaaaaaaaaaaaaaa')"),/repetitiva/);
+ assert.equal((await db.query('select count(*)::int as n from curation_private.master_access')).rows[0].n,1);
+ await db.query("select curation_private.set_master_password('nova senha forte 2026')");
+ assert.ok((await db.query('select password_changed_at from curation_private.access_state')).rows[0].password_changed_at);
+ await asAnon({'x-apex-session':old.token});
+ await assert.rejects(db.query('select public.curation_session()'),/expirada/);
+ assert.equal((await login('lucas','test-master-password')).ok,false);
+ const fresh=await login('lucas','nova senha forte 2026');assert.equal(fresh.ok,true);
+ await db.exec('reset role');
+ await db.exec("delete from curation_private.sessions;delete from curation_private.login_attempts");
+});
+
+test('the emergency lock refuses logins and sessions until it is lifted',async()=>{
+ const login=async(curator,password)=>(await db.query('select public.curation_login($1,$2) as result',[curator,password])).rows[0].result;
+ await asAnon({});
+ const open=await login('patrick','nova senha forte 2026');assert.equal(open.ok,true);
+ await db.exec('reset role');
+ await db.query('select curation_private.lock_access(true)');
+ assert.equal((await db.query('select count(*)::int as n from curation_private.sessions')).rows[0].n,0);
+ await asAnon({'x-apex-session':open.token});
+ await assert.rejects(db.query('select public.curation_session()'),/expirada/);
+ const refused=await login('patrick','nova senha forte 2026');
+ assert.equal(refused.ok,false);assert.match(refused.message,/bloqueado/);
+ await db.exec('reset role');
+ await db.query('select curation_private.lock_access(false)');
+ await asAnon({});
+ assert.equal((await login('patrick','nova senha forte 2026')).ok,true);
+ await db.exec('reset role');
+ await db.exec("delete from curation_private.sessions;delete from curation_private.login_attempts");
+});
+
+test('guessing is capped per curator even when every attempt claims a different address',async()=>{
+ const attempt=async(ip,password)=>{
+  await asAnon({'x-real-ip':ip});
+  return (await db.query('select public.curation_login($1,$2) as result',['thierry',password])).rows[0].result;
+ };
+ for(let i=0;i<60;i++)assert.equal((await attempt(`10.0.${Math.floor(i/200)}.${i}`,'palpite errado')).message,'Senha mestra inválida.');
+ const blocked=await attempt('10.9.9.9','nova senha forte 2026');
+ assert.equal(blocked.ok,false);assert.match(blocked.message,/Muitas tentativas/);
+ // The other curators are not locked out by it.
+ await asAnon({'x-real-ip':'10.9.9.9'});
+ assert.equal((await db.query("select public.curation_login('lucas','nova senha forte 2026') as r")).rows[0].r.ok,true);
+ await db.exec('reset role');
+ await db.exec("delete from curation_private.sessions;delete from curation_private.login_attempts");
 });
