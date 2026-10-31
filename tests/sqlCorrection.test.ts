@@ -139,3 +139,34 @@ test('REGEXP_REPLACE replaces only the first match without g, and says when noth
   assert.equal(none.changes.enunciado, 'aa bb aa');
   assert.ok(none.notes.some(n => /não casou/.test(n)));
 });
+
+test('a RETURNING list after the WHERE is not part of the last condition: every guard is checked', () => {
+  const q = {
+    id: '6635', origem: 'Desconhecido', ano: '2019', especialidade: 'Otorrinolaringologia', categoria: 'CC', correta: 'D', anulada: false,
+    enunciado: 'Assinale a alternativa INCORRETA com relação às traqueotomias:',
+    a: 'Texto a.', b: 'Texto b.', c: 'Texto c.', d: 'O fechamento por segunda intenção geralmente ocorre em 21 dias.', e: null,
+  } as unknown as Question;
+  const sql = `UPDATE public.questions
+SET
+    origem = 'Hospital de Olhos Grottone',
+    ano = '2018',
+    e = NULL,
+    comentario = $comentario$
+Gabarito: D.
+$comentario$
+WHERE id = 6635
+  AND origem = 'Desconhecido'
+  AND ano = '2019'
+  AND correta = 'D'
+  AND anulada = false
+  AND enunciado = 'Assinale a alternativa INCORRETA com relação às traqueotomias:'
+  AND d = 'O fechamento por segunda intenção geralmente ocorre em 21 dias.'
+RETURNING
+    id, origem, ano, d, e, comentario;`;
+  const parsed = parseCorrectionSql(sql, q);
+  assert.deepEqual(parsed.errors, []);
+  assert.equal(parsed.targetId, '6635');
+  assert.ok(parsed.guards.length >= 6, JSON.stringify(parsed.guards));
+  assert.ok(parsed.guards.every(g => g.passes === true), JSON.stringify(parsed.guards.filter(g => g.passes !== true)));
+  assert.equal(parsed.changes.origem, 'Hospital de Olhos Grottone');
+});

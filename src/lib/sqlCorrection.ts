@@ -315,7 +315,10 @@ export function parseCorrectionSql(sql: string, question: Question): ParsedCorre
   i++;
   if (!isWord(tokens[i], 'set')) { result.errors.push('Faltou SET depois de UPDATE public.questions.'); return result; }
   const end = tokens.findIndex((t, k) => k > i && t.text === ';');
-  const statement = tokens.slice(i + 1, end < 0 ? undefined : end);
+  // RETURNING lists what the UPDATE gives back to the editor: it is not part of the WHERE.
+  const statementAll = tokens.slice(i + 1, end < 0 ? undefined : end);
+  const returningAt = statementAll.findIndex(t => isWord(t, 'returning'));
+  const statement = returningAt < 0 ? statementAll : statementAll.slice(0, returningAt);
   const whereAt = statement.findIndex(t => isWord(t, 'where'));
   const setPart = whereAt < 0 ? statement : statement.slice(0, whereAt);
   const wherePart = whereAt < 0 ? [] : statement.slice(whereAt + 1);
