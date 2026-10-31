@@ -10,7 +10,7 @@ import type {Question} from '../src/types/question';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const actor = DEFAULT_CURATORS[0];
-const rows = ['1','2','3'].map(id=>({id,status:'pendente',enunciado:'Question '+id,correta:'A'})) as Question[];
+const rows = ['1','2','3'].map(id=>({id,status:'pendente',enunciado:'Question '+id,correta:'A',responsavel_id:DEFAULT_CURATORS[0].id})) as Question[];
 const common = {questions:rows,activeCurator:actor,curators:DEFAULT_CURATORS,onClose:()=>{},onShowToast:()=>{},busy:false};
 
 test('SQL batches: copy and download stay visible, marked batches leave the pending list and come back when corrected again', async () => {

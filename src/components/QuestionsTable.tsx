@@ -42,9 +42,10 @@ interface QuestionsTableProps {
 
 const STATUS_WORKFLOW = ['pendente', 'revisar_questao', 'questao_corrigida', 'aprovadas', 'eliminar_questao'];
 
+// The table opens on the questions assigned to the curator; "Ver todas" lifts that scope.
 const INITIAL_FILTER_STATE: AdvancedFilterState = {
   status: 'todas',
-  responsavel: 'todos',
+  responsavel: 'minhas',
   categorias: [],
   origens: [],
   anos: [],
@@ -350,6 +351,15 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
               );
             })}
           </div>
+          {filterState.responsavel === 'minhas' && (
+            <button
+              type="button"
+              onClick={() => applyScope('todas', 'todos')}
+              className="self-start px-3 py-1.5 rounded-full text-xs font-bold text-apex-readable hover:text-apex-text hover:bg-white/[0.06] transition-colors"
+            >
+              Ver todas as questões ({queue.total}) ›
+            </button>
+          )}
         </div>
       </section>
 
