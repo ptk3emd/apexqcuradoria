@@ -23,7 +23,7 @@ import { ToastContainer, ToastMessage } from './components/Toast';
 import { SupabaseAuthGate } from './components/SupabaseAuthGate';
 import { fetchPriorities, loadSupabaseBase, loadFullQuestions, subscribeSupabaseChanges, signOutSupabase } from './lib/supabaseCuration';
 import { useServerSearch } from './lib/useServerSearch';
-import type { CurationPriorities } from './lib/priorities';
+import { priorityOrder, type CurationPriorities } from './lib/priorities';
 import { isCorrectedQuestion } from './lib/correctedQuestionsSql';
 import { viewTransition, nameQuestionRow } from './lib/viewTransition';
 const STORAGE_KEY_LOGS = 'apexmed_audit_logs_v1';
@@ -254,6 +254,15 @@ export default function App() {
       );
     });
   }, [questions, deferredSearchQuery, serverSearchIds]);
+
+  // "Próxima" and "Anterior" in the review follow the priority queue (P0 → P3, then the rest),
+  // the same order as the "Continuar" card: yours first, then the free ones.
+  const reviewOrder = useMemo(() => {
+    const byPriority = priorityOrder(priorities);
+    const mine = searchedQuestions.filter(q => q.status === 'pendente' && q.responsavel_id === activeCurator.id).sort(byPriority);
+    const rest = searchedQuestions.filter(q => !(q.status === 'pendente' && q.responsavel_id === activeCurator.id)).sort(byPriority);
+    return [...mine, ...rest];
+  }, [searchedQuestions, priorities, activeCurator.id]);
 
   const applyConfirmed = useCallback((updated: Question[]) => {
     setQuestions(prev => {
@@ -532,13 +541,13 @@ export default function App() {
             onEditingChange={setIsEditingQuestion}
             key={currentQuestion.id}
             question={currentQuestion}
-            allQuestions={searchedQuestions}
+            allQuestions={reviewOrder}
             activeCurator={activeCurator}
             presences={presences}
             comments={currentQuestion.shared_comments || commentsMap[currentQuestion.id] || []}
             onBackToList={() => viewTransition(() => setActiveView('table'), { after: () => nameQuestionRow(selectedQuestionId) })}
             onNavigateQuestion={(idx) => {
-              const target = searchedQuestions[idx];
+              const target = reviewOrder[idx];
               if (target) void openQuestion(target);
             }}
             onUpdateQuestion={handleUpdateQuestion}
