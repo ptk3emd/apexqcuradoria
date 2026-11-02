@@ -21,9 +21,9 @@ import { BatchAssignModal } from './components/BatchAssignModal';
 import { SqlWorkspace } from './components/SqlWorkspace';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { SupabaseAuthGate } from './components/SupabaseAuthGate';
-import { fetchPriorities, loadSupabaseBase, loadFullQuestions, subscribeSupabaseChanges, signOutSupabase } from './lib/supabaseCuration';
+import { fetchQuarantinedIds, fetchPriorities, loadSupabaseBase, loadFullQuestions, subscribeSupabaseChanges, signOutSupabase } from './lib/supabaseCuration';
 import { useServerSearch } from './lib/useServerSearch';
-import { priorityOrder, type CurationPriorities } from './lib/priorities';
+import { reviewOrder as orderForReview, type CurationPriorities } from './lib/priorities';
 import { isCorrectedQuestion } from './lib/correctedQuestionsSql';
 import { viewTransition, nameQuestionRow } from './lib/viewTransition';
 const STORAGE_KEY_LOGS = 'apexmed_audit_logs_v1';
@@ -224,7 +224,7 @@ export default function App() {
   }, [questions, selectedQuestionId]);
 
   // P0–P3 priorities and planned owners; loaded once per session, absent until the migration is applied.
-  const [priorities, setPriorities] = useState<CurationPriorities | null>(null);
+  const [basePriorities, setPriorities] = useState<CurationPriorities | null>(null);
   useEffect(() => {
     if (!isAuthenticated) { setPriorities(null); return; }
     const controller = new AbortController();
@@ -233,6 +233,32 @@ export default function App() {
     });
     return () => controller.abort();
   }, [isAuthenticated]);
+
+  const [quarantined, setQuarantined] = useState<Set<string>>(new Set());
+  const [quarantineError, setQuarantineError] = useState('');
+  const [quarantineChecked, setQuarantineChecked] = useState(false);
+  useEffect(() => {
+    if (!isAuthenticated) { setQuarantined(new Set()); setQuarantineChecked(false); setQuarantineError(''); return; }
+    const controller = new AbortController();
+    let running = false;
+    const refresh = async () => {
+      if (running || controller.signal.aborted) return;
+      running = true;
+      try {
+        const ids = await fetchQuarantinedIds(controller.signal);
+        if (!controller.signal.aborted) { setQuarantined(ids); setQuarantineChecked(true); setQuarantineError(''); }
+      } catch (error) {
+        if (!controller.signal.aborted) setQuarantineError((error as Error).message);
+      } finally { running = false; }
+    };
+    void refresh();
+    const interval = setInterval(() => { void refresh(); }, 30000);
+    window.addEventListener('focus', refresh);
+    return () => { controller.abort(); clearInterval(interval); window.removeEventListener('focus', refresh); };
+  }, [isAuthenticated]);
+  const priorities = useMemo<CurationPriorities>(() => ({
+    ...(basePriorities ?? {of:new Map(), plannedFor:new Map(), rank:new Map()}), quarantined,
+  }), [basePriorities, quarantined]);
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const hasPartialQuestions = useMemo(() => questions.some(q => q.parcial), [questions]);
@@ -255,13 +281,9 @@ export default function App() {
     });
   }, [questions, deferredSearchQuery, serverSearchIds]);
 
-  // "Próxima" and "Anterior" in the review follow the priority queue (P0 → P3, then the rest),
-  // the same order as the "Continuar" card: yours first, then the free ones.
+  // Review always starts with open quarantines, then ownership and P0–P3.
   const reviewOrder = useMemo(() => {
-    const byPriority = priorityOrder(priorities);
-    const mine = searchedQuestions.filter(q => q.status === 'pendente' && q.responsavel_id === activeCurator.id).sort(byPriority);
-    const rest = searchedQuestions.filter(q => !(q.status === 'pendente' && q.responsavel_id === activeCurator.id)).sort(byPriority);
-    return [...mine, ...rest];
+    return orderForReview(searchedQuestions, activeCurator.id, priorities);
   }, [searchedQuestions, priorities, activeCurator.id]);
 
   const applyConfirmed = useCallback((updated: Question[]) => {
@@ -510,6 +532,12 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 lg:px-6 py-6">
         {activeView === 'table' && (
+          <>
+          <div role="status" className="mb-3 text-sm text-apex-text">
+            {quarantineError ? `Quarentena: ${quarantineError} A atualização será tentada novamente; a última lista recebida foi mantida.`
+              : quarantineChecked ? `Quarentena Apex: ${questions.filter(q => quarantined.has(q.id)).length} questões com prioridade máxima. Atualização automática a cada 30 segundos.`
+              : 'Consultando a quarentena Apex…'}
+          </div>
           <QuestionsTable
             questions={searchedQuestions}
             activeCurator={activeCurator}
@@ -526,6 +554,7 @@ export default function App() {
             searchActive={Boolean(searchQuery.trim())}
             onClearSearch={() => setSearchQuery('')}
           />
+          </>
         )}
 
         {activeView === 'detail' && currentQuestion?.parcial && (

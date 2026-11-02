@@ -19,7 +19,7 @@ import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboard
 import { AdvancedFilters, AdvancedFilterState, GRANDES_AREAS_MAP } from './AdvancedFilters';
 import { viewTransition, nameQuestionRowOf } from '../lib/viewTransition';
 import { useServerSearch } from '../lib/useServerSearch';
-import { priorityIndex, priorityOrder, type CurationPriorities } from '../lib/priorities';
+import { quarantineOrder, priorityIndex, priorityOrder, type CurationPriorities } from '../lib/priorities';
 
 interface QuestionsTableProps {
   questions: Question[];
@@ -42,10 +42,10 @@ interface QuestionsTableProps {
 
 const STATUS_WORKFLOW = ['pendente', 'revisar_questao', 'questao_corrigida', 'aprovadas', 'eliminar_questao'];
 
-// The table opens on the questions assigned to the curator; "Ver todas" lifts that scope.
+// Start with all owners so open quarantines are visible immediately.
 const INITIAL_FILTER_STATE: AdvancedFilterState = {
   status: 'todas',
-  responsavel: 'minhas',
+  responsavel: 'todos',
   categorias: [],
   origens: [],
   anos: [],
@@ -120,6 +120,8 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
     const plannedForMe = (q: Question) => priorities?.plannedFor.get(q.id) === activeCurator.id ? 0 : 1;
     const minePending = questions.filter(q => q.status === 'pendente' && q.responsavel_id === activeCurator.id).sort(byPriority);
     const freePending = questions.filter(q => q.status === 'pendente' && !q.responsavel_id).sort((a, b) => priorityIndex(priorities, a.id) - priorityIndex(priorities, b.id) || plannedForMe(a) - plannedForMe(b) || byPriority(a, b));
+    const quarantinedNext = questions.filter(q => priorities?.quarantined?.has(q.id)).sort(byPriority)[0];
+    const next = quarantinedNext ?? minePending[0] ?? freePending[0] ?? null;
     return {
       total: questions.length,
       audited: questions.length - pending,
@@ -127,9 +129,9 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
       mine: minePending.length,
       free: freePending.length,
       review: count('revisar_questao'),
-      // The question "Continuar" opens: your own first, then the first free one.
-      next: minePending[0] ?? freePending[0] ?? null,
-      nextIsMine: Boolean(minePending[0]),
+      // An open quarantine precedes pending owned/free work.
+      next,
+      nextIsMine: next?.responsavel_id === activeCurator.id,
       doneToday: questions.filter(q => q.revisado_por === activeCurator.nome && q.revisado_em && new Date(q.revisado_em).toDateString() === today).length,
       segments: [
         { status: 'aprovadas', label: 'Aprovadas', value: count('aprovadas'), className: 'bg-emerald-500' },
@@ -214,6 +216,8 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         return true;
       })
       .sort((a, b) => {
+        const quarantine = quarantineOrder(priorities, a.id, b.id);
+        if (quarantine) return quarantine;
         let comp = 0;
         if (sortBy === 'id') {
           const numA = parseInt(a.id, 10);
@@ -228,7 +232,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         }
         return sortOrder === 'asc' ? comp : -comp;
       });
-  }, [questions, filterState, serverKeywordIds, sortBy, sortOrder, activeCurator.id]);
+  }, [questions, filterState, serverKeywordIds, sortBy, sortOrder, activeCurator.id, priorities]);
 
   const pageQuestions = filteredQuestions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selectablePage = pageQuestions;
@@ -297,9 +301,9 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
               className="group flex w-full min-h-14 items-center gap-4 rounded-2xl bg-brand px-5 py-3 text-left text-white shadow-[0_8px_24px_-8px_rgba(164,57,57,0.6)] transition-colors hover:bg-brand-hover lg:w-auto lg:max-w-md"
             >
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-bold">{queue.nextIsMine ? 'Continuar minha fila' : 'Pegar a próxima livre'}</span>
+                <span className="block text-sm font-bold">{priorities?.quarantined?.has(queue.next.id) ? 'Revisar quarentena' : queue.nextIsMine ? 'Continuar minha fila' : 'Pegar a próxima livre'}</span>
                 <span className="block truncate text-xs text-white/80">
-                  {priorities?.of.get(queue.next.id) && <span className="font-bold">{priorities.of.get(queue.next.id)} · </span>}<span className="tabular-nums">#{queue.next.id}</span> · {queue.next.especialidade || 'Sem especialidade'}{queue.next.tema_especifico ? ` · ${queue.next.tema_especifico}` : ''}
+                  {priorities?.quarantined?.has(queue.next.id) && <span className="font-bold">Quarentena · </span>}{priorities?.of.get(queue.next.id) && <span className="font-bold">{priorities.of.get(queue.next.id)} · </span>}<span className="tabular-nums">#{queue.next.id}</span> · {queue.next.especialidade || 'Sem especialidade'}{queue.next.tema_especifico ? ` · ${queue.next.tema_especifico}` : ''}
                 </span>
               </span>
               <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
@@ -475,6 +479,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                             <span className="font-mono text-sm px-2 py-0.5 rounded bg-white/[0.05] border border-white/[0.08]">
                               #{q.id}
                             </span>
+                            {priorities?.quarantined?.has(q.id) && <span className="rounded-full border border-amber-500/40 px-2 py-0.5 text-xs font-bold text-amber-300">Quarentena</span>}
                             {viewers.length > 0 && (
                               <span
                                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border border-amber-500/40 bg-amber-500/15 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.25)] animate-pulse"
