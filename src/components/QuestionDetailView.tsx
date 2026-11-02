@@ -24,6 +24,8 @@ import { Question, QuestionStatus, Curator, CuratorPresence, QuestionComment } f
 import { QuestionEditor } from './QuestionEditor';
 import { changedFields, mergeRemote, type ContentField } from '../lib/draftMerge';
 import { ConfirmDialog } from './ConfirmDialog';
+import {ApexStateBadge} from './ApexStateBadge';
+import {apexReason} from '../lib/apexState';
 import { StatusBadge } from './StatusBadge';
 import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboardHelper';
 import { generateSqlForQuestion } from '../lib/sqlGenerator';
@@ -420,6 +422,8 @@ export const QuestionDetailView: React.FC<QuestionDetailViewProps> = ({
                   ID #{question.id}
                 </span>
                 <StatusBadge status={question.status} size="md" />
+                <ApexStateBadge question={question} />
+                {apexReason(question) && <span className="text-sm text-apex-readable">Motivo: {apexReason(question)}</span>}
                 {question.modificado && (
                   <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
                     Editada

@@ -13,6 +13,8 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { Question, QuestionStatus, Curator, CuratorPresence, QuestionComment } from '../types/question';
+import {ApexStateBadge} from './ApexStateBadge';
+import {matchesApexFilter,type ApexFilter} from '../lib/apexState';
 import { StatusBadge } from './StatusBadge';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatQuestionForAiPrompt, copyTextToClipboard } from '../lib/clipboardHelper';
@@ -73,6 +75,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
 }) => {
   const [filterState, setFilterState] = useState<AdvancedFilterState>(INITIAL_FILTER_STATE);
 
+  const [apexFilter,setApexFilter] = useState<ApexFilter>('all');
   const [sortBy, setSortBy] = useState<'id' | 'especialidade' | 'status'>('id');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -81,7 +84,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Eliminating is confirmed before it is saved; the select keeps its old value until then.
   const [pendingElimination, setPendingElimination] = useState<Question | null>(null);
-  useEffect(() => { setSelectedIds(new Set()); }, [filterState, activeCurator.id]);
+  useEffect(() => { setSelectedIds(new Set()); }, [filterState, activeCurator.id, apexFilter]);
   useEffect(() => {
     const eligible = new Set(questions.map(q => q.id));
     setSelectedIds(previous => {
@@ -107,7 +110,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterState, sortBy, sortOrder]);
+  }, [filterState, sortBy, sortOrder, apexFilter]);
 
   // Filtered and sorted questions with all facets
   // Queue summary for the header: everything audited vs. still pending, and what is waiting on you.
@@ -159,6 +162,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
   const filteredQuestions = useMemo(() => {
     return questions
       .filter(q => {
+        if (!matchesApexFilter(q,apexFilter)) return false;
         // 1. Status Filter
         if (filterState.status !== 'todas' && q.status !== filterState.status) return false;
 
@@ -232,7 +236,7 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         }
         return sortOrder === 'asc' ? comp : -comp;
       });
-  }, [questions, filterState, serverKeywordIds, sortBy, sortOrder, activeCurator.id, priorities]);
+  }, [questions, filterState, serverKeywordIds, sortBy, sortOrder, activeCurator.id, priorities, apexFilter]);
 
   const pageQuestions = filteredQuestions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selectablePage = pageQuestions;
@@ -367,6 +371,15 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
         </div>
       </section>
 
+      <section aria-label="Estado das questões no Apex Medicina" className="space-y-2">
+        <p className="text-sm font-bold text-apex-text">Estado no Apex Medicina</p>
+        <div role="group" aria-label="Filtrar por estado no Apex" className="flex flex-wrap gap-2">
+          {([['all','Todas'],['active','Ativas'],['inactive','Inativas'],['quarantine','Em quarentena'],['unknown','Não sincronizadas']] as [ApexFilter,string][]).map(([value,label]) => (
+            <button type="button" key={value} aria-pressed={apexFilter === value} onClick={() => setApexFilter(value)} className={`min-h-11 rounded-full border px-4 text-sm font-bold ${apexFilter === value ? 'border-brand bg-brand text-white' : 'border-white/10 text-apex-readable'}`}>{label} <span className="tabular-nums">{questions.filter(q => matchesApexFilter(q,value)).length}</span></button>
+          ))}
+        </div>
+        <p className="text-xs text-apex-readable">Ativa significa ciclo de vida ativo, sem quarentena aberta nem exclusão aplicada. O status de revisão da curadoria é independente.</p>
+      </section>
       {/* Advanced Filters Component (Todas as opções do FilterScreen) */}
       <AdvancedFilters
         questions={questions}
@@ -479,7 +492,8 @@ export const QuestionsTable: React.FC<QuestionsTableProps> = ({
                             <span className="font-mono text-sm px-2 py-0.5 rounded bg-white/[0.05] border border-white/[0.08]">
                               #{q.id}
                             </span>
-                            {priorities?.quarantined?.has(q.id) && <span className="rounded-full border border-amber-500/40 px-2 py-0.5 text-xs font-bold text-amber-300">Quarentena</span>}
+                            <ApexStateBadge question={q} />
+                            {!q.apex && priorities?.quarantined?.has(q.id) && <span className="text-xs text-amber-300">Quarentena</span>}
                             {viewers.length > 0 && (
                               <span
                                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border border-amber-500/40 bg-amber-500/15 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.25)] animate-pulse"

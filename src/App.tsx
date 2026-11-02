@@ -21,11 +21,12 @@ import { BatchAssignModal } from './components/BatchAssignModal';
 import { SqlWorkspace } from './components/SqlWorkspace';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { SupabaseAuthGate } from './components/SupabaseAuthGate';
-import { fetchQuarantinedIds, fetchPriorities, loadSupabaseBase, loadFullQuestions, subscribeSupabaseChanges, signOutSupabase } from './lib/supabaseCuration';
+import { fetchPriorities, loadSupabaseBase, loadFullQuestions, subscribeSupabaseChanges, signOutSupabase } from './lib/supabaseCuration';
 import { useServerSearch } from './lib/useServerSearch';
 import { reviewOrder as orderForReview, type CurationPriorities } from './lib/priorities';
 import { isCorrectedQuestion } from './lib/correctedQuestionsSql';
 import { viewTransition, nameQuestionRow } from './lib/viewTransition';
+import {useApexSync} from './lib/useApexSync';
 const STORAGE_KEY_LOGS = 'apexmed_audit_logs_v1';
 const STORAGE_KEY_COMMENTS = 'apexmed_comments_v1';
 
@@ -49,7 +50,12 @@ export default function App() {
   });
 
   // Questions are loaded only from the authenticated Supabase session.
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [storedQuestions, setQuestions] = useState<Question[]>([]);
+  const apexSync = useApexSync(isAuthenticated);
+  const questions = useMemo<Question[]>(() => {
+    const states = new Map(apexSync.overview?.states.map(state => [state.id,state]) ?? []);
+    return storedQuestions.map(q => ({...q,apex:states.get(q.sync_source_id ?? q.id)}));
+  }, [storedQuestions,apexSync.overview]);
   const [isLoadingFullDataset, setIsLoadingFullDataset] = useState(false);
 
   const [syncMessage, setSyncMessage] = useState('Conectando à curadoria compartilhada…');
@@ -234,28 +240,7 @@ export default function App() {
     return () => controller.abort();
   }, [isAuthenticated]);
 
-  const [quarantined, setQuarantined] = useState<Set<string>>(new Set());
-  const [quarantineError, setQuarantineError] = useState('');
-  const [quarantineChecked, setQuarantineChecked] = useState(false);
-  useEffect(() => {
-    if (!isAuthenticated) { setQuarantined(new Set()); setQuarantineChecked(false); setQuarantineError(''); return; }
-    const controller = new AbortController();
-    let running = false;
-    const refresh = async () => {
-      if (running || controller.signal.aborted) return;
-      running = true;
-      try {
-        const ids = await fetchQuarantinedIds(controller.signal);
-        if (!controller.signal.aborted) { setQuarantined(ids); setQuarantineChecked(true); setQuarantineError(''); }
-      } catch (error) {
-        if (!controller.signal.aborted) setQuarantineError((error as Error).message);
-      } finally { running = false; }
-    };
-    void refresh();
-    const interval = setInterval(() => { void refresh(); }, 30000);
-    window.addEventListener('focus', refresh);
-    return () => { controller.abort(); clearInterval(interval); window.removeEventListener('focus', refresh); };
-  }, [isAuthenticated]);
+  const quarantined = useMemo(() => new Set((apexSync.overview?.states ?? []).filter(s => s.quarantined).map(s => s.id)), [apexSync.overview]);
   const priorities = useMemo<CurationPriorities>(() => ({
     ...(basePriorities ?? {of:new Map(), plannedFor:new Map(), rank:new Map()}), quarantined,
   }), [basePriorities, quarantined]);
@@ -533,11 +518,16 @@ export default function App() {
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 lg:px-6 py-6">
         {activeView === 'table' && (
           <>
-          <div role="status" className="mb-3 text-sm text-apex-text">
-            {quarantineError ? `Quarentena: ${quarantineError} A atualização será tentada novamente; a última lista recebida foi mantida.`
-              : quarantineChecked ? `Quarentena Apex: ${questions.filter(q => quarantined.has(q.id)).length} questões com prioridade máxima. Atualização automática a cada 30 segundos.`
-              : 'Consultando a quarentena Apex…'}
-          </div>
+          <section aria-label="Sincronização com Apex Medicina" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-shell-2 p-4 text-sm text-apex-text">
+            <div role="status">
+              <p className="font-bold">Apex Medicina · Sincronização automática a cada minuto</p>
+              <p className="text-apex-readable">{apexSync.overview?.checkedAt ? `Última leitura completa: ${new Date(apexSync.overview.checkedAt).toLocaleString('pt-BR')}. Novas questões em quarentena entram automaticamente.` : 'Aguardando a primeira leitura completa do Apex Medicina.'}</p>
+              {apexSync.overview?.run?.status === 'queued' || apexSync.overview?.run?.status === 'running' ? <p>Sincronização em andamento…</p> : null}
+              {apexSync.overview?.run?.status === 'failed' && <p className="text-amber-300">{apexSync.overview.run.error || 'A sincronização não terminou. Uma nova tentativa será feita automaticamente.'}</p>}
+              {apexSync.error && <p className="text-amber-300">{apexSync.error} Os últimos estados recebidos foram mantidos.</p>}
+            </div>
+            <button type="button" onClick={() => void apexSync.retry()} disabled={apexSync.requesting || apexSync.overview?.run?.status === 'queued' || apexSync.overview?.run?.status === 'running'} className="min-h-11 rounded-full border border-white/15 px-4 font-bold disabled:opacity-40">{apexSync.requesting ? 'Solicitando…' : 'Sincronizar agora'}</button>
+          </section>
           <QuestionsTable
             questions={searchedQuestions}
             activeCurator={activeCurator}

@@ -6,6 +6,8 @@ export type QuestionStatus =
   | 'questao_corrigida';
 
 export interface Question {
+  /** Read-only availability mirror from Apex Medicina; distinct from review status. */
+  apex?: import('../lib/apexState').ApexQuestionState;
   sync_version?: number;
   sync_source_id?: string;
   previous_id?: string | null;

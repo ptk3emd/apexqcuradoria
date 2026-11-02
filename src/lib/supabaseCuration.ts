@@ -330,3 +330,10 @@ export async function fetchQuarantinedIds(signal?:AbortSignal):Promise<Set<strin
   if(!response.ok||!Array.isArray(body.ids)) throw new Error(body.error||'Não foi possível consultar a quarentena.');
   return new Set(body.ids.map(String));
 }
+
+export async function fetchApexOverview(signal?:AbortSignal):Promise<import('./apexState').ApexOverview> {
+  return await rpc('curation_apex_status',{},signal);
+}
+export async function requestApexSync():Promise<boolean> {
+  return await rpc('curation_apex_refresh',{});
+}
