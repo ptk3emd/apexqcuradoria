@@ -4,13 +4,21 @@ import {readFile} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
 
 const db=new PGlite();
-await db.exec(`create role anon; create role authenticated; create schema auth;
+await db.exec(`create role anon; create role authenticated; create role service_role; create schema auth;
 create table auth.users(id uuid primary key);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
 grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated;`);
 await db.exec(await readFile('supabase/migrations/20261010144126_curation_collaboration.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261010145252_questions_source.sql','utf8'));
 await db.exec(await readFile('supabase/migrations/20261010145534_curation_initial_cursor.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261102234419_apex_question_sync.sql','utf8'));
+// pg_net/cron are external services; verify scheduling and throttling with local stubs.
+await db.exec(`create schema net; create schema cron;
+create function net.http_post(url text,headers jsonb,body jsonb,timeout_milliseconds integer) returns bigint language sql as $$select 1::bigint$$;
+create function cron.schedule(text,text,text) returns bigint language sql as $$select 1::bigint$$;`);
+await db.exec((await readFile('supabase/migrations/20261102234424_apex_question_sync_schedule.sql','utf8'))
+ .replace('create extension if not exists pg_cron with schema pg_catalog;','')
+ .replace('create extension if not exists pg_net with schema extensions;',''));
 const patrick='00000000-0000-0000-0000-000000000001',lucas='00000000-0000-0000-0000-000000000002';
 // One browser tab per curator: presence is keyed by (question, tab session).
 const sessions={[patrick]:'10000000-0000-0000-0000-000000000001',[lucas]:'10000000-0000-0000-0000-000000000002'};
@@ -445,4 +453,61 @@ test('guessing is capped per curator even when every attempt claims a different 
  assert.equal((await db.query("select public.curation_login('lucas','nova senha forte 2026') as r")).rows[0].r.ok,true);
  await db.exec('reset role');
  await db.exec("delete from curation_private.sessions;delete from curation_private.login_attempts");
+});
+
+
+test('Apex sync imports missing quarantine content once, preserves edits and publishes atomic availability',async()=>{
+ await db.exec('reset role');
+ const token='a'.repeat(64);
+ await db.query("insert into curation_private.apex_sync_runs(token_hash) values(encode(sha256(convert_to($1,'UTF8')),'hex'))",[token]);
+ const run=(await db.query('select public.curation_apex_begin($1) as id',[token])).rows[0].id;
+ assert.ok(run);
+ assert.equal((await db.query('select public.curation_apex_begin($1) as id',[token])).rows[0].id,null);
+ const payload=[{id:900001,enunciado:'Imported quarantine',correta:'A'},{id:1,enunciado:'Must never overwrite'}];
+ const before=(await db.query('select enunciado from public.questions where id=1')).rows[0].enunciado;
+ const callImport=async()=>(await db.query('select public.curation_apex_import($1,$2::jsonb) as n',[run,JSON.stringify(payload)])).rows[0].n;
+ assert.equal(await callImport(),1);
+ assert.equal(await callImport(),0);
+ assert.equal((await db.query('select enunciado from public.questions where id=1')).rows[0].enunciado,before);
+ const mirrored=(await db.query('select status,content from public.curation_questions where question_id=900001')).rows[0];
+ assert.equal(mirrored.status,'pendente');assert.equal(mirrored.content.enunciado,'Imported quarantine');
+ const states=[{question_id:900001,lifecycle_state:'active',quarantined:true,excluded:false,reason:'gabarito'},
+ {question_id:1,lifecycle_state:'archived',quarantined:false,excluded:false,reason:null}];
+ await db.query('select public.curation_apex_finish($1,$2::jsonb)',[run,JSON.stringify(states)]);
+ await asUser(patrick);
+ const overview=(await db.query('select public.curation_apex_status() as r')).rows[0].r;
+ assert.ok(overview.checkedAt);assert.equal(overview.run.imported,1);
+ assert.equal(overview.states.find(q=>q.id==='900001').quarantined,true);
+ assert.equal(overview.states.find(q=>q.id==='1').state,'archived');
+ assert.equal(overview.states.find(q=>q.id==='2').state,'missing');
+ await db.exec('reset role');
+ await db.query("insert into curation_private.apex_sync_runs(token_hash) values(encode(sha256(convert_to($1,'UTF8')),'hex'))",['b'.repeat(64)]);
+ const next=(await db.query('select public.curation_apex_begin($1) as id',['b'.repeat(64)])).rows[0].id;
+ await assert.rejects(db.query("select public.curation_apex_finish($1,'[]'::jsonb)",[next]),/incompleto/);
+ assert.equal((await db.query('select count(*)::int n from curation_private.apex_question_states')).rows[0].n,2);
+ states[0].quarantined=false;
+ await db.query('select public.curation_apex_finish($1,$2::jsonb)',[next,JSON.stringify(states)]);
+ assert.equal((await db.query('select quarantined from curation_private.apex_question_states where question_id=900001')).rows[0].quarantined,false);
+ // No browser role may mint/consume worker tokens, import, or publish snapshots.
+ for(const role of ['anon','authenticated']) {
+  await db.exec(`set role ${role}`);
+  await assert.rejects(db.query("select public.curation_apex_begin('forged')"),/permission denied/);
+  await assert.rejects(db.query("select public.curation_apex_import($1,'[]'::jsonb)",[next]),/permission denied/);
+  await assert.rejects(db.query('select * from curation_private.apex_sync_runs'),/permission denied/);
+  await db.exec('reset role');
+ }
+});
+
+test('scheduled sync is throttled and manual refresh requires a curator session',async()=>{
+ await db.exec('reset role');
+ await db.exec('delete from curation_private.apex_sync_runs');
+ assert.equal((await db.query('select curation_private.request_apex_sync() as queued')).rows[0].queued,true);
+ assert.equal((await db.query('select curation_private.request_apex_sync() as queued')).rows[0].queued,false);
+ await asAnon({});
+ await assert.rejects(db.query('select public.curation_apex_refresh()'),/não autorizado/);
+ await asUser(patrick);
+ assert.equal((await db.query('select public.curation_apex_refresh() as queued')).rows[0].queued,false);
+ await db.exec('reset role');
+ await db.exec("update curation_private.apex_sync_runs set created_at=now()-interval '6 minutes'");
+ assert.equal((await db.query('select curation_private.request_apex_sync() as queued')).rows[0].queued,true);
 });

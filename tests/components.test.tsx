@@ -561,3 +561,21 @@ test('table keeps quarantine first in both ID directions and opens it before own
     assert.deepEqual(ids(),['1','2','3']);
   } finally {if(renderer) await act(async()=>renderer.unmount());}
 });
+
+test('Apex availability filters distinguish active, quarantined, archived and unsynced rows',async()=>{
+ let renderer:any;
+ const question=(id:string,state:any,quarantined=false)=>({...rows[0],id,apex:state?{id,state,quarantined,excluded:false,reason:null}:undefined});
+ const questions=[question('1','active'),question('2','active',true),question('3','archived'),question('4',null)];
+ const textOf=(node:any):string=>typeof node==='string'?node:(node.children??[]).map(textOf).join('');
+ try {
+  await act(async()=>{renderer=create(<QuestionsTable {...common} questions={questions} presences={{}} comments={{}}
+   onSelectQuestion={()=>{}} onUpdateStatus={async()=>true} onAssignQuestion={()=>{}} onSelectedQuestions={async()=>true}/>);});
+  const ids=()=>renderer.root.findAllByType('tr').filter((node:any)=>node.props['data-question-id']).map((node:any)=>node.props['data-question-id']);
+  const group=()=>renderer.root.findByProps({'aria-label':'Filtrar por estado no Apex'});
+  const filter=async(label:string)=>act(async()=>group().findAllByType('button').find((b:any)=>textOf(b).startsWith(label)).props.onClick());
+  await filter('Ativas');assert.deepEqual(ids(),['1']);
+  await filter('Inativas');assert.deepEqual(ids(),['2','3']);
+  await filter('Em quarentena');assert.deepEqual(ids(),['2']);
+  await filter('Não sincronizadas');assert.deepEqual(ids(),['4']);
+ } finally {if(renderer) await act(async()=>renderer.unmount());}
+});
