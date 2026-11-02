@@ -82,7 +82,7 @@ export function generateCorrectedQuestionsSql(questions: Question[]) {
     const figureProblem = imageProblem(q.imagem, q.imagem_legenda);
     if (figureProblem) errors.push(`Questão ${q.id}: ${figureProblem}`);
     if (!sets.length) { errors.push(`Questão ${q.id}: nenhum conteúdo disponível para atualizar.`); continue; }
-    const body = `DECLARE affected integer;\nBEGIN\n  UPDATE public.questions\nSET\n${sets.join(',\n')}\nWHERE id = ${id};\n  GET DIAGNOSTICS affected = ROW_COUNT;\n  IF affected <> 1 THEN\n    RAISE EXCEPTION 'Questão ${id}: esperado exatamente um registro, encontrado %', affected;\n  END IF;\nEND;`;
+    const body = `DECLARE affected integer;\nBEGIN\n  UPDATE public.questions\nSET\n${sets.join(',\n')}\nWHERE id = ${id};\n  GET DIAGNOSTICS affected = ROW_COUNT;\n  IF affected <> 1 THEN\n    RAISE EXCEPTION 'Questão ${id}: esperado exatamente um registro, encontrado %', affected;\n  END IF;\n  -- Migrated by the curation: out of the quarantine of unaudited questions, where it exists.\n  IF to_regclass('public.question_lifecycle') IS NOT NULL THEN\n    UPDATE public.question_lifecycle SET state = 'active', state_changed_at = now(), notes = 'Liberada: migrada pela curadoria.'\n    WHERE question_id = ${id} AND state = 'under_review';\n  END IF;\nEND;`;
     let suffix = 0;
     while (body.includes(`$apex_update_${suffix}$`)) suffix++;
     const delimiter = `$apex_update_${suffix}$`;
