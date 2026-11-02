@@ -22,14 +22,22 @@ migradas as (
   select distinct e.question_id
   from curation_private.sql_exports e, params
   where substring(e.batch from '^Lote (\d+)')::int between 1 and params.max_lote
+),
+totais as (
+  select priority, count(*) as total_na_lista
+  from public.curation_priorities
+  group by priority
+),
+por_prioridade as (
+  select coalesce(p.priority, 'fora da lista') as prioridade, count(*) as migradas
+  from migradas m
+  left join public.curation_priorities p using (question_id)
+  group by 1
 )
-select coalesce(p.priority, 'fora da lista') as prioridade,
-       count(m.question_id) as migradas,
-       (select count(*) from public.curation_priorities pp where pp.priority = p.priority) as total_na_lista
-from migradas m
-left join public.curation_priorities p using (question_id)
-group by p.priority
-order by p.priority nulls last;
+select pp.prioridade, pp.migradas, coalesce(t.total_na_lista, 0) as total_na_lista
+from por_prioridade pp
+left join totais t on t.priority = pp.prioridade
+order by pp.prioridade;
 
 -- 3) P0 e P1 que ainda NÃO foram migradas nos lotes 1 a 12 (ficarão em quarentena).
 with params(max_lote) as (values (12)),
