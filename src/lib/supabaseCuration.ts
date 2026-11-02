@@ -313,3 +313,20 @@ export async function signOutSupabase() {
   cursor=0;shared.clear();base.clear();
   await clearCachedBase();
 }
+
+/** IDs only; the Edge Function checks the password session and keeps Apex credentials server-side. */
+export async function fetchQuarantinedIds(signal?:AbortSignal):Promise<Set<string>> {
+  const {url,key}=projectConfig();
+  const token=sessionStorage.getItem(SESSION_KEY);
+  if(!token) throw new Error('Sessão expirada. Entre novamente com a senha mestra.');
+  const response=await fetch(`${url}/functions/v1/question-quarantine`, {
+    headers:{apikey:key,'x-apex-session':token},signal,
+  });
+  const body=await response.json().catch(()=>({})) as {ids?:string[];error?:string};
+  if(response.status===401) {
+    sessionStorage.removeItem(SESSION_KEY);
+    if(typeof window!=='undefined') window.dispatchEvent(new Event('apex-session-expired'));
+  }
+  if(!response.ok||!Array.isArray(body.ids)) throw new Error(body.error||'Não foi possível consultar a quarentena.');
+  return new Set(body.ids.map(String));
+}

@@ -6,6 +6,8 @@ export const isUrgent = (p?: Priority) => p === 'P0' || p === 'P1';
 
 export interface CurationPriorities {
   of: Map<string, Priority>;
+  /** Open public-question quarantines in Apex Medicina, refreshed independently. */
+  quarantined?: Set<string>;
   /** Planned owner (curator id) of each prioritized question. */
   plannedFor: Map<string, string>;
   /** Position inside its priority, for a stable order. */
@@ -23,17 +25,29 @@ export function buildPriorities(priority: Record<string, string[]>, planned: Rec
 
 /** 0 for P0 … 3 for P3, 9 without priority. */
 export function priorityIndex(priorities: CurationPriorities | null | undefined, id: string) {
+  if (priorities?.quarantined?.has(id)) return -1;
   const p = priorities?.of.get(id);
   return p ? PRIORITIES.indexOf(p) : 9;
 }
 
-/** Sort key: P0 first, then P1, P2, P3, then questions without priority; by rank, then id. */
+/** Sort key: quarantine first, then P0, then P1, P2, P3, then questions without priority; by rank, then id. */
 export function priorityOrder(priorities: CurationPriorities | null | undefined) {
   return (a: {id: string}, b: {id: string}) => {
-    const pa = priorities?.of.get(a.id), pb = priorities?.of.get(b.id);
-    const ia = pa ? PRIORITIES.indexOf(pa) : 9, ib = pb ? PRIORITIES.indexOf(pb) : 9;
+    const ia = priorityIndex(priorities, a.id), ib = priorityIndex(priorities, b.id);
     if (ia !== ib) return ia - ib;
     const ra = priorities?.rank.get(a.id) ?? 0, rb = priorities?.rank.get(b.id) ?? 0;
     return ra !== rb ? ra - rb : Number(a.id) - Number(b.id);
   };
+}
+
+/** Quarantine always precedes ownership; existing priorities break ties. */
+export function reviewOrder<T extends {id: string; status: string; responsavel_id?: string | null}>(
+  questions: T[], curatorId: string, priorities: CurationPriorities | null | undefined,
+): T[] {
+  const byPriority = priorityOrder(priorities);
+  const mine = (q: T) => q.status === 'pendente' && q.responsavel_id === curatorId ? 0 : 1;
+  return [...questions].sort((a, b) => quarantineOrder(priorities, a.id, b.id) || mine(a) - mine(b) || byPriority(a, b));
+}
+export function quarantineOrder(priorities: CurationPriorities | null | undefined, a: string, b: string) {
+  return Number(Boolean(priorities?.quarantined?.has(b))) - Number(Boolean(priorities?.quarantined?.has(a)));
 }

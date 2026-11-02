@@ -535,3 +535,29 @@ test('detail view has a decision bar for phones that approves and asks before el
  await act(async()=>renderer.unmount());
  if(!hadWindow) delete g.window;
 });
+
+test('table keeps quarantine first in both ID directions and opens it before owned work', async () => {
+  let renderer:any;
+  const opened:string[]=[];
+  let priorities={of:new Map(),plannedFor:new Map(),rank:new Map(),quarantined:new Set(['3'])};
+  const questions=rows.map(q=>q.id==='3'?{...q,status:'aprovadas' as const,responsavel_id:DEFAULT_CURATORS[1].id}:q);
+  const textOf=(node:any):string=>typeof node==='string'?node:(node.children??[]).map(textOf).join('');
+  const render=()=> <QuestionsTable {...common} questions={questions} priorities={priorities} presences={{}} comments={{}}
+    onSelectQuestion={q=>opened.push(q.id)} onUpdateStatus={async()=>true} onAssignQuestion={()=>{}} onSelectedQuestions={async()=>true}/>;
+  try {
+    await act(async()=>{renderer=create(render());});
+    const ids=()=>renderer.root.findAllByType('tr').filter((node:any)=>node.props['data-question-id']).map((node:any)=>node.props['data-question-id']);
+    assert.deepEqual(ids(),['3','1','2']);
+    const sort=renderer.root.findAllByType('button').find((node:any)=>textOf(node).startsWith('ID '));
+    await act(async()=>sort.props.onClick());
+    assert.deepEqual(ids(),['3','2','1']);
+    const next=renderer.root.findAllByType('button').find((node:any)=>textOf(node).includes('Revisar quarentena'));
+    await act(async()=>next.props.onClick());
+    assert.deepEqual(opened,['3']);
+    priorities={...priorities,quarantined:new Set()};
+    await act(async()=>renderer.update(render()));
+    assert.deepEqual(ids(),['3','2','1']); // Descending ID resumes after closure.
+    await act(async()=>sort.props.onClick());
+    assert.deepEqual(ids(),['1','2','3']);
+  } finally {if(renderer) await act(async()=>renderer.unmount());}
+});
