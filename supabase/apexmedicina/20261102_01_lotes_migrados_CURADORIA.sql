@@ -28,8 +28,8 @@ select coalesce(p.priority, 'fora da lista') as prioridade,
        (select count(*) from public.curation_priorities pp where pp.priority = p.priority) as total_na_lista
 from migradas m
 left join public.curation_priorities p using (question_id)
-group by 1
-order by 1;
+group by p.priority
+order by p.priority nulls last;
 
 -- 3) P0 e P1 que ainda NÃO foram migradas nos lotes 1 a 12 (ficarão em quarentena).
 with params(max_lote) as (values (12)),
